@@ -24,5 +24,18 @@
       "Sistemas Inteligentes."
     ],
     "tipo": "internacional"
+  },
+  {
+    "nombre": "Paco Pérez.",
+    "origen": "Albacete.",
+    "destino": "Murcia.",
+    "fecha_inicio": "25/03/2025",
+    "fecha_fin": "10/07/25",
+    "materias": [
+      "Programación II",
+      "Física",
+      "Sistemas Inteligentes."
+    ],
+    "tipo": "internacional"
   }
 ]

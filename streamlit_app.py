@@ -5,31 +5,37 @@ from map_generator import generar_mapa
 from streamlit.components.v1 import iframe
 
 st.set_page_config(page_title="Visualizador de Traslados", layout="wide")
-st.title("📍 Visualizador de Erasmus mediante PDFs y JSON")
+st.title("📍 Visualizador de Traslados")
+
+RUTA_DIR = "output"
+RUTA_TEMP = os.path.join(RUTA_DIR, "temp.pdf")
+RUTA_JSON = os.path.join(RUTA_DIR, "datos_extraidos.json")
+RUTA_MAPA = os.path.join(RUTA_DIR, "mapa.html")
+os.makedirs(RUTA_DIR, exist_ok=True)
 
 # Subida de PDF
 pdf = st.file_uploader("📄 Sube un archivo PDF", type=["pdf"])
 
-if pdf:
-    # Guardar PDF temporalmente
-    ruta_temp = "output/temp.pdf"
-    with open(ruta_temp, "wb") as f:
-        f.write(pdf.read())
-
-    # Extraer datos y actualizar JSON
-    datos = extraer_datos_pdf(ruta_temp)
-    if datos:
-        st.success("✅ Datos extraídos correctamente.")
-
-        # Generar mapa con los datos acumulados
-        generar_mapa()
-
-        # Mostrar el mapa dentro del navegador
-        ruta_mapa = "output/mapa.html"
-        if os.path.exists(ruta_mapa):
-            st.markdown("### 🌍 Mapa de traslados")
-            iframe(ruta_mapa, height=600, width=1000)
+if pdf is not None:
+    try:
+        with open(RUTA_TEMP, "wb") as f:
+            f.write(pdf.read())
+        datos = extraer_datos_pdf(RUTA_TEMP)  # esta función debería actualizar output/datos_extraidos.json
+        if datos:
+            st.success("✅ Datos extraídos y JSON actualizado.")
         else:
-            st.error("❌ No se pudo generar el mapa.")
-    else:
-        st.warning("⚠️ No se extrajo información válida del PDF.")
+            st.warning("⚠️ No se extrajo información válida del PDF.")
+    except Exception as e:
+        st.error(f"Error procesando el PDF: {e}")
+
+st.divider()
+
+# Mostrar datos extraídos
+if os.path.exists(RUTA_JSON):
+    if st.button("Mapa"):
+        try:
+            generar_mapa(RUTA_JSON, RUTA_MAPA)
+            st.success("✅ Mapa generado.")
+        except Exception as e:
+            st.error(f"Error generando el mapa: {e}")
+    

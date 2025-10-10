@@ -2,7 +2,7 @@ import fitz  # PyMuPDF
 import re
 import json
 import os
-
+#  TODO: cambiar cuando tenga ejemplos reales
 def extraer_datos_pdf(ruta_pdf, ruta_json="output/datos_extraidos.json"):
     try:
         doc = fitz.open(ruta_pdf)
@@ -39,6 +39,7 @@ def extraer_datos_pdf(ruta_pdf, ruta_json="output/datos_extraidos.json"):
         return []
 
     # Clasificar como nacional o internacional
+    # TODO: mejorar con lista completa de destinos nacionales (automática)
     destinos_nacionales = ["Madrid", "Sevilla", "Murcia", "Barcelona", "Albacete", "Valencia"]
     nuevo_dato["tipo"] = "nacional" if nuevo_dato["destino"].capitalize() in destinos_nacionales else "internacional"
 
