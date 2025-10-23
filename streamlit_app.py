@@ -2,6 +2,7 @@ import streamlit as st
 import os
 from extract_pdf import extraer_datos_pdf
 from map_generator import generar_mapa
+from map_generator_leaf import generar_mapa_leafmap
 from streamlit.components.v1 import iframe
 
 st.set_page_config(page_title="Visualizador de Traslados", layout="wide")
@@ -34,7 +35,8 @@ st.divider()
 if os.path.exists(RUTA_JSON):
     if st.button("Mapa"):
         try:
-            generar_mapa(RUTA_JSON, RUTA_MAPA)
+            # generar_mapa(RUTA_JSON, RUTA_MAPA)
+            generar_mapa_leafmap(RUTA_JSON, RUTA_MAPA)
             st.success("✅ Mapa generado.")
         except Exception as e:
             st.error(f"Error generando el mapa: {e}")

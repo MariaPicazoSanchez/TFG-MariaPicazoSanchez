@@ -17,7 +17,7 @@
             <meta name="viewport" content="width=device-width,
                 initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
             <style>
-                #map_629863b6c3ae0fe40bcc6f524bb1da58 {
+                #map_1b7dbae78100960c1803c2cba7dff1f2 {
                     position: relative;
                     width: 100.0%;
                     height: 100.0%;
@@ -50,40 +50,71 @@
             </script>
 
         
+    <script src="https://cdn.jsdelivr.net/npm/leaflet.fullscreen@3.0.0/Control.FullScreen.min.js"></script>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/leaflet.fullscreen@3.0.0/Control.FullScreen.css"/>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.2/leaflet.draw.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.2/leaflet.draw.css"/>
+    <script src="https://unpkg.com/leaflet-control-geocoder/dist/Control.Geocoder.js"></script>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet-control-geocoder/dist/Control.Geocoder.css"/>
 </head>
 <body>
     
     
-            <div class="folium-map" id="map_629863b6c3ae0fe40bcc6f524bb1da58" ></div>
+            <div class="folium-map" id="map_1b7dbae78100960c1803c2cba7dff1f2" ></div>
+        
+    
+            
+            <style>
+                #export {
+                    position: absolute;
+                    top: 5px;
+                    right: 10px;
+                    z-index: 999;
+                    background: white;
+                    color: black;
+                    padding: 6px;
+                    border-radius: 4px;
+                    font-family: 'Helvetica Neue';
+                    cursor: pointer;
+                    font-size: 12px;
+                    text-decoration: none;
+                    top: 90px;
+                }
+            </style>
+            <a href='#' id='export'>Export</a>
+            
         
 </body>
 <script>
     
     
-            var map_629863b6c3ae0fe40bcc6f524bb1da58 = L.map(
-                "map_629863b6c3ae0fe40bcc6f524bb1da58",
+            var map_1b7dbae78100960c1803c2cba7dff1f2 = L.map(
+                "map_1b7dbae78100960c1803c2cba7dff1f2",
                 {
-                    center: [40.0, -3.7],
+                    center: [40.0, 0.0],
                     crs: L.CRS.EPSG3857,
                     ...{
-  "zoom": 5,
+  "zoom": 4,
   "zoomControl": true,
   "preferCanvas": false,
+  "drawExport": true,
+  "layersControl": true,
 }
 
                 }
             );
+            L.control.scale().addTo(map_1b7dbae78100960c1803c2cba7dff1f2);
 
             
 
         
     
-            var tile_layer_c6ae4b573bba597d9a24853cbad4c979 = L.tileLayer(
+            var tile_layer_c66b5ce1f03996653ea5dc95d25a23ad = L.tileLayer(
                 "https://tile.openstreetmap.org/{z}/{x}/{y}.png",
                 {
   "minZoom": 0,
-  "maxZoom": 19,
-  "maxNativeZoom": 19,
+  "maxZoom": 24,
+  "maxNativeZoom": 24,
   "noWrap": false,
   "attribution": "\u0026copy; \u003ca href=\"https://www.openstreetmap.org/copyright\"\u003eOpenStreetMap\u003c/a\u003e contributors",
   "subdomains": "abc",
@@ -95,50 +126,145 @@
             );
         
     
-            tile_layer_c6ae4b573bba597d9a24853cbad4c979.addTo(map_629863b6c3ae0fe40bcc6f524bb1da58);
+            tile_layer_c66b5ce1f03996653ea5dc95d25a23ad.addTo(map_1b7dbae78100960c1803c2cba7dff1f2);
         
     
-            var feature_group_dfcf6193e1dde53610e20a341a41a957 = L.featureGroup(
+            L.control.fullscreen(
                 {
+  "position": "topleft",
+  "title": "Full Screen",
+  "titleCancel": "Exit Full Screen",
+  "forceSeparateButton": false,
 }
+            ).addTo(map_1b7dbae78100960c1803c2cba7dff1f2);
+        
+    
+            var options = {
+              position: "topleft",
+              draw: {},
+              edit: {},
+            }
+                // FeatureGroup is to store editable layers.
+                var drawnItems_draw_control_f3f1979b5f585c6e5411bee29354c2bd =
+                    new L.featureGroup().addTo(
+                        map_1b7dbae78100960c1803c2cba7dff1f2
+                    );
+
+            options.edit.featureGroup = drawnItems_draw_control_f3f1979b5f585c6e5411bee29354c2bd;
+            var draw_control_f3f1979b5f585c6e5411bee29354c2bd = new L.Control.Draw(
+                options
+            ).addTo( map_1b7dbae78100960c1803c2cba7dff1f2 );
+            map_1b7dbae78100960c1803c2cba7dff1f2.on(L.Draw.Event.CREATED, function(e) {
+                var layer = e.layer,
+                    type = e.layerType;
+                var coords = JSON.stringify(layer.toGeoJSON());
+                layer.on('click', function() {
+                    alert(coords);
+                    console.log(coords);
+                });
+                drawnItems_draw_control_f3f1979b5f585c6e5411bee29354c2bd.addLayer(layer);
+            });
+            map_1b7dbae78100960c1803c2cba7dff1f2.on('draw:created', function(e) {
+                drawnItems_draw_control_f3f1979b5f585c6e5411bee29354c2bd.addLayer(e.layer);
+            });
+
+            
+            document.getElementById('export').onclick = function(e) {
+                var data = drawnItems_draw_control_f3f1979b5f585c6e5411bee29354c2bd.toGeoJSON();
+                var convertedData = 'text/json;charset=utf-8,'
+                    + encodeURIComponent(JSON.stringify(data));
+                document.getElementById('export').setAttribute(
+                    'href', 'data:' + convertedData
+                );
+                document.getElementById('export').setAttribute(
+                    'download', "data.geojson"
+                );
+            }
+            
+        
+    
+
+            var geocoderOpts_geocoder_db0da962696a9e0f2e92bcb225c2b7bc = {
+  "collapsed": true,
+  "position": "topleft",
+  "defaultMarkGeocode": true,
+  "zoom": 11,
+  "provider": "nominatim",
+  "providerOptions": {
+},
+};
+
+            // note: geocoder name should start with lowercase
+            var geocoderName_geocoder_db0da962696a9e0f2e92bcb225c2b7bc = geocoderOpts_geocoder_db0da962696a9e0f2e92bcb225c2b7bc["provider"];
+
+            var customGeocoder_geocoder_db0da962696a9e0f2e92bcb225c2b7bc = L.Control.Geocoder[ geocoderName_geocoder_db0da962696a9e0f2e92bcb225c2b7bc ](
+                geocoderOpts_geocoder_db0da962696a9e0f2e92bcb225c2b7bc['providerOptions']
+            );
+            geocoderOpts_geocoder_db0da962696a9e0f2e92bcb225c2b7bc["geocoder"] = customGeocoder_geocoder_db0da962696a9e0f2e92bcb225c2b7bc;
+
+            L.Control.geocoder(
+                geocoderOpts_geocoder_db0da962696a9e0f2e92bcb225c2b7bc
+            ).on('markgeocode', function(e) {
+                var zoom = geocoderOpts_geocoder_db0da962696a9e0f2e92bcb225c2b7bc['zoom'] || map_1b7dbae78100960c1803c2cba7dff1f2.getZoom();
+                map_1b7dbae78100960c1803c2cba7dff1f2.setView(e.geocode.center, zoom);
+            }).addTo(map_1b7dbae78100960c1803c2cba7dff1f2);
+
+        
+    
+            map_1b7dbae78100960c1803c2cba7dff1f2.fitBounds(
+                [[40, 0], [40, 0]],
+                {"maxZoom": 4}
             );
         
     
-            feature_group_dfcf6193e1dde53610e20a341a41a957.addTo(map_629863b6c3ae0fe40bcc6f524bb1da58);
-        
-    
-            var feature_group_ab268c72a440e9e1182d0b19b92c25f2 = L.featureGroup(
+            var tile_layer_9051850ce5d7006ca3095bead17a66f3 = L.tileLayer(
+                "https://a.basemaps.cartocdn.com/light_all/{z}/{x}/{y}.png",
                 {
+  "minZoom": 0,
+  "maxZoom": 20,
+  "maxNativeZoom": 20,
+  "noWrap": false,
+  "attribution": "(C) OpenStreetMap contributors (C) CARTO",
+  "subdomains": "abc",
+  "detectRetina": false,
+  "tms": false,
+  "opacity": 1,
 }
+
             );
         
     
-            var circle_marker_9a9c82f4f0f53185c39adeafd7350e88 = L.circleMarker(
+            tile_layer_9051850ce5d7006ca3095bead17a66f3.addTo(map_1b7dbae78100960c1803c2cba7dff1f2);
+        
+    
+            var marker_d1084b83ed18089ad5cce5a75d8e3221 = L.marker(
                 [37.9923795, -1.1305431],
-                {"bubblingMouseEvents": true, "color": "black", "dashArray": null, "dashOffset": null, "fill": true, "fillColor": "orange", "fillOpacity": 0.6, "fillRule": "evenodd", "lineCap": "round", "lineJoin": "round", "opacity": 1.0, "radius": 13, "stroke": true, "weight": 3}
-            ).addTo(feature_group_ab268c72a440e9e1182d0b19b92c25f2);
+                {
+  "iconColor": "orange",
+}
+            ).addTo(map_1b7dbae78100960c1803c2cba7dff1f2);
         
     
-        var popup_3921dfbc487490584d0254662d995d97 = L.popup({
-  "maxWidth": 300,
+        var popup_48213dd5c13a42363d4ef79b03bcd569 = L.popup({
+  "maxWidth": "100%",
 });
 
         
             
-                var html_3b63cfc199f7e694314b257fcb239566 = $(`<div id="html_3b63cfc199f7e694314b257fcb239566" style="width: 100.0%; height: 100.0%;"><b>Murcia.</b><br>Total traslados: 3<br><br>👤 <b>Paco Pérez.</b><br>📍 Origen: Albacete.<br>📚 Materias: Programación II, Física, Sistemas Inteligentes.<br><hr>👤 <b>Paco Pérez.</b><br>📍 Origen: Albacete.<br>📚 Materias: Programación II, Física, Sistemas Inteligentes.<br><hr>👤 <b>Paco Pérez.</b><br>📍 Origen: Albacete.<br>📚 Materias: Programación II, Física, Sistemas Inteligentes.<br><hr></div>`)[0];
-                popup_3921dfbc487490584d0254662d995d97.setContent(html_3b63cfc199f7e694314b257fcb239566);
+                var html_718cf3a22e25133d34eee3d2903bd793 = $(`<div id="html_718cf3a22e25133d34eee3d2903bd793" style="width: 100.0%; height: 100.0%;">         <div style='font-family:sans-serif;min-width:180px'>             <b>Paco Pérez.</b><br>             Origen: Albacete.<br>             Materias: Programación II, Física, Sistemas Inteligentes.<br><br>             <button style='background-color:#4CAF50;color:white;border:none;             padding:5px 10px;border-radius:5px;cursor:pointer;'>Acción</button>         </div>         </div>`)[0];
+                popup_48213dd5c13a42363d4ef79b03bcd569.setContent(html_718cf3a22e25133d34eee3d2903bd793);
             
         
 
-        circle_marker_9a9c82f4f0f53185c39adeafd7350e88.bindPopup(popup_3921dfbc487490584d0254662d995d97)
+        marker_d1084b83ed18089ad5cce5a75d8e3221.bindPopup(popup_48213dd5c13a42363d4ef79b03bcd569)
         ;
 
         
     
     
-            circle_marker_9a9c82f4f0f53185c39adeafd7350e88.bindTooltip(
+            marker_d1084b83ed18089ad5cce5a75d8e3221.bindTooltip(
                 `<div>
-                     Murcia.: 3 traslado(s)
+                     Paco Pérez.
                  </div>`,
                 {
   "sticky": true,
@@ -146,27 +272,93 @@
             );
         
     
-            feature_group_ab268c72a440e9e1182d0b19b92c25f2.addTo(map_629863b6c3ae0fe40bcc6f524bb1da58);
+            var marker_523fc49559bf4232933f51aae451da0e = L.marker(
+                [37.9923795, -1.1305431],
+                {
+  "iconColor": "orange",
+}
+            ).addTo(map_1b7dbae78100960c1803c2cba7dff1f2);
         
     
-            var layer_control_398d14978494bed6b50cc9d368b1714c_layers = {
+        var popup_e38972da2b20621f2c285ca209b86a36 = L.popup({
+  "maxWidth": "100%",
+});
+
+        
+            
+                var html_e2827d26f98062d839dc26a5a8f076b3 = $(`<div id="html_e2827d26f98062d839dc26a5a8f076b3" style="width: 100.0%; height: 100.0%;">         <div style='font-family:sans-serif;min-width:180px'>             <b>Paco Pérez.</b><br>             Origen: Albacete.<br>             Materias: Programación II, Física, Sistemas Inteligentes.<br><br>             <button style='background-color:#4CAF50;color:white;border:none;             padding:5px 10px;border-radius:5px;cursor:pointer;'>Acción</button>         </div>         </div>`)[0];
+                popup_e38972da2b20621f2c285ca209b86a36.setContent(html_e2827d26f98062d839dc26a5a8f076b3);
+            
+        
+
+        marker_523fc49559bf4232933f51aae451da0e.bindPopup(popup_e38972da2b20621f2c285ca209b86a36)
+        ;
+
+        
+    
+    
+            marker_523fc49559bf4232933f51aae451da0e.bindTooltip(
+                `<div>
+                     Paco Pérez.
+                 </div>`,
+                {
+  "sticky": true,
+}
+            );
+        
+    
+            var marker_dff83aee85f053eaf9830ebd971145f3 = L.marker(
+                [37.9923795, -1.1305431],
+                {
+  "iconColor": "orange",
+}
+            ).addTo(map_1b7dbae78100960c1803c2cba7dff1f2);
+        
+    
+        var popup_a7d1b1f9d4ddbf5f5da777a462504bee = L.popup({
+  "maxWidth": "100%",
+});
+
+        
+            
+                var html_58feb4170350da5e67c0a85e4d0ac98b = $(`<div id="html_58feb4170350da5e67c0a85e4d0ac98b" style="width: 100.0%; height: 100.0%;">         <div style='font-family:sans-serif;min-width:180px'>             <b>Paco Pérez.</b><br>             Origen: Albacete.<br>             Materias: Programación II, Física, Sistemas Inteligentes.<br><br>             <button style='background-color:#4CAF50;color:white;border:none;             padding:5px 10px;border-radius:5px;cursor:pointer;'>Acción</button>         </div>         </div>`)[0];
+                popup_a7d1b1f9d4ddbf5f5da777a462504bee.setContent(html_58feb4170350da5e67c0a85e4d0ac98b);
+            
+        
+
+        marker_dff83aee85f053eaf9830ebd971145f3.bindPopup(popup_a7d1b1f9d4ddbf5f5da777a462504bee)
+        ;
+
+        
+    
+    
+            marker_dff83aee85f053eaf9830ebd971145f3.bindTooltip(
+                `<div>
+                     Paco Pérez.
+                 </div>`,
+                {
+  "sticky": true,
+}
+            );
+        
+    
+            var layer_control_cd8d13a6eda38e3041e5700338c66479_layers = {
                 base_layers : {
-                    "openstreetmap" : tile_layer_c6ae4b573bba597d9a24853cbad4c979,
+                    "openstreetmap" : tile_layer_c66b5ce1f03996653ea5dc95d25a23ad,
                 },
                 overlays :  {
-                    "Traslados Nacionales" : feature_group_dfcf6193e1dde53610e20a341a41a957,
-                    "Traslados Internacionales" : feature_group_ab268c72a440e9e1182d0b19b92c25f2,
+                    "CartoDB.Positron" : tile_layer_9051850ce5d7006ca3095bead17a66f3,
                 },
             };
-            let layer_control_398d14978494bed6b50cc9d368b1714c = L.control.layers(
-                layer_control_398d14978494bed6b50cc9d368b1714c_layers.base_layers,
-                layer_control_398d14978494bed6b50cc9d368b1714c_layers.overlays,
+            let layer_control_cd8d13a6eda38e3041e5700338c66479 = L.control.layers(
+                layer_control_cd8d13a6eda38e3041e5700338c66479_layers.base_layers,
+                layer_control_cd8d13a6eda38e3041e5700338c66479_layers.overlays,
                 {
   "position": "topright",
   "collapsed": true,
   "autoZIndex": true,
 }
-            ).addTo(map_629863b6c3ae0fe40bcc6f524bb1da58);
+            ).addTo(map_1b7dbae78100960c1803c2cba7dff1f2);
 
         
 </script>
