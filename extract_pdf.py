@@ -1,3 +1,7 @@
+# EJEMPLO DE EXTRACCIÓN DE DATOS
+# Hay que saber como son los pdfs y modificar este código según el formato real
+# TODO: hacer la inserción mediante la base de datos  
+
 import fitz  # PyMuPDF
 import re
 import json
