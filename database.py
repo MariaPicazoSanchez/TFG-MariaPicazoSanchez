@@ -23,8 +23,7 @@ class DatabaseManager:
         # Tabla principal ESTUDIANTES
         cursor.execute('''
             CREATE TABLE IF NOT EXISTS ESTUDIANTES (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                nombre VARCHAR(255) NOT NULL,
+                nombre VARCHAR(255) PRIMARY KEY,
                 origen VARCHAR(255) NOT NULL,
                 destino VARCHAR(255) NOT NULL,
                 tipo VARCHAR(10) CHECK(tipo IN ('out', 'in', 'SICUE')) NOT NULL,
@@ -35,32 +34,32 @@ class DatabaseManager:
         # Tabla ESTUDIANTES_OUT
         cursor.execute('''
             CREATE TABLE IF NOT EXISTS ESTUDIANTES_OUT (
-                estudiante_id INTEGER PRIMARY KEY,
+                estudiante_nombre VARCHAR(255) PRIMARY KEY,
                 tor_link VARCHAR(500),
                 curso VARCHAR(50),
                 acta_equivalencias VARCHAR(500),
-                FOREIGN KEY (estudiante_id) REFERENCES ESTUDIANTES(id) ON DELETE CASCADE
+                FOREIGN KEY (estudiante_nombre) REFERENCES ESTUDIANTES(nombre) ON DELETE CASCADE
             )
         ''')
         
         # Tabla ESTUDIANTES_IN
         cursor.execute('''
             CREATE TABLE IF NOT EXISTS ESTUDIANTES_IN (
-                estudiante_id INTEGER PRIMARY KEY,
+                estudiante_nombre VARCHAR(255) PRIMARY KEY,
                 horario_link VARCHAR(500),
-                FOREIGN KEY (estudiante_id) REFERENCES ESTUDIANTES(id) ON DELETE CASCADE
+                FOREIGN KEY (estudiante_nombre) REFERENCES ESTUDIANTES(nombre) ON DELETE CASCADE
             )
         ''')
         
         # Tabla ESTUDIANTES_SICUE
         cursor.execute('''
             CREATE TABLE IF NOT EXISTS ESTUDIANTES_SICUE (
-                estudiante_id INTEGER PRIMARY KEY,
+                estudiante_nombre VARCHAR(255) PRIMARY KEY,
                 plan_estudios_link VARCHAR(500),
                 firmado_origen VARCHAR(20) CHECK(firmado_origen IN ('Pendiente', 'Firmado')) DEFAULT 'Pendiente',
                 firmado_destino VARCHAR(20) CHECK(firmado_destino IN ('Pendiente', 'Firmado')) DEFAULT 'Pendiente',
                 enviado_vicerrectorado VARCHAR(20) CHECK(enviado_vicerrectorado IN ('Pendiente', 'Enviado')) DEFAULT 'Pendiente',
-                FOREIGN KEY (estudiante_id) REFERENCES ESTUDIANTES(id) ON DELETE CASCADE
+                FOREIGN KEY (estudiante_nombre) REFERENCES ESTUDIANTES(nombre) ON DELETE CASCADE
             )
         ''')
         
@@ -78,10 +77,9 @@ class DatabaseManager:
                 "INSERT INTO ESTUDIANTES (nombre, origen, destino, tipo, la_link) VALUES (?, ?, ?, ?, ?)", 
                 (nombre, origen, destino, tipo, la_link)
             )
-            estudiante_id = cursor.lastrowid
             conn.commit()
-            print(f"Estudiante '{nombre}' agregado con ID: {estudiante_id}")
-            return estudiante_id
+            print(f"Estudiante '{nombre}' agregado correctamente.")
+            return nombre
         except sqlite3.IntegrityError as e:
             print(f"Error al insertar estudiante: {e}")
             return None
@@ -93,36 +91,36 @@ class DatabaseManager:
         cursor = conn.cursor()
         
         if tipo:
-            cursor.execute("SELECT * FROM ESTUDIANTES WHERE tipo = ? ORDER BY id", (tipo,))
+            cursor.execute("SELECT * FROM ESTUDIANTES WHERE tipo = ? ORDER BY nombre", (tipo,))
         else:
-            cursor.execute("SELECT * FROM ESTUDIANTES ORDER BY id")
+            cursor.execute("SELECT * FROM ESTUDIANTES ORDER BY nombre")
         
         filas = cursor.fetchall()
         conn.close()
         return filas
     
-    def obtener_estudiante_por_id(self, estudiante_id):
+    def obtener_estudiante_por_nombre(self, estudiante_nombre):
         conn = self.get_connection()
         cursor = conn.cursor()
-        cursor.execute("SELECT * FROM ESTUDIANTES WHERE id = ?", (estudiante_id,))
+        cursor.execute("SELECT * FROM ESTUDIANTES WHERE nombre = ?", (estudiante_nombre,))
         estudiante = cursor.fetchone()
         conn.close()
         return estudiante
     
     # ===== OPERACIONES PARA ESTUDIANTES_OUT =====
     
-    def insertar_estudiante_out(self, estudiante_id, tor_link=None, curso=None, acta_equivalencias=None):
+    def insertar_estudiante_out(self, estudiante_nombre, tor_link=None, curso=None, acta_equivalencias=None):
         conn = self.get_connection()
         cursor = conn.cursor()
         try:
             cursor.execute(
                 """INSERT INTO ESTUDIANTES_OUT 
-                (estudiante_id, tor_link, curso, acta_equivalencias) 
+                (estudiante_nombre, tor_link, curso, acta_equivalencias) 
                 VALUES (?, ?, ?, ?)""", 
-                (estudiante_id, tor_link, curso, acta_equivalencias)
+                (estudiante_nombre, tor_link, curso, acta_equivalencias)
             )
             conn.commit()
-            print(f"Datos OUT agregados para estudiante ID: {estudiante_id}")
+            print(f"Datos OUT agregados para estudiante: {estudiante_nombre}")
             return True
         except sqlite3.IntegrityError as e:
             print(f"Error al insertar datos OUT: {e}")
@@ -130,26 +128,26 @@ class DatabaseManager:
         finally:
             conn.close()
     
-    def obtener_estudiante_out(self, estudiante_id):
+    def obtener_estudiante_out(self, estudiante_nombre):
         conn = self.get_connection()
         cursor = conn.cursor()
-        cursor.execute("SELECT * FROM ESTUDIANTES_OUT WHERE estudiante_id = ?", (estudiante_id,))
+        cursor.execute("SELECT * FROM ESTUDIANTES_OUT WHERE estudiante_nombre = ?", (estudiante_nombre,))
         datos = cursor.fetchone()
         conn.close()
         return datos
     
     # ===== OPERACIONES PARA ESTUDIANTES_IN =====
     
-    def insertar_estudiante_in(self, estudiante_id, horario_link=None):
+    def insertar_estudiante_in(self, estudiante_nombre, horario_link=None):
         conn = self.get_connection()
         cursor = conn.cursor()
         try:
             cursor.execute(
-                "INSERT INTO ESTUDIANTES_IN (estudiante_id, horario_link) VALUES (?, ?)", 
-                (estudiante_id, horario_link)
+                "INSERT INTO ESTUDIANTES_IN (estudiante_nombre, horario_link) VALUES (?, ?)", 
+                (estudiante_nombre, horario_link)
             )
             conn.commit()
-            print(f"Datos IN agregados para estudiante ID: {estudiante_id}")
+            print(f"Datos IN agregados para estudiante: {estudiante_nombre}")
             return True
         except sqlite3.IntegrityError as e:
             print(f"Error al insertar datos IN: {e}")
@@ -157,28 +155,28 @@ class DatabaseManager:
         finally:
             conn.close()
     
-    def obtener_estudiante_in(self, estudiante_id):
+    def obtener_estudiante_in(self, estudiante_nombre):
         conn = self.get_connection()
         cursor = conn.cursor()
-        cursor.execute("SELECT * FROM ESTUDIANTES_IN WHERE estudiante_id = ?", (estudiante_id,))
+        cursor.execute("SELECT * FROM ESTUDIANTES_IN WHERE estudiante_nombre = ?", (estudiante_nombre,))
         datos = cursor.fetchone()
         conn.close()
         return datos
     
     # ===== OPERACIONES PARA ESTUDIANTES_SICUE =====
     
-    def insertar_estudiante_sicue(self, estudiante_id, plan_estudios_link=None, firmado_origen='Pendiente', firmado_destino='Pendiente', enviado_vicerrectorado='Pendiente'):
+    def insertar_estudiante_sicue(self, estudiante_nombre, plan_estudios_link=None, firmado_origen='Pendiente', firmado_destino='Pendiente', enviado_vicerrectorado='Pendiente'):
         conn = self.get_connection()
         cursor = conn.cursor()
         try:
             cursor.execute(
                 """INSERT INTO ESTUDIANTES_SICUE 
-                (estudiante_id, plan_estudios_link, firmado_origen, firmado_destino, enviado_vicerrectorado) 
+                (estudiante_nombre, plan_estudios_link, firmado_origen, firmado_destino, enviado_vicerrectorado) 
                 VALUES (?, ?, ?, ?, ?)""", 
-                (estudiante_id, plan_estudios_link, firmado_origen, firmado_destino, enviado_vicerrectorado)
+                (estudiante_nombre, plan_estudios_link, firmado_origen, firmado_destino, enviado_vicerrectorado)
             )
             conn.commit()
-            print(f"Datos SICUE agregados para estudiante ID: {estudiante_id}")
+            print(f"Datos SICUE agregados para estudiante ID: {estudiante_nombre}")
             return True
         except sqlite3.IntegrityError as e:
             print(f"Error al insertar datos SICUE: {e}")
@@ -186,10 +184,10 @@ class DatabaseManager:
         finally:
             conn.close()
     
-    def obtener_estudiante_sicue(self, estudiante_id):
+    def obtener_estudiante_sicue(self, estudiante_nombre):
         conn = self.get_connection()
         cursor = conn.cursor()
-        cursor.execute("SELECT * FROM ESTUDIANTES_SICUE WHERE estudiante_id = ?", (estudiante_id,))
+        cursor.execute("SELECT * FROM ESTUDIANTES_SICUE WHERE estudiante_nombre = ?", (estudiante_nombre,))
         datos = cursor.fetchone()
         conn.close()
         return datos
@@ -205,16 +203,16 @@ class DatabaseManager:
                i.horario_link,
                s.plan_estudios_link, s.firmado_origen, s.firmado_destino, s.enviado_vicerrectorado
         FROM ESTUDIANTES e
-        LEFT JOIN ESTUDIANTES_OUT o ON e.id = o.estudiante_id
-        LEFT JOIN ESTUDIANTES_IN i ON e.id = i.estudiante_id
-        LEFT JOIN ESTUDIANTES_SICUE s ON e.id = s.estudiante_id
+        LEFT JOIN ESTUDIANTES_OUT o ON e.nombre = o.estudiante_nombre
+        LEFT JOIN ESTUDIANTES_IN i ON e.nombre = i.estudiante_nombre
+        LEFT JOIN ESTUDIANTES_SICUE s ON e.nombre = s.estudiante_nombre
         """
         
         if tipo:
-            query += " WHERE e.tipo = ? ORDER BY e.id"
+            query += " WHERE e.tipo = ? ORDER BY e.nombre"
             cursor.execute(query, (tipo,))
         else:
-            query += " ORDER BY e.id"
+            query += " ORDER BY e.nombre"
             cursor.execute(query)
         
         estudiantes = cursor.fetchall()
