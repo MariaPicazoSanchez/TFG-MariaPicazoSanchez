@@ -60,10 +60,10 @@ def verify_paths(config):
     errors = [f"{nombre}: {ruta}" for nombre, ruta in config.items() if not os.path.exists(ruta)]
     return (len(errors) == 0, errors)
 
-def get_placeholder(config, key, default):
+def get_placeholder(config, key):
     """Devuelve un placeholder: usa la ruta guardada o un valor por defecto si está vacío."""
     ruta = config.get(key, "")
-    return ruta if ruta else default
+    return ruta if ruta else f"Inserte la ruta del archivo {key} aquí"
 
 
 def route_editor(config):
