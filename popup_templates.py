@@ -1,74 +1,126 @@
-import html
-import json
-import math
+import html, json, math, re
 
 def _normalize_estudiantes(estudiantes):
-    # string JSON -> lista
     if isinstance(estudiantes, str):
         try:
             estudiantes = json.loads(estudiantes)
         except Exception:
             estudiantes = [{"estudiante": estudiantes}]
-    # dict -> lista
     if isinstance(estudiantes, dict):
         estudiantes = [estudiantes]
-    # None / NaN -> lista vacía
     if estudiantes is None or (isinstance(estudiantes, float) and math.isnan(estudiantes)):
         estudiantes = []
-    # filtra formatos raros
-    return [e for e in estudiantes if isinstance(e, dict) and e.get("estudiante")]
+    out = []
+    for e in estudiantes:
+        if isinstance(e, dict):
+            norm = {str(k).strip(): v for k, v in e.items()}
+            if "link_LA" in norm and "link_la" not in norm:
+                norm["link_la"] = norm["link_LA"]
+            if "Plan de estudios" in norm and "link_plan" not in norm:
+                norm["link_plan"] = norm["Plan de estudios"]
+            out.append(norm)
+    return out
+
+def _clean(v):
+    s = "" if v is None else str(v).strip()
+    return "" if s.lower() in {"nan", "none", ""} else s
+
+def _line(label, value):
+    value = _clean(value)
+    return f"<b>{label}:</b> {html.escape(value)}<br>" if value else ""
+
+def _link(label, url, text="Abrir"):
+    url = _clean(url)
+    if not url: return ""
+    safe_url = html.escape(url, quote=True)
+    return f"<b>{label}:</b> <a href='{safe_url}' target='_blank' rel='noopener noreferrer'>{html.escape(text)}</a><br>"
 
 def generate_dynamic_popup(row):
-    """Lista de nombres SIEMPRE visible.
-    - Al pasar el ratón: muestra detalles (CSS :hover).
-    - Al hacer click/tap: toggle de detalles (JS sin IDs).
-    """
-    universidad = html.escape(str(row.get("universidad","")))
-    pais = html.escape(str(row.get("pais","")))
+    universidad = html.escape(_clean(row.get("universidad",""))) or "Sin universidad"
+    pais = html.escape(_clean(row.get("pais","")))
+    ciudad = html.escape(_clean(row.get("ciudad","")))
     estudiantes = _normalize_estudiantes(row.get("estudiantes", []))
+    n = len(estudiantes)
 
-    def safe_line(label, value, is_link=False):
-        if not value or str(value).strip() in {"nan", "None", "No disponible", ""}:
-            return ""
-        if is_link:
-            return f"<b>{label}:</b> <a href='{value}' target='_blank' style='color:#004AAD;'>Abrir</a><br>"
-        return f"<b>{label}:</b> {html.escape(str(value))}<br>"
+    # Cabecera secundaria
+    sub = ""
+    if pais and ciudad:
+        sub = f"<p style='margin:4px 0 0 0;color:#555'><b>{pais}</b> · {ciudad}</p>"
+    elif pais:
+        sub = f"<p style='margin:4px 0 0 0;color:#555'><b>{pais}</b></p>"
+    elif ciudad:
+        sub = f"<p style='margin:4px 0 0 0;color:#555'><b>{ciudad}</b></p>"
 
+    # Items con <details>/<summary> (sin JS)
     items_html = []
-    for e in estudiantes or [{}]:
-        nombre = html.escape(str(e.get("estudiante", "(sin nombre)")))
-        ficha = "".join([
-            safe_line("Curso", e.get("curso")),
-            safe_line("Learning Agreement", e.get("link_LA"), True),
-            safe_line("ToR", e.get("ToR")),
-            safe_line("Acta de equivalencias", e.get("acta_equivalencias")),
-            safe_line("Plan de estudios", e.get("link_plan"), True),
-        ]) or "<i>Sin ficha disponible</i>"
-
-        items_html.append(f"""
-        <li class="pitem" style="margin:6px 0;">
-          <div class="pname"
-               style="cursor:pointer;color:#004AAD;font-weight:600;"
-               onclick="var d=this.nextElementSibling; d.style.display=(d.style.display==='block')?'none':'block';">
-            👤 {nombre}
-          </div>
-          <div class="pdetails" style="display:none;margin-top:6px;background:#f6f8fa;padding:6px;border-radius:6px;">
-            {ficha}
-          </div>
+    if not estudiantes:
+        items_html.append("""
+        <li class="pitem">
+          <details open>
+            <summary>(sin estudiantes)</summary>
+            <div class="pdetails"><i>Sin ficha disponible</i></div>
+          </details>
         </li>
         """)
+    else:
+        for e in estudiantes:
+            nombre = html.escape(_clean(e.get("estudiante"))) or "(sin nombre)"
+            ficha_parts = [
+                _line("Email", e.get("email")),
+                _line("Curso", e.get("curso")),                       # OUT
+                _line("Cuatrimestre", e.get("cuatrimestre")),         # IN
+                _line("Duración (meses)", e.get("duracion_meses")),   # SICUE/OUT
+                _line("Gestión LA", e.get("gestion_LA")),             # SICUE
+                _line("Coordinador destino", e.get("coordinador_destino")),  # SICUE
+                _link("Learning Agreement", e.get("link_la")),
+                _line("ToR", e.get("ToR")),
+                _line("Acta de equivalencias", e.get("acta_equivalencias")),
+                _link("Plan de estudios", e.get("link_plan")),
+            ]
+            ficha = "".join(x for x in ficha_parts if x) or "<i>Sin ficha disponible</i>"
+            items_html.append(f"""
+            <li class="pitem">
+              <details>
+                <summary>👤 {nombre}</summary>
+                <div class="pdetails">{ficha}</div>
+              </details>
+            </li>
+            """)
 
     return f"""
-        <div class="al-popup">
-        <h4>{universidad}</h4>
-        <p><b>{pais}</b></p>
-        <ul>
-            {''.join(items_html)}
-        </ul>
-        <script>
-            // (opcional) nada: ya usamos onclick inline para el toggle
-        </script>
-        </div>
-        """
+    <div class="al-popup" style="
+        font-family:'Segoe UI', Roboto, Arial, sans-serif;
+        font-size:14px; color:#222; background:#fff;
+        border-radius:12px; padding:12px;
+        box-shadow:0 2px 10px rgba(0,0,0,0.18);
+        width:max-content; max-width:480px;
+    ">
+      <h4 style="margin:0 0 4px 0;font-size:16px;color:#0B5ED7;border-bottom:2px solid #0B5ED7;padding-bottom:4px;display:flex;gap:8px;align-items:baseline;">
+        <span>{universidad}</span>
+        <span style="font-size:12px;color:#666">({n} estudiante{'s' if n!=1 else ''})</span>
+      </h4>
+      {sub}
+      <ul style="list-style:none;padding:8px 0 0 0;margin:6px 0 0 0;max-height:300px;overflow:auto;">
+        {''.join(items_html)}
+      </ul>
 
+      <style>
+        .al-popup a {{ color:#0B5ED7; text-decoration:underline; word-break:break-all; }}
 
+        .al-popup .pitem {{ margin:6px 0; }}
+        .al-popup details {{
+          background:#f6f8fa; border-radius:8px; padding:6px 8px;
+        }}
+        .al-popup summary {{
+          list-style:none; cursor:pointer; color:#0B5ED7; font-weight:600;
+        }}
+        /* Quitar triángulo nativo y crear uno custom */
+        .al-popup summary::-webkit-details-marker {{ display:none; }}
+        .al-popup summary::before {{
+          content:'▸'; display:inline-block; margin-right:6px; transition:transform .15s;
+        }}
+        .al-popup details[open] summary::before {{ transform:rotate(90deg); }}
+        .al-popup .pdetails {{ margin-top:6px; }}
+      </style>
+    </div>
+    """

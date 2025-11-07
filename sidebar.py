@@ -93,10 +93,11 @@ def route_editor(config):
         ),
     }
 
-    if st.sidebar.button("💾 Guardar rutas"):
+    col1, col2 = st.sidebar.columns(2)
+    if col1.button("💾", use_container_width=True):
         close_routes_editor(new_config)
 
-    if st.sidebar.button("❌"):
+    if col2.button("❌", use_container_width=True):
         st.sidebar.info("No se han guardado cambios.")
         st.session_state["show_routes"] = False
         st.rerun()
@@ -118,15 +119,27 @@ def sidebar_controls():
     col1, col2 = st.sidebar.columns(2)
     with col1:
         st.button("IN", key="btn_erasmus_in", use_container_width=True)
+        st.session_state.active_program_filter = "ERASMUS_IN"
     with col2:
         st.button("OUT", key="btn_erasmus_out", use_container_width=True)
+        st.session_state.active_program_filter = "ERASMUS_OUT"
 
     # --- SICUE ---
     st.sidebar.markdown("SICUE:")
-    col3, _ = st.sidebar.columns(2)
+    col3, col4 = st.sidebar.columns(2)
     with col3:
         st.button("OUT", key="btn_sicue_out", use_container_width=True)
+        st.session_state.active_program_filter = "SICUE_OUT"
+    with col4:
+        st.button("Todos", key="btn_sicue_in", use_container_width=True)
+        st.session_state.active_program_filter = "ALL"
 
+    fmap = {
+        "ALL": "Todos",
+        "ERASMUS_IN": "Erasmus IN",
+        "ERASMUS_OUT": "Erasmus OUT",
+        "SICUE_OUT": "SICUE OUT",
+    }
 
     # Campo de texto (para búsqueda o filtro futuro)
     st.sidebar.text_input("Buscar o filtrar por palabra clave:")
