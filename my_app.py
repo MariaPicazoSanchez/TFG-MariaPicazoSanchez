@@ -30,9 +30,6 @@ def load_dataframes(config):
         except Exception as e:
             st.warning(f"⚠️ No se pudo cargar SICUE OUT: {e}")
 
-    for k, v in dfs.items():
-        st.write("DF:", repr(k), "filas:", 0 if v is None else len(v))
-
     return dfs
 
 
