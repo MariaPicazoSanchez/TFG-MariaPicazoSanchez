@@ -145,8 +145,9 @@ def show_map(dfs: dict, base_map):
 </body>
 </html>"""
 
-            iframe = folium.IFrame(html=html_doc, width=w, height=h)
-            popup  = folium.Popup(iframe, max_width=w)
+            # iframe = folium.IFrame(html=html_doc, width=w, height=h)
+            # popup  = folium.Popup(iframe, max_width=w)
+            popup = folium.Popup(content, max_width=480) 
 
             folium.Marker(
                 location=[lat, lon],

@@ -114,25 +114,67 @@ def sidebar_controls():
     #  SECCIÓN DE FILTROS
     # ==========================
     st.sidebar.header("Filtros")
-    st.sidebar.markdown("ERASMUS:")
-    # Botones de filtro (sin funcionalidad por ahora)
-    col1, col2 = st.sidebar.columns(2)
-    with col1:
-        st.button("IN", key="btn_erasmus_in", use_container_width=True)
-        st.session_state.active_program_filter = "ERASMUS_IN"
-    with col2:
-        st.button("OUT", key="btn_erasmus_out", use_container_width=True)
-        st.session_state.active_program_filter = "ERASMUS_OUT"
+
+    # --- ERASMUS ---
+    c1, c2, c3 = st.sidebar.columns([1.2, 1, 1], gap="small")
+
+    with c1:
+        st.markdown(
+        """
+        <div class="label-erasmus">Erasmus:</div>
+        <style>
+          .label-erasmus{
+            height:40px;
+            display:flex; align-items:center; justify-content:flex-start;
+            font-weight:400 !important;
+            font-size:18px;
+            margin:0!important; padding:0!important;
+            background:transparent!important; color:inherit;
+            text-transform:none;
+          }
+          /* por si algún envoltorio aplica bold */
+          .label-erasmus *{ font-weight:400 !important; }
+        </style>
+        """,
+        unsafe_allow_html=True
+    )
+
+    with c2:
+        if st.button("IN", use_container_width=True, key="btn_erasmus_in"):
+            st.session_state.active_program_filter = "Erasmus IN"
+
+    with c3:
+        if st.button("OUT", use_container_width=True, key="btn_erasmus_out"):
+            st.session_state.active_program_filter = "Erasmus OUT"
+
+
 
     # --- SICUE ---
-    st.sidebar.markdown("SICUE:")
-    col3, col4 = st.sidebar.columns(2)
-    with col3:
-        st.button("OUT", key="btn_sicue_out", use_container_width=True)
-        st.session_state.active_program_filter = "SICUE_OUT"
-    with col4:
-        st.button("Todos", key="btn_sicue_in", use_container_width=True)
-        st.session_state.active_program_filter = "ALL"
+    c4, c5, _ = st.sidebar.columns([1.2, 1, 1], gap="small")
+    with c4:
+        st.markdown(
+            """
+            <div class="label-erasmus">SICUE:</div>
+            <style>
+            .label-erasmus{
+                height:40px;
+                display:flex; align-items:center; justify-content:flex-start;
+                font-weight:400 !important;
+                font-size:16px;
+                margin:0!important; padding:0!important;
+                background:transparent!important; color:inherit;
+                text-transform:none;
+            }
+            /* por si algún envoltorio aplica bold */
+            .label-erasmus *{ font-weight:400 !important; }
+            </style>
+            """,
+            unsafe_allow_html=True
+        )
+    with c5:
+        if st.button("OUT", use_container_width=True, key="btn_sicue_out"):
+            st.session_state.active_program_filter = "SICUE OUT"
+    
 
     fmap = {
         "ALL": "Todos",

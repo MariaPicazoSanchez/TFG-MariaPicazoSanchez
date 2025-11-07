@@ -1,4 +1,4 @@
-import html, json, math, re
+import html, json, math
 
 def _normalize_estudiantes(estudiantes):
     if isinstance(estudiantes, str):
@@ -36,91 +36,92 @@ def _link(label, url, text="Abrir"):
     return f"<b>{label}:</b> <a href='{safe_url}' target='_blank' rel='noopener noreferrer'>{html.escape(text)}</a><br>"
 
 def generate_dynamic_popup(row):
-    universidad = html.escape(_clean(row.get("universidad",""))) or "Sin universidad"
-    pais = html.escape(_clean(row.get("pais","")))
-    ciudad = html.escape(_clean(row.get("ciudad","")))
+    universidad = html.escape(str(row.get("universidad","")) or "Sin universidad")
+    pais = html.escape(str(row.get("pais","") or ""))
+    ciudad = html.escape(str(row.get("ciudad","") or ""))
     estudiantes = _normalize_estudiantes(row.get("estudiantes", []))
     n = len(estudiantes)
 
-    # Cabecera secundaria
-    sub = ""
+    # subtítulo
     if pais and ciudad:
         sub = f"<p style='margin:4px 0 0 0;color:#555'><b>{pais}</b> · {ciudad}</p>"
     elif pais:
         sub = f"<p style='margin:4px 0 0 0;color:#555'><b>{pais}</b></p>"
     elif ciudad:
         sub = f"<p style='margin:4px 0 0 0;color:#555'><b>{ciudad}</b></p>"
+    else:
+        sub = ""
 
-    # Items con <details>/<summary> (sin JS)
+    # items (sin <details>, solo divs + :hover / :focus-within)
     items_html = []
-    if not estudiantes:
-        items_html.append("""
-        <li class="pitem">
-          <details open>
-            <summary>(sin estudiantes)</summary>
-            <div class="pdetails"><i>Sin ficha disponible</i></div>
-          </details>
+    for e in estudiantes or [{}]:
+        nombre = html.escape(str(e.get("estudiante", "(sin nombre)")))
+
+        ficha_parts = [
+            _line("Email", e.get("email")),
+            _line("Curso", e.get("curso")),
+            _line("Cuatrimestre", e.get("cuatrimestre")),
+            _line("Duración (meses)", e.get("duracion_meses")),
+            _line("Gestión LA", e.get("gestion_LA")),
+            _line("Coordinador destino", e.get("coordinador_destino")),
+            _link("Learning Agreement", e.get("link_la")),
+            _line("ToR", e.get("ToR")),
+            _line("Acta de equivalencias", e.get("acta_equivalencias")),
+            _link("Plan de estudios", e.get("link_plan")),
+        ]
+        ficha = "".join(p for p in ficha_parts if p) or "<i>Sin ficha disponible</i>"
+
+        items_html.append(f"""
+        <li class="pitem" tabindex="0" style="margin:6px 0; outline: none;">
+          <div class="pname">👤 {nombre}</div>
+          <div class="pdetails">{ficha}</div>
         </li>
         """)
-    else:
-        for e in estudiantes:
-            nombre = html.escape(_clean(e.get("estudiante"))) or "(sin nombre)"
-            ficha_parts = [
-                _line("Email", e.get("email")),
-                _line("Curso", e.get("curso")),                       # OUT
-                _line("Cuatrimestre", e.get("cuatrimestre")),         # IN
-                _line("Duración (meses)", e.get("duracion_meses")),   # SICUE/OUT
-                _line("Gestión LA", e.get("gestion_LA")),             # SICUE
-                _line("Coordinador destino", e.get("coordinador_destino")),  # SICUE
-                _link("Learning Agreement", e.get("link_la")),
-                _line("ToR", e.get("ToR")),
-                _line("Acta de equivalencias", e.get("acta_equivalencias")),
-                _link("Plan de estudios", e.get("link_plan")),
-            ]
-            ficha = "".join(x for x in ficha_parts if x) or "<i>Sin ficha disponible</i>"
-            items_html.append(f"""
-            <li class="pitem">
-              <details>
-                <summary>👤 {nombre}</summary>
-                <div class="pdetails">{ficha}</div>
-              </details>
-            </li>
-            """)
 
     return f"""
     <div class="al-popup" style="
         font-family:'Segoe UI', Roboto, Arial, sans-serif;
         font-size:14px; color:#222; background:#fff;
-        border-radius:12px; padding:12px;
+        border-radius:12px; padding:12px; box-sizing:border-box;
         box-shadow:0 2px 10px rgba(0,0,0,0.18);
-        width:max-content; max-width:480px;
+        width:460px; max-width:460px; min-width:460px;   /* ancho fijo */
     ">
       <h4 style="margin:0 0 4px 0;font-size:16px;color:#0B5ED7;border-bottom:2px solid #0B5ED7;padding-bottom:4px;display:flex;gap:8px;align-items:baseline;">
         <span>{universidad}</span>
         <span style="font-size:12px;color:#666">({n} estudiante{'s' if n!=1 else ''})</span>
       </h4>
       {sub}
-      <ul style="list-style:none;padding:8px 0 0 0;margin:6px 0 0 0;max-height:300px;overflow:auto;">
+      <ul class="plist" style="list-style:none;padding:8px 0 0 0;margin:6px 0 0 0;">
         {''.join(items_html)}
       </ul>
 
       <style>
         .al-popup a {{ color:#0B5ED7; text-decoration:underline; word-break:break-all; }}
 
-        .al-popup .pitem {{ margin:6px 0; }}
-        .al-popup details {{
-          background:#f6f8fa; border-radius:8px; padding:6px 8px;
+        .al-popup .pname {{
+          color:#0B5ED7; font-weight:600; cursor:default;
+          white-space:normal; word-break:break-word;
         }}
-        .al-popup summary {{
-          list-style:none; cursor:pointer; color:#0B5ED7; font-weight:600;
+
+        /* Detalles ocultos por defecto */
+        .al-popup .pdetails {{
+          display:none;
+          margin-top:6px; background:#f6f8fa;
+          padding:6px; border-radius:6px;
         }}
-        /* Quitar triángulo nativo y crear uno custom */
-        .al-popup summary::-webkit-details-marker {{ display:none; }}
-        .al-popup summary::before {{
-          content:'▸'; display:inline-block; margin-right:6px; transition:transform .15s;
+
+        /* Mostrar al pasar el ratón o al enfocar con teclado */
+        .al-popup .pitem:hover .pdetails,
+        .al-popup .pitem:focus-within .pdetails {{
+          display:block;
         }}
-        .al-popup details[open] summary::before {{ transform:rotate(90deg); }}
-        .al-popup .pdetails {{ margin-top:6px; }}
+
+        /* realce leve del item activo */
+        .al-popup .pitem:hover .pname,
+        .al-popup .pitem:focus-within .pname {{
+          text-decoration:underline;
+        }}
       </style>
     </div>
     """
+

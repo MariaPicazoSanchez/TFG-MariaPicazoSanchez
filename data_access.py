@@ -76,7 +76,7 @@ def load_erasmus_out(path):
     return grouped
 
 # ==============================
-#   ERASMUS IN (nuevo)
+#   ERASMUS IN
 # ==============================
 def load_erasmus_in(path):
     """Carga Erasmus IN y agrupa por universidad/pais/coords."""
@@ -141,7 +141,7 @@ def load_erasmus_in(path):
     return grouped
 
 # ==============================
-#   SICUE OUT (opcional)
+#   SICUE OUT
 # ==============================
 def load_sicue_out(path):
     """Lee SICUE OUT y agrupa por universidad+ciudad (coords si existen)."""
@@ -214,7 +214,7 @@ def load_sicue_out(path):
 
 
 # ==============================
-#   Auto-detección (opcional)
+#   Auto-detección
 # ==============================
 def load_mobility_any(path):
     """Detecta por columnas y llama al loader correspondiente."""
@@ -226,4 +226,4 @@ def load_mobility_any(path):
         return load_erasmus_in(path)
     if "coordinador en destino" in cols or "gestion la" in cols or "ciudad" in cols:
         return load_sicue_out(path)
-    return load_erasmus_out(path)  # por defecto
+    return load_erasmus_out(path)
