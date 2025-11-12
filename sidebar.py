@@ -4,7 +4,49 @@ import os
 
 CONFIG_FILE = "config.json"
 
+USE_LOCAL_PICKER = True  # False en Cloud/producción (allí no puede abrir el diálogo del cliente)
 
+def pick_local_file(initial_path: str | None = None):
+    """Abre el diálogo nativo del SO y devuelve la ruta seleccionada (o None). Solo en local."""
+    import os
+    try:
+        import tkinter as tk
+        from tkinter import filedialog as fd
+    except Exception as e:
+        st.sidebar.error(f"Tkinter no disponible: {e}")
+        return None
+
+    # Si el input ya tiene algo, intenta abrir en esa carpeta
+    initdir = None
+    if initial_path:
+        cand = os.path.dirname(initial_path)
+        if os.path.isdir(cand):
+            initdir = cand
+
+    root = tk.Tk()
+    root.withdraw()
+    try:
+        root.update_idletasks()
+        root.lift()
+        root.attributes("-topmost", True)   # trae al frente
+        root.after(0, root.focus_force)
+    except Exception:
+        pass
+
+    try:
+        path = fd.askopenfilename(
+            parent=root,
+            initialdir=initdir if initdir else None,
+            title="Selecciona un archivo",
+            filetypes=[("Excel/CSV", "*.xlsx *.xls"), ("Todos", "*.*")]
+        )
+    finally:
+        try:
+            root.destroy()
+        except Exception:
+            pass
+
+    return path or None
 
 def load_config():
     """Carga las rutas guardadas desde config.json, si existe."""
@@ -44,7 +86,7 @@ def close_routes_editor(new_config=None):
         if not ok:
             st.sidebar.error("❌ No se encontraron los siguientes archivos:")
             for err in errors:
-                st.sidebar.write(f"- {err}")
+                st.sidebar.error(f"- {err}")
             return
 
         save_config(new_config)
@@ -65,42 +107,67 @@ def get_placeholder(config, key):
     ruta = config.get(key, "")
     return ruta if ruta else f"Inserte la ruta del archivo {key} aquí"
 
-
 def route_editor(config):
-    """Panel para modificar rutas, con placeholders dinámicos desde config.json."""
     st.sidebar.subheader("📁 Modificar rutas de los archivos Excel")
 
-    new_config = {
-        "SICUE OUT": st.sidebar.text_input(
-            "📘 SICUE OUT",
-            value=config.get("SICUE OUT", ""),
-            placeholder=get_placeholder(config, "SICUE OUT")
-        ),
-        "Erasmus IN": st.sidebar.text_input(
-            "🌍 Erasmus IN",
-            value=config.get("Erasmus IN", ""),
-            placeholder=get_placeholder(config, "Erasmus IN")
-        ),
-        "Erasmus OUT": st.sidebar.text_input(
-            "✈️ Erasmus OUT",
-            value=config.get("Erasmus OUT", ""),
-            placeholder=get_placeholder(config, "Erasmus OUT")
-        ),
-        "Materias IN": st.sidebar.text_input(
-            "📑 Materias IN",
-            value=config.get("Materias IN", ""),
-            placeholder=get_placeholder(config, "Materias IN")
-        ),
-    }
+    entries = [
+        ("SICUE OUT", "📘 SICUE OUT"),
+        ("Erasmus IN", "🌍 Erasmus IN"),
+        ("Erasmus OUT", "✈️ Erasmus OUT"),
+        ("Materias IN", "📑 Materias IN"),
+    ]
+
+    new_config = {}
+    for key, label in entries:
+        col_text, col_btn = st.sidebar.columns([8, 2])
+
+        text_key = f"rt_{key}"
+        buf_key  = f"__set_{text_key}"
+        btn_key  = f"btn_open_{key}"
+
+        # 1) Sembrar desde config si no existe en session_state
+        if text_key not in st.session_state:
+            st.session_state[text_key] = config.get(key, "")
+
+        # 2) Aplicar buffer (si se eligió archivo) ANTES de instanciar el input
+        if buf_key in st.session_state:
+            st.session_state[text_key] = st.session_state.pop(buf_key)
+
+        # 3) Input
+        col_text.text_input(
+            label,
+            key=text_key,
+            placeholder=get_placeholder(config, key)
+        )
+
+        # 4) Botón 📁: abrir selector del SO y SOLO poner la ruta en el input
+        col_btn.text("")  # espacio para que no suba el boton
+        col_btn.text("") 
+
+        if col_btn.button("📁", key=btn_key, help="Seleccionar archivo del equipo"):
+            if USE_LOCAL_PICKER:
+                current_val = st.session_state.get(text_key, "")
+                path = pick_local_file(current_val)
+                if path:
+                    st.session_state[buf_key] = path
+                    st.rerun()
+            else:
+                st.sidebar.warning("Ejecuta la app en local para seleccionar rutas del equipo.")
+
+
+        # 5) Al construir la nueva config, conservar lo previo si el input está vacío
+        val = st.session_state.get(text_key, "")
+        new_config[key] = val if val.strip() != "" else config.get(key, "")
+
 
     col1, col2 = st.sidebar.columns(2)
     if col1.button("💾", use_container_width=True):
         close_routes_editor(new_config)
-
     if col2.button("❌", use_container_width=True):
         st.sidebar.info("No se han guardado cambios.")
         st.session_state["show_routes"] = False
         st.rerun()
+
 
 
 
@@ -186,6 +253,7 @@ def sidebar_controls():
     # Campo de texto (para búsqueda o filtro futuro)
     st.sidebar.text_input("Buscar o filtrar por palabra clave:")
 
+    st.sidebar.button("Crear nuevo usuario")
     st.sidebar.markdown("---")
 
     # ==========================
@@ -198,4 +266,5 @@ def sidebar_controls():
 
     # Devuelve solo el nivel de zoom (ya no hace falta base_map dinámico)
     return base_map
+
 

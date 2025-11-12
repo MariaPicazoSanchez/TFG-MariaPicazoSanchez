@@ -1,4 +1,6 @@
 import html, json, math
+from urllib.parse import quote
+import os
 
 def _normalize_estudiantes(estudiantes):
     if isinstance(estudiantes, str):
@@ -29,11 +31,30 @@ def _line(label, value):
     value = _clean(value)
     return f"<b>{label}:</b> {html.escape(value)}<br>" if value else ""
 
-def _link(label, url, text="Abrir"):
+
+
+def _link(label, url, text="Abrir", open_in_system=False):
     url = _clean(url)
-    if not url: return ""
-    safe_url = html.escape(url, quote=True)
-    return f"<b>{label}:</b> <a href='{safe_url}' target='_blank' rel='noopener noreferrer'>{html.escape(text)}</a><br>"
+    if not url:
+        return ""
+
+    label_html = html.escape(label, quote=True)
+    text_html  = html.escape(text,  quote=True)
+
+    # Abrir con la app por defecto del SISTEMA (rutas locales, no http/https)
+    if open_in_system and not str(url).lower().startswith(("http://", "https://")):
+        qp = quote(str(url))
+        # iframe oculto receptor (para evitar navegar el top)
+        # el enlace apunta a ese iframe por 'target="opener"'
+        return (
+            "<iframe name='opener' style='display:none;width:0;height:0;border:0'></iframe>"
+            f"<b>{label_html}:</b> "
+            f"<a href='/?open_pdf={qp}' target='opener'>{text_html}</a><br>"
+        )
+
+    # Comportamiento normal para enlaces web
+    safe_url = html.escape(str(url), quote=True)
+    return f"<b>{label_html}:</b> <a href='{safe_url}' target='_blank' rel='noopener noreferrer'>{text_html}</a><br>"
 
 def generate_dynamic_popup(row):
     universidad = html.escape(str(row.get("universidad","")) or "Sin universidad")
@@ -64,10 +85,10 @@ def generate_dynamic_popup(row):
             _line("Duración (meses)", e.get("duracion_meses")),
             _line("Gestión LA", e.get("gestion_LA")),
             _line("Coordinador destino", e.get("coordinador_destino")),
-            _link("Learning Agreement", e.get("link_la")),
-            _line("ToR", e.get("ToR")),
+            _link("Learning Agreement", e.get("link_la"),"Abrir", open_in_system=True),
+            _link("ToR", e.get("ToR"),"Abrir", open_in_system=True),
             _line("Acta de equivalencias", e.get("acta_equivalencias")),
-            _link("Plan de estudios", e.get("link_plan")),
+            _link("Plan de estudios", e.get("link_plan"),"Abrir",open_in_system=True),
         ]
         ficha = "".join(p for p in ficha_parts if p) or "<i>Sin ficha disponible</i>"
 
