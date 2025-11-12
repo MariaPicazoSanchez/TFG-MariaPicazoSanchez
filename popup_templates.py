@@ -1,6 +1,5 @@
 import html, json, math
 from urllib.parse import quote
-import os
 
 def _normalize_estudiantes(estudiantes):
     if isinstance(estudiantes, str):

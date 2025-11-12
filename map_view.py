@@ -3,12 +3,8 @@ import folium
 import leafmap.foliumap as leafmap
 import streamlit as st
 from popup_templates import generate_dynamic_popup
+from domain import PROGRAM_COLORS
 
-PROGRAM_COLORS = {
-    "Erasmus OUT": "blue",
-    "Erasmus IN": "green",
-    "SICUE OUT": "orange",
-}
 
 def add_points_to_map(m, df, nombre_capa, color):
     """Añade puntos de un DataFrame al mapa."""

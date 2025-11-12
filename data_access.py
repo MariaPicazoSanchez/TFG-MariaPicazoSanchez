@@ -1,136 +1,212 @@
-import pandas as pd
 import os
 import re
-import html
+from typing import Iterable, Tuple, Optional
+import pandas as pd
+import streamlit as st
+from sheets import sheets_for, resolve_sheet
 
-# --- util: robustez para columnas con variantes/typos ---
-def _pick(df, *aliases):
-    """Devuelve el nombre real de la primera columna existente entre los alias dados."""
-    def norm(s): 
-        return re.sub(r"\s+", " ", str(s).strip().lower())
-    norm_map = {norm(c): c for c in df.columns}
+
+# ==============================
+# Helpers comunes
+# ==============================
+def _norm_colname(s: str) -> str:
+    """Normaliza un nombre de columna para comparaciones relajadas."""
+    return re.sub(r"\s+", " ", str(s).strip().lower())
+
+def _pick(df: pd.DataFrame, *aliases: Iterable[str]) -> Optional[str]:
+    """
+    Devuelve el nombre REAL de la primera columna existente entre los alias dados.
+    Hace match relajado y también 'contains' por si hay typos (Cuatirmestre/Cuatrimestre).
+    """
+    norm_map = {_norm_colname(c): c for c in df.columns}
+    # exactos
     for a in aliases:
-        if a is None: 
+        if a is None:
             continue
-        if norm(a) in norm_map:
-            return norm_map[norm(a)]
-    # intenta con variantes comunes (p.ej. Cuatirmestre -> Cuatrimestre)
+        na = _norm_colname(a)
+        if na in norm_map:
+            return norm_map[na]
+    # contains único
     for a in aliases:
-        if a is None: 
+        if a is None:
             continue
-        for k, v in norm_map.items():
-            if norm(a) in k or k in norm(a):
-                return v
+        na = _norm_colname(a)
+        cand = [real for norm, real in norm_map.items() if na in norm or norm in na]
+        if len(cand) == 1:
+            return cand[0]
     return None
 
-def _parse_coords(s: str):
+def _parse_coords(s: str) -> Tuple[Optional[float], Optional[float]]:
     """Extrae lat/lon tolerando coma o punto y separadores variados."""
-    nums = re.findall(r"-?\d+[.,]?\d*", str(s))
+    if s is None:
+        return None, None
+    nums = re.findall(r"-?\d+(?:[.,]\d+)?", str(s))
     if len(nums) >= 2:
         lat = float(nums[0].replace(",", "."))
         lon = float(nums[1].replace(",", "."))
         return lat, lon
     return None, None
 
-# ==============================
-#   ERASMUS OUT (ya lo tienes)
-# ==============================
-def load_erasmus_out(path):
-    """Carga los datos de Erasmus OUT y agrupa por universidad."""
+def _read_table(path: str, sheet_name: str | None = None, nrows: int | None = None) -> pd.DataFrame:
+    """
+    Lee CSV/XLS/XLSX con motor adecuado.
+    - CSV → read_csv
+    - Excel → read_excel (openpyxl para .xlsx/.xlsm)
+    Nota: si sheet_name es None en Excel, pandas devuelve dict; aquí lo
+    forzamos a 0 (primera hoja) para devolver siempre un DataFrame.
+    """
     if not os.path.exists(path):
         raise FileNotFoundError(f"No se encontró el archivo: {path}")
 
-    df = pd.read_excel(path, engine="openpyxl")
-    df.columns = [col.strip() for col in df.columns]
+    ext = os.path.splitext(path)[1].lower()
+    if ext == ".csv":
+        return pd.read_csv(path, nrows=nrows, encoding="utf-8", sep=None, engine="python")
 
-    df["estudiante"] = (
-        df["nombre"].astype(str)
-        + " "
-        + df["apellido1"].astype(str)
-        + " "
-        + df.get("apellido2", "").fillna("").astype(str)
-    )
+    if ext in (".xlsx", ".xlsm", ".xltx", ".xltm", ".xls"):
+        effective_sheet = 0 if sheet_name is None else sheet_name
+        try:
+            # usa openpyxl cuando aplica; pandas elegirá motor para .xls
+            engine = "openpyxl" if ext in (".xlsx", ".xlsm", ".xltx", ".xltm") else None
+            return pd.read_excel(path, sheet_name=effective_sheet, engine=engine, nrows=nrows)
+        except TypeError:
+            # algunos pandas no aceptan engine=None; reintenta sin engine
+            return pd.read_excel(path, sheet_name=effective_sheet, nrows=nrows)
 
-    lats, lons = [], []
-    for val in df["Coordenadas"]:
-        lat, lon = _parse_coords(val)
-        lats.append(lat); lons.append(lon)
-    df["latitud"] = pd.to_numeric(lats, errors="coerce")
-    df["longitud"] = pd.to_numeric(lons, errors="coerce")
+    # fallback genérico
+    effective_sheet = 0 if sheet_name is None else sheet_name
+    return pd.read_excel(path, sheet_name=effective_sheet, nrows=nrows)
 
-    df.rename(
-        columns={
-            "Destino": "universidad",
-            "País": "pais",
-            "LA": "link_LA",
-            "Plan de estudios": "link_plan",
-        },
-        inplace=True,
-    )
+
+# ==============================
+#   ERASMUS OUT
+# ==============================
+def load_erasmus_out(path: str, sheet_name: str | None = None) -> pd.DataFrame:
+    """
+    Carga Erasmus OUT y agrupa por universidad/pais/coords.
+    Devuelve DF con columnas: ['universidad','pais','latitud','longitud','estudiantes'].
+    """
+    df = _read_table(path, sheet_name=sheet_name)
+    # limpieza de cabeceras
+    df.columns = [str(col).strip() for col in df.columns]
+
+    c_nombre   = _pick(df, "Nombre", "nombre")
+    c_ap1      = _pick(df, "Apellido1", "apellido1")
+    c_ap2      = _pick(df, "Apellido2", "apellido2")
+    c_email    = _pick(df, "Email", "email")
+    c_coords   = _pick(df, "Coordenadas", "coords")
+    c_dest     = _pick(df, "Destino", "Universidad Destino", "Universidad")
+    c_pais     = _pick(df, "País", "Pais")
+    c_la       = _pick(df, "LA")
+    c_plan     = _pick(df, "Plan de estudios", "Plan estudios", "Plan_estudios")
+    c_lat      = _pick(df, "Latitud", "latitud", "lat")
+    c_lon      = _pick(df, "Longitud", "longitud", "lon")
+
+    # estudiante
+    if c_nombre or c_ap1 or c_ap2:
+        parts = []
+        if c_nombre: parts.append(df[c_nombre].astype(str))
+        if c_ap1:    parts.append(df[c_ap1].astype(str))
+        if c_ap2:    parts.append(df[c_ap2].fillna("").astype(str))
+        s = parts[0] if parts else pd.Series([""])
+        for p in parts[1:]:
+            s = (s + " " + p)
+        df["estudiante"] = s.str.replace(r"\s+", " ", regex=True).str.strip()
+    elif c_email:
+        df["estudiante"] = df[c_email].astype(str).str.split("@").str[0]
+    else:
+        df["estudiante"] = ""
+
+    # coords
+    if c_coords:
+        lats, lons = zip(*df[c_coords].map(_parse_coords))
+        df["latitud"] = pd.to_numeric(lats, errors="coerce")
+        df["longitud"] = pd.to_numeric(lons, errors="coerce")
+    else:
+        df["latitud"]  = pd.to_numeric(df[c_lat], errors="coerce") if c_lat else pd.NA
+        df["longitud"] = pd.to_numeric(df[c_lon], errors="coerce") if c_lon else pd.NA
+
+    # normalización campos "macro"
+    df["universidad"] = df[c_dest] if c_dest else None
+    df["pais"]        = df[c_pais] if c_pais else None
+    df["link_LA"]     = df[c_la]   if c_la   else None
+    df["link_plan"]   = df[c_plan] if c_plan else None
+
+    def _to_records(g: pd.DataFrame) -> list[dict]:
+        keep = ["estudiante", "link_LA", "link_plan"]
+        if c_email and c_email in g.columns:
+            g = g.rename(columns={c_email: "email"})
+            keep.insert(1, "email")
+        keep = [c for c in keep if c in g.columns]
+        return g[keep].to_dict(orient="records")
 
     grouped = (
         df.groupby(["universidad", "pais", "latitud", "longitud"], dropna=False)
-          .apply(lambda g: g.to_dict(orient="records"))
+          .apply(_to_records)
           .reset_index(name="estudiantes")
     )
     return grouped
 
+
 # ==============================
 #   ERASMUS IN
 # ==============================
-def load_erasmus_in(path):
-    """Carga Erasmus IN y agrupa por universidad/pais/coords."""
-    if not os.path.exists(path):
-        raise FileNotFoundError(f"No se encontró el archivo: {path}")
+def load_erasmus_in(path: str, sheet_name: str | None = None) -> pd.DataFrame:
+    """
+    Carga Erasmus IN y agrupa por universidad/pais/coords.
+    Devuelve DF con columnas: ['universidad','pais','latitud','longitud','estudiantes'].
+    """
+    df = _read_table(path, sheet_name=sheet_name)
+    df.columns = [str(col).strip() for col in df.columns]
 
-    df = pd.read_excel(path, engine="openpyxl")
-    df.columns = [col.strip() for col in df.columns]
-
-    # aliases
-    col_nombre = _pick(df, "nombre")
-    col_ap1 = _pick(df, "apellido1")
-    col_ap2 = _pick(df, "apellido2")
-    col_email = _pick(df, "email")
-    col_cuatri = _pick(df, "Cuatrimestre", "Cuatirmestre")
-    col_la = _pick(df, "LA")
-    col_uni = _pick(df, "Universidad Origen")
-    col_pais = _pick(df, "País")
-    col_coords = _pick(df, "Coordenadas")
+    c_nombre  = _pick(df, "Nombre", "nombre")
+    c_ap1     = _pick(df, "Apellido1", "apellido1")
+    c_ap2     = _pick(df, "Apellido2", "apellido2")
+    c_email   = _pick(df, "Email", "email")
+    c_cuatri  = _pick(df, "Cuatrimestre", "Cuatirmestre")
+    c_la      = _pick(df, "LA")
+    c_uni     = _pick(df, "Universidad Origen", "Univ. Origen", "Universidad")
+    c_pais    = _pick(df, "País", "Pais")
+    c_coords  = _pick(df, "Coordenadas", "coords")
+    c_lat     = _pick(df, "Latitud", "latitud", "lat")
+    c_lon     = _pick(df, "Longitud", "longitud", "lon")
 
     # estudiante
-    parts = []
-    if col_nombre: parts.append(df[col_nombre].astype(str))
-    if col_ap1:    parts.append(df[col_ap1].astype(str))
-    if col_ap2:    parts.append(df[col_ap2].fillna("").astype(str))
-    if parts:
-        s = parts[0]
+    if c_nombre or c_ap1 or c_ap2:
+        parts = []
+        if c_nombre: parts.append(df[c_nombre].astype(str))
+        if c_ap1:    parts.append(df[c_ap1].astype(str))
+        if c_ap2:    parts.append(df[c_ap2].fillna("").astype(str))
+        s = parts[0] if parts else pd.Series([""])
         for p in parts[1:]:
-            s = s + " " + p
+            s = (s + " " + p)
         df["estudiante"] = s.str.replace(r"\s+", " ", regex=True).str.strip()
+    elif c_email:
+        df["estudiante"] = df[c_email].astype(str).str.split("@").str[0]
     else:
-        df["estudiante"] = df[col_email].astype(str).str.split("@").str[0] if col_email else ""
+        df["estudiante"] = ""
 
     # coords
-    if col_coords:
-        lats, lons = zip(*df[col_coords].map(_parse_coords))
+    if c_coords:
+        lats, lons = zip(*df[c_coords].map(_parse_coords))
+        df["latitud"] = pd.to_numeric(lats, errors="coerce")
+        df["longitud"] = pd.to_numeric(lons, errors="coerce")
     else:
-        lats, lons = [None]*len(df), [None]*len(df)
-    df["latitud"] = pd.to_numeric(lats, errors="coerce")
-    df["longitud"] = pd.to_numeric(lons, errors="coerce")
+        df["latitud"]  = pd.to_numeric(df[c_lat], errors="coerce") if c_lat else pd.NA
+        df["longitud"] = pd.to_numeric(df[c_lon], errors="coerce") if c_lon else pd.NA
 
-    # normaliza nombres
-    df["universidad"] = df[col_uni] if col_uni else None
-    df["pais"] = df[col_pais] if col_pais else None
-    df["link_LA"] = df[col_la] if col_la else None
-    df["cuatrimestre"] = df[col_cuatri] if col_cuatri else None
+    # normaliza campos
+    df["universidad"]   = df[c_uni]    if c_uni    else None
+    df["pais"]          = df[c_pais]   if c_pais   else None
+    df["link_LA"]       = df[c_la]     if c_la     else None
+    df["cuatrimestre"]  = df[c_cuatri] if c_cuatri else None
 
-    def _to_records(g):
+    def _to_records(g: pd.DataFrame) -> list[dict]:
         cols = ["estudiante", "cuatrimestre", "link_LA"]
-        if col_email: cols.insert(1, col_email)
+        if c_email: cols.insert(1, c_email)
         cols = [c for c in cols if c in g.columns]
         out = g[cols].copy()
-        if col_email and col_email in out.columns:
-            out = out.rename(columns={col_email: "email"})
+        if c_email and c_email in out.columns:
+            out = out.rename(columns={c_email: "email"})
         return out.to_dict(orient="records")
 
     grouped = (
@@ -140,67 +216,71 @@ def load_erasmus_in(path):
     )
     return grouped
 
+
 # ==============================
 #   SICUE OUT
 # ==============================
-def load_sicue_out(path):
-    """Lee SICUE OUT y agrupa por universidad+ciudad (coords si existen)."""
-    if not os.path.exists(path):
-        raise FileNotFoundError(f"No se encontró el archivo: {path}")
+def load_sicue_out(path: str, sheet_name: str | None = None) -> pd.DataFrame:
+    """
+    Lee SICUE OUT y agrupa por universidad/ciudad/coords.
+    Devuelve DF con columnas: ['universidad','pais','ciudad','latitud','longitud','estudiantes'].
+    """
+    df = _read_table(path, sheet_name=sheet_name)
+    df.columns = [str(col).strip() for col in df.columns]
 
-    df = pd.read_excel(path, engine="openpyxl")
-    df.columns = [col.strip() for col in df.columns]
+    c_nombre      = _pick(df, "Nombre", "nombre")
+    c_ap1         = _pick(df, "Apellido1", "apellido1")
+    c_ap2         = _pick(df, "Apellido2", "apellido2")
+    c_email       = _pick(df, "Email", "email")
+    c_dur         = _pick(df, "Duracion meses", "Duración meses", "duracion_meses", "duración_meses")
+    c_coord_dest  = _pick(df, "Coordinador en destino", "Coordinador destino")
+    c_la          = _pick(df, "LA")
+    c_gestion     = _pick(df, "Gestion LA", "Gestión LA", "gestion la", "gestión la")
+    c_destino     = _pick(df, "Destino", "Universidad Destino", "Universidad")
+    c_ciudad      = _pick(df, "Ciudad")
+    c_coords      = _pick(df, "Coordenadas", "coords")
+    c_lat         = _pick(df, "Latitud", "latitud", "lat")
+    c_lon         = _pick(df, "Longitud", "longitud", "lon")
 
-    col_nombre = _pick(df, "nombre")
-    col_ap1 = _pick(df, "apellido1")
-    col_ap2 = _pick(df, "apellido2")
-    col_email = _pick(df, "email")
-    col_dur = _pick(df, "duracion meses", "duracion_meses")
-    col_coord_dest = _pick(df, "Coordinador en destino")
-    col_la = _pick(df, "LA")
-    col_gestion = _pick(df, "Gestion LA", "Gestión LA")
-    col_destino = _pick(df, "Destino")
-    col_ciudad = _pick(df, "Ciudad")
-    col_coords = _pick(df, "Coordenadas")
-
-    parts = []
-    if col_nombre: parts.append(df[col_nombre].astype(str))
-    if col_ap1:    parts.append(df[col_ap1].astype(str))
-    if col_ap2:    parts.append(df[col_ap2].fillna("").astype(str))
-    if parts:
-        s = parts[0]
+    # estudiante
+    if c_nombre or c_ap1 or c_ap2:
+        parts = []
+        if c_nombre: parts.append(df[c_nombre].astype(str))
+        if c_ap1:    parts.append(df[c_ap1].astype(str))
+        if c_ap2:    parts.append(df[c_ap2].fillna("").astype(str))
+        s = parts[0] if parts else pd.Series([""])
         for p in parts[1:]:
-            s = s + " " + p
+            s = (s + " " + p)
         df["estudiante"] = s.str.replace(r"\s+", " ", regex=True).str.strip()
+    elif c_email:
+        df["estudiante"] = df[c_email].astype(str).str.split("@").str[0]
     else:
-        df["estudiante"] = df[col_email].astype(str).str.split("@").str[0] if col_email else ""
+        df["estudiante"] = ""
 
-
-    if col_coords:
-        lats, lons = zip(*df[col_coords].map(_parse_coords))
+    # coords
+    if c_coords:
+        lats, lons = zip(*df[c_coords].map(_parse_coords))
         df["latitud"] = pd.to_numeric(lats, errors="coerce")
         df["longitud"] = pd.to_numeric(lons, errors="coerce")
     else:
-        df["latitud"] = pd.NA
-        df["longitud"] = pd.NA
+        df["latitud"]  = pd.to_numeric(df[c_lat], errors="coerce") if c_lat else pd.NA
+        df["longitud"] = pd.to_numeric(df[c_lon], errors="coerce") if c_lon else pd.NA
 
-    df["universidad"] = df[col_destino] if col_destino else None
-    df["ciudad"] = df[col_ciudad] if col_ciudad else None
-    df["pais"] = None
+    # normaliza
+    df["universidad"]        = df[c_destino] if c_destino else None
+    df["ciudad"]             = df[c_ciudad]  if c_ciudad  else None
+    df["pais"]               = None
+    # mapeo de columnas específicas a names homogéneos
+    mapping = {}
+    if c_la:         mapping[c_la] = "link_LA"
+    if c_gestion:    mapping[c_gestion] = "gestion_LA"
+    if c_coord_dest: mapping[c_coord_dest] = "coordinador_destino"
+    if c_dur:        mapping[c_dur] = "duracion_meses"
+    if c_email:      mapping[c_email] = "email"
 
-    def _to_records(g):
-        cols = ["estudiante", "link_LA", "gestion_LA", "coordinador_destino", "duracion_meses"]
-        # mapear nombres fuente -> destino si existen
-        mapping = {}
-        if col_la:          mapping[col_la] = "link_LA"
-        if col_gestion:     mapping[col_gestion] = "gestion_LA"
-        if col_coord_dest:  mapping[col_coord_dest] = "coordinador_destino"
-        if col_dur:         mapping[col_dur] = "duracion_meses"
-        if col_email:       mapping[col_email] = "email"
-
+    def _to_records(g: pd.DataFrame) -> list[dict]:
         keep = ["estudiante"] + [k for k in mapping.keys() if k in g.columns]
-        out = g[keep].copy()
-        out = out.rename(columns=mapping)
+        out = g[keep].copy().rename(columns=mapping)
         return out.to_dict(orient="records")
 
     grouped = (
@@ -214,16 +294,69 @@ def load_sicue_out(path):
 
 
 # ==============================
-#   Auto-detección
+#   Auto-detección (por columnas)
 # ==============================
-def load_mobility_any(path):
-    """Detecta por columnas y llama al loader correspondiente."""
-    df_head = pd.read_excel(path, engine="openpyxl", nrows=1)
-    cols = {c.strip().lower() for c in df_head.columns}
+def load_mobility_any(path: str, sheet_name: str | None = None) -> pd.DataFrame:
+    """Detecta por cabeceras y enruta al loader adecuado."""
+    head = _read_table(path, sheet_name=sheet_name, nrows=1)
+    cols = {_norm_colname(c) for c in head.columns}
 
-    # pistas de tipo
     if "universidad origen" in cols or "cuatrimestre" in cols or "cuatirmestre" in cols:
-        return load_erasmus_in(path)
-    if "coordinador en destino" in cols or "gestion la" in cols or "ciudad" in cols:
-        return load_sicue_out(path)
-    return load_erasmus_out(path)
+        return load_erasmus_in(path, sheet_name=sheet_name)
+    if "coordinador en destino" in cols or "gestion la" in cols or "gestión la" in cols or "ciudad" in cols:
+        return load_sicue_out(path, sheet_name=sheet_name)
+    return load_erasmus_out(path, sheet_name=sheet_name)
+
+
+# ==============================
+#   Agregador con filtro global
+# ==============================
+def load_all_dataframes(config: dict, global_sheet: str) -> dict[str, pd.DataFrame]:
+    """
+    Carga DF por tipo aplicando el filtro global de hoja:
+    - 'Todas' → usa los loaders habituales.
+    - Hoja concreta → lee solo esa hoja (si el loader acepta sheet_name, se usa;
+      si no, se lee directo con pandas).
+    """
+    dfs: dict[str, pd.DataFrame] = {}
+
+    mapping = [
+        ("Erasmus OUT", config.get("Erasmus OUT"), load_erasmus_out),
+        ("Erasmus IN",  config.get("Erasmus IN"),  load_erasmus_in),
+        ("SICUE OUT",   config.get("SICUE OUT"),   load_sicue_out),
+    ]
+    sheets_map = (config or {}).get("sheets", {}) or {}
+
+    for type_name, path, loader in mapping:
+        if not path:
+            continue
+
+        try:
+            ext = os.path.splitext(path)[1].lower()
+
+            if global_sheet and global_sheet != "Todas":
+                if ext == ".csv":
+                    # CSV no tiene hojas → omitir bajo filtro de hoja
+                    continue
+
+                candidates = sheets_map.get(type_name) or sheets_for(path)
+                wanted = resolve_sheet(global_sheet, candidates)
+                if not wanted:
+                    st.info(f"ℹ️ {type_name}: hoja ‘{global_sheet}’ no encontrada en {os.path.basename(path)}")
+                    continue
+
+                # Pasa sheet_name al loader; si no lo soporta, lee directo con pandas
+                try:
+                    df = loader(path, sheet_name=wanted)
+                except TypeError:
+                    df = _read_table(path, sheet_name=wanted)
+            else:
+                df = loader(path)
+
+            if df is not None and len(df):
+                dfs[type_name] = df
+
+        except Exception as e:
+            st.warning(f"⚠️ No se pudo cargar {type_name}: {e}")
+
+    return dfs

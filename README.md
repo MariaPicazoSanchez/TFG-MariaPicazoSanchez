@@ -1,7 +1,7 @@
 # TFG-MariaPicazoSanchez
 
 pip install streamlit leafmap PyMuPDF geopy ipywidgets
-pip install streamlit leafmap pandas openpyxl
+pip install streamlit leafmap pandas openpyxl geopy
 
 
 python -m streamlit run streamlit_app.py
