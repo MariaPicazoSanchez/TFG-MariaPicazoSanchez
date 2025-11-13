@@ -155,14 +155,44 @@ def append_user_to_excel(xlsx_path: str, tipo: str, row_data: dict, sheet_name: 
         if c_gestion: new_row[c_gestion] = row_data.get("gestion_la") or row_data.get("gestion")
         if c_estado:  new_row[c_estado]  = row_data.get("estado_firmas")
         if c_plan:    new_row[c_plan]    = row_data.get("plan_estudios")
+        # opcionales SICUE OUT
+        c_dur    = _pick_col(df, "duracion meses", "duración meses", "duracion_meses")
+        c_coord  = _pick_col(df, "Coordinador en destino")
+        c_ciudad = _pick_col(df, "Ciudad")
+        if c_dur:    new_row[c_dur]    = (row_data.get("dur_sicue") or None)
+        if c_coord:  new_row[c_coord]  = (row_data.get("coord_dest") or None)
+        if c_ciudad: new_row[c_ciudad] = (row_data.get("ciudad_sicue") or None)
+
     elif tipo == "Erasmus OUT":
         if c_la:    new_row[c_la]    = row_data.get("la")
         if c_tor:   new_row[c_tor]   = row_data.get("tor")
         if c_curso: new_row[c_curso] = row_data.get("curso")
         if c_acta:  new_row[c_acta]  = row_data.get("acta_equivalencias")
+        # opcionales OUT
+        c_dur   = _pick_col(df, "duracion meses", "duración meses", "duracion_meses")
+        c_resp  = _pick_col(df, "responsable programa", "responsable del programa")
+        c_la    = _pick_col(df, "LA")
+        c_plan  = _pick_col(df, "Enlace plan de estudios", "plan de estudios")
+        c_dest  = _pick_col(df, "Destino")
+        c_pais  = _pick_col(df, "País", "Pais")
+        if c_dur:  new_row[c_dur]  = (row_data.get("dur_out") or None)
+        if c_resp: new_row[c_resp] = (row_data.get("resp_prog") or None)
+        if c_la and row_data.get("la_out"):   new_row[c_la] = row_data.get("la_out")
+        if c_plan and row_data.get("plan_out"): new_row[c_plan] = row_data.get("plan_out")
+        if c_dest and row_data.get("destino_tabla_out"): new_row[c_dest] = row_data.get("destino_tabla_out")
+        if c_pais and row_data.get("pais_out"): new_row[c_pais] = row_data.get("pais_out")
+
     else:
         if c_la:      new_row[c_la]      = row_data.get("la")
         if c_horario: new_row[c_horario] = row_data.get("horario")
+        # opcionales IN
+        c_cuatri = _pick_col(df, "Cuatrimestre", "Cuatirmestre")
+        c_uo     = _pick_col(df, "Universidad Origen")
+        c_pais   = _pick_col(df, "País", "Pais")
+        if c_cuatri: new_row[c_cuatri] = (row_data.get("cuatrimestre_in") or None)
+        if c_uo:     new_row[c_uo]     = (row_data.get("uni_origen_in") or None)
+        if c_pais:   new_row[c_pais]   = (row_data.get("pais_in") or None)
+
 
     out = pd.concat([df, pd.DataFrame([new_row])], ignore_index=True).reindex(columns=cols_order)
 

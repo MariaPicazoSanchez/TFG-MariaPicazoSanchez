@@ -16,3 +16,5 @@ PROGRAM_COLORS = {
     "Erasmus IN": "green",
     "SICUE OUT": "orange",
 }
+
+ICON_BY_TIPO = {"SICUE OUT": "📘", "Erasmus IN": "🌍", "Erasmus OUT": "✈️"}
