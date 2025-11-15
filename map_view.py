@@ -3,6 +3,7 @@ import folium
 import leafmap.foliumap as leafmap
 import streamlit as st
 from popup_templates import generate_dynamic_popup
+from materias_in_loader import get_materias_in_por_estudiante
 from domain import PROGRAM_COLORS
 
 
@@ -63,11 +64,13 @@ def group_rows_by_location(df, decimals=5):
 
 
 
-def show_map(dfs: dict, base_map):
+def show_map(dfs: dict, base_map, materias_in_por_estudiante=None):
     """
     Muestra TODOS los programas disponibles en `dfs` sin filtrar.
     dfs: dict con posibles claves "Erasmus OUT", "Erasmus IN", "SICUE OUT" -> DataFrames agrupados
     """
+    if materias_in_por_estudiante is None:
+        materias_in_por_estudiante = {}
 
     # 1) Mapa base
     if hasattr(base_map, "add_child"):
@@ -113,9 +116,60 @@ def show_map(dfs: dict, base_map):
         for row in rows_iter:
             lat, lon = row.get("latitud"), row.get("longitud")
             if pd.isna(lat) or pd.isna(lon):
-                continue  # evita markers sin coordenadas
+                continue
 
-            content = generate_dynamic_popup(row)  # o tu versión _desktop si la prefieres
+            # Inicio de asignaturas IN
+            for row in rows_iter:
+                lat, lon = row.get("latitud"), row.get("longitud")
+                if pd.isna(lat) or pd.isna(lon):
+                    continue
+
+                # ⬇️ SOLO PARA ERASMUS IN: enganchar materias IN a cada estudiante
+                if program == "Erasmus IN":
+                    ests = row.get("estudiantes") or []
+                    for e in ests:
+                        nombre = str(e.get("estudiante", "")).strip()
+                        e["materias_in"] = materias_in_por_estudiante.get(nombre, [])
+
+                # A partir de aquí todo como lo tienes
+                content = generate_dynamic_popup(row)
+                n = max(1, len(row.get("estudiantes", [])) if isinstance(row.get("estudiantes"), list) else 1)
+                w = _estimate_popup_width_px(row)
+                h = _estimate_popup_height_px(n)
+
+                html_doc = f"""<!doctype html>
+    <html>
+    <head>
+    <meta charset="utf-8">
+    <style>
+        html, body {{
+        margin:0; padding:0; background:transparent; width:100%; height:100%;
+        }}
+        .al-wrap {{
+        width:100%; height:100%; box-sizing:border-box; padding:8px;
+        background:transparent; overflow-x:hidden; overflow-y:auto;
+        -webkit-overflow-scrolling: touch;
+        }}
+        .al-popup {{ width:100% !important; max-width:100% !important; min-width:100% !important; }}
+    </style>
+    </head>
+    <body>
+    <div class="al-wrap">{content}</div>
+    </body>
+    </html>"""
+
+                popup = folium.Popup(content, max_width=480)
+
+                folium.Marker(
+                    location=[lat, lon],
+                    popup=popup,
+                    tooltip=f"{row.get('universidad','')} ({row.get('pais','') or row.get('ciudad','')}) · {n} alumno(s)",
+                    icon=folium.Icon(color=color, icon="globe", prefix="fa"),
+                ).add_to(m)
+
+            #  Fin de asignaturas IN
+
+            content = generate_dynamic_popup(row)
             n = max(1, len(row.get("estudiantes", [])) if isinstance(row.get("estudiantes"), list) else 1)
             w = _estimate_popup_width_px(row)
             h = _estimate_popup_height_px(n)
