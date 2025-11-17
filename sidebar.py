@@ -357,5 +357,3 @@ def sidebar_controls():
 
         # Devuelve solo el nivel de zoom (ya no hace falta base_map dinámico)
         return base_map
-
-
