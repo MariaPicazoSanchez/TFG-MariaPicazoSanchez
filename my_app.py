@@ -1,11 +1,14 @@
 import os
+import json
 import streamlit as st
+from data_insert import export_materias_in_excel
 from map_view import show_map
 from sidebar import setup_session, sidebar_controls
 from new_user_view import render_new_user_form
-from pdf import handle_open_pdf_query
+from pdf import handle_open_pdf_query, handle_open_excel_query
 from data_access_mobility import load_all_dataframes
 from materias_in_loader import get_materias_in_por_estudiante
+from popup_templates import _normalize_estudiantes
 
 def main():
     st.set_page_config(
@@ -15,6 +18,7 @@ def main():
     )
 
     handle_open_pdf_query()
+    handle_open_excel_query()
 
     st.title("Visualizador de Movilidad ESII")
 
@@ -37,5 +41,13 @@ def main():
     else:
         show_map(dfs, base_map, materias_in_por_est)
 
+    if st.sidebar.button("Exportar Materias IN"):
+        export_materias_in_excel(dfs, config)
+        st.sidebar.success("Excel de Materias IN actualizado.")
+
+    
 if __name__ == "__main__":
     main()
+
+
+

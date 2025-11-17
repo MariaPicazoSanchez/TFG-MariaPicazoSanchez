@@ -2,6 +2,7 @@ from openpyxl import load_workbook
 import os
 import pandas as pd
 from domain import COMMON_COLS, SPEC_COLS
+from popup_templates import _normalize_estudiantes
 
 def first_sheet_name(xlsx_path: str) -> str:
     try:
@@ -208,3 +209,56 @@ def append_user_to_excel(xlsx_path: str, tipo: str, row_data: dict, sheet_name: 
         return False, f"Error guardando: {e}"
 
     return True, None
+
+
+def export_materias_in_excel(dfs, config):
+    """
+    Crea / actualiza el Excel 'Materias IN' a partir del df de 'Erasmus IN'.
+    dfs: dict de DataFrames como el que usas en show_map.
+    config: dict cargado de config.json con la clave 'Materias IN'.
+    """
+    erasmus_in_df = dfs.get("Erasmus IN")
+    if erasmus_in_df is None:
+        return
+
+    rows_out = []
+    for _, row in erasmus_in_df.iterrows():
+        pais = row.get("pais") or ""
+        centro = row.get("universidad") or row.get("centro") or ""
+        estudiantes = _normalize_estudiantes(row.get("estudiantes", []))
+
+        for est in estudiantes:
+            nombre_est = est.get("estudiante", "")
+            materias = est.get("materias_in") or []
+            if not isinstance(materias, list):
+                continue
+
+            for m in materias:
+                if not isinstance(m, dict):
+                    continue
+                asig = m.get("asignatura", "")
+                if not asig:
+                    continue
+                cuat = m.get("cuat") or ""
+                firmado = m.get("firmado") or "x"  # o "" si prefieres
+
+                rows_out.append({
+                    "Asignatura": asig,
+                    "Estudiante": nombre_est,
+                    "Origen": pais,
+                    "Centro": centro,
+                    "Cuat": cuat,
+                    "Firmado": firmado,
+                })
+
+    cols = ["Asignatura", "Estudiante", "Origen", "Centro", "Cuat", "Firmado"]
+    if rows_out:
+        df_out = pd.DataFrame(rows_out, columns=cols)
+    else:
+        df_out = pd.DataFrame(columns=cols)
+
+    path_materias = config.get("Materias IN")
+    if not path_materias:
+        return
+
+    df_out.to_excel(path_materias, index=False)

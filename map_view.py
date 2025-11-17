@@ -132,7 +132,7 @@ def show_map(dfs: dict, base_map, materias_in_por_estudiante=None):
                         e["materias_in"] = materias_in_por_estudiante.get(nombre, [])
 
                 # A partir de aquí todo como lo tienes
-                content = generate_dynamic_popup(row)
+                content = generate_dynamic_popup(row, program)
                 n = max(1, len(row.get("estudiantes", [])) if isinstance(row.get("estudiantes"), list) else 1)
                 w = _estimate_popup_width_px(row)
                 h = _estimate_popup_height_px(n)
@@ -169,7 +169,7 @@ def show_map(dfs: dict, base_map, materias_in_por_estudiante=None):
 
             #  Fin de asignaturas IN
 
-            content = generate_dynamic_popup(row)
+            content = generate_dynamic_popup(row, program)
             n = max(1, len(row.get("estudiantes", [])) if isinstance(row.get("estudiantes"), list) else 1)
             w = _estimate_popup_width_px(row)
             h = _estimate_popup_height_px(n)

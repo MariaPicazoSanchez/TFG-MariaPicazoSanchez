@@ -42,3 +42,30 @@ def handle_open_pdf_query():
             time.sleep(0.2)
         if not ok:
             st.sidebar.error(f"No se pudo abrir el PDF: {err}")
+
+def handle_open_excel_query():
+    """
+    Abre el Excel del programa (Erasmus IN, Erasmus OUT, SICUE OUT)
+    usando la ruta de config.json y open_in_system().
+    Se usa cuando el popup llama a /?open_excel=...
+    """
+    params = st.query_params
+    raw = params.get("open_excel")
+    if not raw:
+        return  # no hay nada que hacer
+
+    programa = raw[0]  # 'Erasmus IN', 'Erasmus OUT', 'SICUE OUT'
+    config = st.session_state.get("config", {})
+
+    ruta = config.get(programa)
+    if not ruta:
+        st.write(f"No se ha encontrado ruta para '{programa}' en config.json")
+        st.stop()
+        return
+
+    ok, err = open_in_system(ruta)
+    if not ok:
+        st.write(f"No se ha podido abrir el archivo: {err or 'error desconocido'}")
+
+    # Esta sesión es la del iframe oculto, aquí terminamos
+    st.stop()

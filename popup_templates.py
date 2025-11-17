@@ -1,6 +1,6 @@
 import html, json, math
+import streamlit as st
 from urllib.parse import quote
-import os, tempfile
 
 
 
@@ -33,6 +33,19 @@ def _line(label, value):
     value = _clean(value)
     return f"<b>{label}:</b> {html.escape(value)}<br>" if value else ""
 
+def _view_line(label, value):
+    """
+    Línea para modo *vista*:
+    - Siempre muestra la etiqueta.
+    - Si no hay valor, pone 'Sin datos' en gris.
+    """
+    v = _clean(value)
+    if v:
+        val_html = html.escape(v)
+    else:
+        val_html = "<span style='color:#9ca3af;font-style:italic;'>Sin datos</span>"
+    return f"<b>{html.escape(label)}:</b> {val_html}<br>"
+
 
 
 def _link(label, url, text="Abrir", open_in_system=False):
@@ -58,281 +71,62 @@ def _link(label, url, text="Abrir", open_in_system=False):
     safe_url = html.escape(str(url), quote=True)
     return f"<b>{label_html}:</b> <a href='{safe_url}' target='_blank' rel='noopener noreferrer'>{text_html}</a><br>"
 
-# def generate_dynamic_popup(row):
-#     universidad = html.escape(str(row.get("universidad","")) or "Sin universidad")
-#     pais = html.escape(str(row.get("pais","") or ""))
-#     ciudad = html.escape(str(row.get("ciudad","") or ""))
-#     estudiantes = _normalize_estudiantes(row.get("estudiantes", []))
-#     n = len(estudiantes)
 
-#     # subtítulo
-#     if pais and ciudad:
-#         sub = f"<p style='margin:4px 0 0 0;color:#555'><b>{pais}</b> · {ciudad}</p>"
-#     elif pais:
-#         sub = f"<p style='margin:4px 0 0 0;color:#555'><b>{pais}</b></p>"
-#     elif ciudad:
-#         sub = f"<p style='margin:4px 0 0 0;color:#555'><b>{ciudad}</b></p>"
-#     else:
-#         sub = ""
-
-#     # items (sin <details>, solo divs + :hover / :focus-within)
-#     items_html = []
-#     for e in estudiantes or [{}]:
-#         nombre = html.escape(str(e.get("estudiante", "(sin nombre)")))
-
-#         ficha_parts = [
-#             _line("Email", e.get("email")),
-#             _line("Curso", e.get("curso")),
-#             _line("Cuatrimestre", e.get("cuatrimestre")),
-#             _line("Duración (meses)", e.get("duracion_meses")),
-#             _line("Gestión LA", e.get("gestion_LA")),
-#             _line("Coordinador destino", e.get("coordinador_destino")),
-#             _link("Learning Agreement", e.get("link_la"),"Abrir", open_in_system=True),
-#             _link("ToR", e.get("ToR"),"Abrir", open_in_system=True),
-#             _line("Acta de equivalencias", e.get("acta_equivalencias")),
-#             _link("Plan de estudios", e.get("link_plan"),"Abrir",open_in_system=True),
-#         ]
-#         ficha = "".join(p for p in ficha_parts if p) or "<i>Sin ficha disponible</i>"
-
-#         items_html.append(f"""
-#         <li class="pitem" tabindex="0" style="margin:6px 0; outline: none;">
-#           <div class="pname">👤 {nombre}</div>
-#           <div class="pdetails">{ficha}</div>
-#         </li>
-#         """)
-
-#     return f"""
-#     <div class="al-popup" style="
-#         font-family:'Segoe UI', Roboto, Arial, sans-serif;
-#         font-size:14px; color:#222; background:#fff;
-#         border-radius:12px; padding:12px; box-sizing:border-box;
-#         box-shadow:0 2px 10px rgba(0,0,0,0.18);
-#         width:460px; max-width:460px; min-width:460px;   /* ancho fijo */
-#     ">
-#       <h4 style="margin:0 0 4px 0;font-size:16px;color:#0B5ED7;border-bottom:2px solid #0B5ED7;padding-bottom:4px;display:flex;gap:8px;align-items:baseline;">
-#         <span>{universidad}</span>
-#         <span style="font-size:12px;color:#666">({n} estudiante{'s' if n!=1 else ''})</span>
-#       </h4>
-#       {sub}
-#       <ul class="plist" style="list-style:none;padding:8px 0 0 0;margin:6px 0 0 0;">
-#         {''.join(items_html)}
-#       </ul>
-
-#       <style>
-#         .al-popup a {{ color:#0B5ED7; text-decoration:underline; word-break:break-all; }}
-
-#         .al-popup .pname {{
-#           color:#0B5ED7; font-weight:600; cursor:default;
-#           white-space:normal; word-break:break-word;
-#         }}
-
-#         /* Detalles ocultos por defecto */
-#         .al-popup .pdetails {{
-#           display:none;
-#           margin-top:6px; background:#f6f8fa;
-#           padding:6px; border-radius:6px;
-#         }}
-
-#         /* Mostrar al pasar el ratón o al enfocar con teclado */
-#         .al-popup .pitem:hover .pdetails,
-#         .al-popup .pitem:focus-within .pdetails {{
-#           display:block;
-#         }}
-
-#         /* realce leve del item activo */
-#         .al-popup .pitem:hover .pname,
-#         .al-popup .pitem:focus-within .pname {{
-#           text-decoration:underline;
-#         }}
-#       </style>
-#     </div>
-#     """
-
-def _input_row(name, label, value):
-    return (
-        "<div class='ef-row'>"
-        f"<label>{html.escape(label)}</label>"
-        f"<input name=\"{html.escape(name)}\" value=\"{html.escape(value, quote=True)}\">"
-        "</div>"
-    )
-
-# Reutilizables: handlers inline (evitan <script> que muchos popups no ejecutan)
-_save_js = (
-    "(function(btn){"
-    "var li=btn.closest('.pitem');var popup=btn.closest('.al-popup');var form=li.querySelector('.edit-form');"
-    "var idx=parseInt(li.getAttribute('data-idx')||'-1',10);var rowId=popup?popup.getAttribute('data-row-id'):null;"
-    "var fd=new FormData(form), est={}; fd.forEach(function(v,k){ est[k]=v; });"
-    "try{ if(typeof est.materias_in==='string') est.materias_in = JSON.parse(est.materias_in); }catch(e){}"
-    "function esc(s){ return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/\"/g,'&quot;'); }"
-    "fetch('/edit_student',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({row_id:rowId,index:idx,estudiante:est})})"
-    ".then(function(r){ if(!r.ok) throw new Error('net'); return r.json().catch(function(){return {ok:true};}); })"
-    ".then(function(){ var newName=est.estudiante; var viewName=li.querySelector('.view-name'); if(viewName) viewName.textContent=newName||'(sin nombre)';"
-    "var pname=li.querySelector('.pname'); if(pname) pname.textContent='👤 '+(newName||'(sin nombre)');"
-    "var small=li.querySelector('.view-small'); if(small){ var parts=[]; if(est.email) parts.push('<b>Email:</b> '+esc(est.email)+'<br>');"
-    "if(est.curso) parts.push('<b>Curso:</b> '+esc(est.curso)+'<br>'); if(est.cuatrimestre) parts.push('<b>Cuatrimestre:</b> '+esc(est.cuatrimestre)+'<br>');"
-    "small.innerHTML=parts.join(''); small.style.display='block'; } form.dataset.original=JSON.stringify(est||{}); form.style.display='none'; })"
-    ".catch(function(){ try{ var qp=encodeURIComponent(JSON.stringify({row_id:rowId,index:idx,estudiante:est})); window.location.href='/?edit_student='+qp; }catch(e){} });"
-    "})(this)"
-)
-
-_cancel_js = """
-(function(btn){
-  var li   = btn.closest('.pitem');
-  var form = li.querySelector('.edit-form');
-
-  try {
-    // Restaurar valores originales de los inputs
-    var orig = JSON.parse(form.dataset.original || '{}');
-    Array.prototype.forEach.call(
-      form.querySelectorAll('input[name]'),
-      function(inp){
-        var k = inp.getAttribute('name');
-        inp.value = (orig[k] != null ? orig[k] : '');
-      }
-    );
-
-    // Reconstruir lista de materias desde el hidden
-    var h  = form.querySelector('input[name="materias_in"]');
-    var ul = form.querySelector('.materias-edit-list');
-    if (h && ul) {
-      ul.innerHTML = '';
-      var arr = JSON.parse(h.value || '[]') || [];
-      arr.forEach(function(m){
-        var li2 = document.createElement('li');
-        li2.setAttribute('data-asig', m.asignatura || '');
-        li2.setAttribute('data-cuat', m.cuat || '');
-
-        var s1 = document.createElement('span');
-        s1.className  = 'masig';
-        s1.textContent = m.asignatura || '';
-        li2.appendChild(s1);
-
-        var s2 = document.createElement('span');
-        s2.className  = 'mcuat';
-        s2.textContent = m.cuat || '';
-        li2.appendChild(s2);
-
-        var del = document.createElement('button');
-        del.type = 'button';
-        del.textContent = 'X';
-        del.addEventListener('click', function(){
-          var li3 = this.closest('li');
-          li3.parentElement.removeChild(li3);
-
-          var form2 = this.closest('.edit-form');
-          var ul2   = form2.querySelector('.materias-edit-list');
-          var arr2  = [];
-          Array.prototype.forEach.call(
-            ul2.querySelectorAll('li'),
-            function(l){
-              arr2.push({
-                asignatura: l.getAttribute('data-asig'),
-                cuat:       l.getAttribute('data-cuat')
-              });
-            }
-          );
-          var h2 = form2.querySelector('input[name="materias_in"]');
-          if (h2) h2.value = JSON.stringify(arr2);
-        });
-
-        ul.appendChild(li2);
-      });
-    }
-  } catch(e) {}
-
-  form.style.display = 'none';
-  var small = li.querySelector('.view-small');
-  if (small) small.style.display = 'block';
-})(this)
-"""
-
-
-_toggle_js = """
-(function(btn){
-  var li   = btn.closest('.pitem');
-  var form = li.querySelector('.edit-form');
-  var small = li.querySelector('.view-small');
-
-  var show = form.style.display !== 'block';
-  form.style.display = show ? 'block' : 'none';
-  if (small) small.style.display = show ? 'none' : 'block';
-
-  if (!show) return;
-
-  // Si mostramos el formulario, reconstruimos la lista de materias desde el hidden
-  var h  = form.querySelector('input[name="materias_in"]');
-  var ul = form.querySelector('.materias-edit-list');
-  if (!h || !ul) return;
-
-  ul.innerHTML = '';
-  try {
-    var arr = JSON.parse(h.value || '[]') || [];
-    arr.forEach(function(m){
-      var li2 = document.createElement('li');
-      li2.setAttribute('data-asig', m.asignatura || '');
-      li2.setAttribute('data-cuat', m.cuat || '');
-
-      var s1 = document.createElement('span');
-      s1.className  = 'masig';
-      s1.textContent = m.asignatura || '';
-      li2.appendChild(s1);
-
-      var s2 = document.createElement('span');
-      s2.className  = 'mcuat';
-      s2.textContent = m.cuat || '';
-      li2.appendChild(s2);
-
-      var del = document.createElement('button');
-      del.type = 'button';
-      del.textContent = 'X';
-      del.addEventListener('click', function(){
-        var li3 = this.closest('li');
-        li3.parentElement.removeChild(li3);
-
-        var form2 = this.closest('.edit-form');
-        var ul2   = form2.querySelector('.materias-edit-list');
-        var arr2  = [];
-        Array.prototype.forEach.call(
-          ul2.querySelectorAll('li'),
-          function(l){
-            arr2.push({
-              asignatura: l.getAttribute('data-asig'),
-              cuat:       l.getAttribute('data-cuat')
-            });
-          }
-        );
-        var h2 = form2.querySelector('input[name="materias_in"]');
-        if (h2) h2.value = JSON.stringify(arr2);
-      });
-
-      ul.appendChild(li2);
-    });
-  } catch(e){}
-})(this)
-"""
-def _escape_js_attr(js):
-    # escapar &, <, >, " y adicionalmente ' y normalizar saltos de línea
-    s = html.escape(js, quote=True)
-    s = s.replace("'", "&#x27;")
-    s = s.replace("\r", " ").replace("\n", " ")
-    return s
-
-
-def generate_dynamic_popup(row):
+def generate_dynamic_popup(row, programa: str):
     """
-    Popup SOLO con panel de edición visual (inputs dentro del popup).
-    De momento NO guarda nada en el servidor: sirve para ver y editar
-    los datos en pantalla (para copiar, revisar, etc.).
+    Popup con:
+      - vista de información por defecto (solo lectura)
+      - bloque de edición que se muestra al abrir el <details>
+
+    Asignaturas (materias_in) SOLO si el alumno realmente las tiene.
+    Botón para abrir el Excel correspondiente al tipo (Erasmus IN/OUT, SICUE OUT).
+
+    Sin JavaScript: solo HTML + CSS.
     """
-    universidad = html.escape(str(row.get("universidad","")) or "Sin universidad")
-    pais = html.escape(str(row.get("pais","") or ""))
-    ciudad = html.escape(str(row.get("ciudad","") or ""))
+    universidad = html.escape(str(row.get("universidad", "")) or "Sin universidad")
+    pais = html.escape(str(row.get("pais", "") or ""))
+    ciudad = html.escape(str(row.get("ciudad", "") or ""))
+
+    # # Intentar deducir el tipo del programa de forma robusta
+    # tipo = (
+    #     row.get("tipo")
+    #     or row.get("programa")
+    #     or row.get("sheet")
+    #     or row.get("origen_programa")
+    #     or ""
+    # )
+    # tipo = str(tipo).strip()
+
+    config = st.session_state.get("config", {})
+    excel_path = config.get(programa)
+
     estudiantes = _normalize_estudiantes(row.get("estudiantes", []))
     n = len(estudiantes)
 
-    subtitle = " · ".join(p for p in (pais, ciudad) if p)
-    subtitle_html = f"<div class='sub'>{subtitle}</div>" if subtitle else ""
+    
+    # subtitle = " · ".join(p for p in (pais, ciudad) if p)
+    # subtitle_html = f"<div class='sub'>{subtitle}</div>" if subtitle else ""
 
+    loc_text = " · ".join(p for p in (ciudad, pais) if p)  # primero ciudad, luego país
+
+    if programa and loc_text:
+        subtitle_text = f"{html.escape(programa)} · {loc_text}"
+    elif programa:
+        subtitle_text = html.escape(programa)
+    else:
+        subtitle_text = loc_text
+
+    subtitle_html = f"<div class='sub'>{subtitle_text}</div>" if subtitle_text else ""
+    # 🔹 Botón "Abrir Excel <programa>" SOLO si tenemos ruta local
+    excel_btn_html = ""
+    if excel_path and not str(excel_path).lower().startswith(("http://", "https://")):
+        qp = quote(str(excel_path))
+        programa_label = html.escape(programa)
+        excel_btn_html = (
+            f"<a class='excel-btn' href='/?open_pdf={qp}' "
+            f"title='Abrir Excel de {programa_label}' "
+            "target='opener'>Abrir Excel</a>"
+        )
     items_html = []
 
     if not estudiantes:
@@ -342,7 +136,7 @@ def generate_dynamic_popup(row):
             "</li>"
         )
     else:
-        for idx, e in enumerate(estudiantes):
+        for e in estudiantes:
             nombre_raw = str(e.get("estudiante", "(sin nombre)"))
             nombre = html.escape(nombre_raw)
 
@@ -357,109 +151,167 @@ def generate_dynamic_popup(row):
             acta_val   = _clean(e.get("acta_equivalencias"))
             plan_val   = _clean(e.get("link_plan"))
 
-            # materias_in -> texto editable (una línea por materia, opcionalmente "Asignatura | Cuat")
+            # Materias: mostrar SOLO si el alumno tiene materias_in no vacías
             materias = e.get("materias_in") if isinstance(e, dict) else []
-            if not isinstance(materias, list):
-                materias = []
-            lines = []
-            for m in materias:
-                if not isinstance(m, dict):
-                    continue
-                asig = _clean(m.get("asignatura"))
-                cuat = _clean(m.get("cuat"))
-                if not asig:
-                    continue
-                if cuat:
-                    lines.append(f"{asig} | {cuat}")
-                else:
-                    lines.append(asig)
-            materias_text = "\n".join(lines)
+            has_materias = isinstance(materias, list) and len(materias) > 0
 
+            materias_view_html = ""
+            materias_edit_block = ""
+
+            if has_materias:
+                lines = []
+                pills = []
+                for m in materias:
+                    if not isinstance(m, dict):
+                        continue
+                    asig = _clean(m.get("asignatura"))
+                    cuat = _clean(m.get("cuat"))
+                    if not asig:
+                        continue
+
+                    # para el textarea
+                    if cuat:
+                        lines.append(f"{asig} | {cuat}")
+                    else:
+                        lines.append(asig)
+
+                    # para la vista
+                    pill_text = html.escape(asig)
+                    if cuat:
+                        pill_text += f" · {html.escape(cuat)}"
+                    pills.append(f"<li class='mitem'>{pill_text}</li>")
+
+                materias_text = "\n".join(lines)
+                if pills:
+                    materias_view_html = (
+                        f"<details class='mat' role='group'>"
+                        f"<summary>📚 Materias ({len(pills)})</summary>"
+                        f"<ul class='mlist'>{''.join(pills)}</ul>"
+                        f"</details>"
+                    )
+                else:
+                    materias_view_html = "<div class='no-mat'>Sin asignaturas asignadas</div>"
+
+                materias_edit_block = f"""
+                <div class="field full">
+                  <label>Materias IN (una por línea, opcionalmente 'Asignatura | Cuatrimestre')</label>
+                  <textarea rows="5">{html.escape(materias_text)}</textarea>
+                </div>
+                """
+
+            # Construir la tarjeta del alumno
             items_html.append(f"""
             <li class="pitem">
-              <div class="pname">👤 {nombre}</div>
-              <div class="pdetails">
-                <div class="edit-panel">
-                  <div class="frow">
+              <details class="pdetails">
+                <summary>
+                  <div class="summary-row">
                     <div class="avatar">{html.escape((nombre_raw or ' ').strip()[:1].upper())}</div>
                     <div class="meta">
                       <div class="name">{nombre}</div>
+                      <div class="mode-tags">
+                        <span class="tag-mode tag-view">Ver</span>
+                        <span class="tag-mode tag-edit">Editar</span>
+                      </div>
                       <div class="small">
-                        {_line("Email", email_val)}
-                        {_line("Curso", curso_val)}
-                        {_line("Cuatrimestre", cuatri_val)}
+                        {_view_line("Email", email_val)}
+                        {_view_line("Curso", curso_val)}
+                        {_view_line("Cuatrimestre", cuatri_val)}
                       </div>
                     </div>
                   </div>
+                </summary>
 
-                  <div class="form-grid">
-                    <div class="field">
-                      <label>Nombre</label>
-                      <input value="{html.escape(_clean(e.get("estudiante")), quote=True)}">
-                    </div>
-                    <div class="field">
-                      <label>Email</label>
-                      <input value="{html.escape(email_val, quote=True)}">
-                    </div>
-                    <div class="field">
-                      <label>Curso</label>
-                      <input value="{html.escape(curso_val, quote=True)}">
-                    </div>
-                    <div class="field">
-                      <label>Cuatrimestre</label>
-                      <input value="{html.escape(cuatri_val, quote=True)}">
-                    </div>
-                    <div class="field">
-                      <label>Duración (meses)</label>
-                      <input value="{html.escape(dur_val, quote=True)}">
-                    </div>
-                    <div class="field">
-                      <label>Gestión LA</label>
-                      <input value="{html.escape(gest_val, quote=True)}">
-                    </div>
-                    <div class="field">
-                      <label>Coordinador destino</label>
-                      <input value="{html.escape(coord_val, quote=True)}">
-                    </div>
-                    <div class="field">
-                      <label>Learning Agreement (ruta/enlace)</label>
-                      <input value="{html.escape(la_val, quote=True)}">
-                    </div>
-                    <div class="field">
-                      <label>ToR (ruta/enlace)</label>
-                      <input value="{html.escape(tor_val, quote=True)}">
-                    </div>
-                    <div class="field">
-                      <label>Acta de equivalencias</label>
-                      <input value="{html.escape(acta_val, quote=True)}">
-                    </div>
-                    <div class="field">
-                      <label>Plan de estudios (ruta/enlace)</label>
-                      <input value="{html.escape(plan_val, quote=True)}">
-                    </div>
+                <!-- Bloque de vista -->
+                <div class="block view-block">
+                  <div class="extras">
+                    {_view_line("Duración (meses)", dur_val)}
+                    {_view_line("Gestión LA", gest_val)}
+                    {_view_line("Coordinador destino", coord_val)}
+                    {_view_line("Learning Agreement", la_val)}
+                    {_view_line("ToR", tor_val)}
+                    {_view_line("Acta de equivalencias", acta_val)}
+                    {_view_line("Plan de estudios", plan_val)}
+                    {materias_view_html if has_materias else ""}
                   </div>
 
-                  <div class="field full">
-                    <label>Materias IN (una por línea, opcionalmente "Asignatura | Cuatrimestre")</label>
-                    <textarea rows="5">{html.escape(materias_text)}</textarea>
-                  </div>
+                </div>
 
-                  <div class="hint">
-                    ⚠ De momento estos cambios son solo visuales en el popup.
-                    Sirven para revisar o copiar datos; la lógica de guardado se puede añadir después.
+                <!-- Bloque de edición -->
+                <div class="block edit-block">
+                  <div class="edit-panel-inner">
+                    <div class="form-grid">
+                      <div class="field">
+                        <label>Nombre</label>
+                        <input value="{html.escape(_clean(e.get("estudiante")), quote=True)}">
+                      </div>
+                      <div class="field">
+                        <label>Email</label>
+                        <input value="{html.escape(email_val, quote=True)}">
+                      </div>
+                      <div class="field">
+                        <label>Curso</label>
+                        <input value="{html.escape(curso_val, quote=True)}">
+                      </div>
+                      <div class="field">
+                        <label>Cuatrimestre</label>
+                        <input value="{html.escape(cuatri_val, quote=True)}">
+                      </div>
+                      <div class="field">
+                        <label>Duración (meses)</label>
+                        <input value="{html.escape(dur_val, quote=True)}">
+                      </div>
+                      <div class="field">
+                        <label>Gestión LA</label>
+                        <input value="{html.escape(gest_val, quote=True)}">
+                      </div>
+                      <div class="field">
+                        <label>Coordinador destino</label>
+                        <input value="{html.escape(coord_val, quote=True)}">
+                      </div>
+                      <div class="field">
+                        <label>Learning Agreement (ruta/enlace)</label>
+                        <input value="{html.escape(la_val, quote=True)}">
+                      </div>
+                      <div class="field">
+                        <label>ToR (ruta/enlace)</label>
+                        <input value="{html.escape(tor_val, quote=True)}">
+                      </div>
+                      <div class="field">
+                        <label>Acta de equivalencias</label>
+                        <input value="{html.escape(acta_val, quote=True)}">
+                      </div>
+                      <div class="field">
+                        <label>Plan de estudios (ruta/enlace)</label>
+                        <input value="{html.escape(plan_val, quote=True)}">
+                      </div>
+                    </div>
+
+                    {materias_edit_block if has_materias else ""}
+
+                    <div class="hint">
+                      Cambios solo visibles en este popup (aún no se guardan en los datos).
+                    </div>
                   </div>
                 </div>
-              </div>
+
+              </details>
             </li>
             """)
 
     html_out = f"""
     <div class="al-popup">
+      <!-- iframe oculto para que los enlaces no naveguen la página principal -->
+      <iframe name="opener" style="display:none;width:0;height:0;border:0;"></iframe>
+
       <header class="head">
-        <div class="title">{universidad}</div>
-        <div class="badges">
-          <span class="badge count">{n}</span>
-          {f"<span class='badge country'>{pais}</span>" if pais else ""}
+        <div class="title-wrap">
+          <div class="title">{universidad}</div>
+        </div>
+        <div class="head-right">
+          <div class="badges">
+            <span class="badge count">{n}</span>
+          </div>
+          {excel_btn_html}
         </div>
       </header>
       {subtitle_html}
@@ -474,147 +326,180 @@ def generate_dynamic_popup(row):
         color: #1f2937;
         background: #fff;
         border-radius: 12px;
-        padding: 12px;
+        padding: 6px 12px 12px 12px;  /* 👈 solo 6px arriba */
         width: 520px;
         max-width: 520px;
         box-sizing: border-box;
         box-shadow: 0 6px 18px rgba(15,23,42,0.12);
       }}
-      .head {{
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        margin-bottom: 6px;
-        gap: 8px;
-      }}
       .title {{
-        font-weight: 700;
-        color: #0B5ED7;
-        font-size: 15px;
+        font-weight:700;color:#0B5ED7;font-size:15px;
+      }}
+      .excel-btn {{
+        display:inline-block;
+        font-size:12px;
+        font-weight:600;
+        background:#f97316;      /* naranja */
+        color:#ffffff !important; /* texto blanco, por encima de .al-popup a */
+        padding:4px 10px;
+        border-radius:999px;
+        text-decoration:none;
+        border:none;
+        box-shadow:0 1px 3px rgba(0,0,0,0.15);
+      }}
+      .excel-btn:hover {{
+        filter:brightness(0.95);
+      }}
+
+      .head {{
+        display:flex;
+        justify-content:space-between;
+        align-items:center;
+        margin-bottom:6px;
+        gap:8px;
+      }}
+      .title-wrap {{
+        display:flex;
+        flex-direction:column;
+        gap:2px;
+      }}
+      .head-right {{
+        display:flex;
+        flex-direction:column;
+        align-items:flex-end;
+        gap:4px;
       }}
       .badges {{
-        display: flex;
-        gap: 6px;
-        align-items: center;
+        display:flex;gap:6px;align-items:center;
       }}
       .badge {{
-        background: #eef2ff;
-        color: #0b4bd6;
-        padding: 4px 8px;
-        border-radius: 999px;
-        font-weight: 600;
-        font-size: 12px;
+        background:#eef2ff;color:#0b4bd6;padding:4px 8px;
+        border-radius:999px;font-weight:600;font-size:12px;
       }}
       .badge.count {{
-        background: #0b5ed7;
-        color: white;
+        background:#0b5ed7;color:white;
       }}
       .sub {{
-        color: #6b7280;
-        font-size: 12px;
-        margin-bottom: 6px;
+        color:#6b7280;font-size:12px;margin-bottom:6px;
       }}
       .plist {{
-        list-style: none;
-        padding: 0;
-        margin: 6px 0 0 0;
-        max-height: 360px;
-        overflow: auto;
+        list-style:none;padding:0;margin:6px 0 0 0;
+        max-height:360px;overflow:auto;
       }}
       .pitem + .pitem {{
-        margin-top: 8px;
-      }}
-      .pname {{
-        font-weight: 700;
-        color: #0b5ed7;
-        cursor: default;
-        padding: 6px 8px;
-        border-radius: 6px;
-        background: #f3f4ff;
+        margin-top:8px;
       }}
       .pdetails {{
-        margin-top: 6px;
-        background: #fbfbff;
-        border-radius: 8px;
-        padding: 8px;
-        border: 1px solid #eef2ff;
+        margin-top:6px;background:#fbfbff;border-radius:8px;
+        padding:0;border:1px solid #eef2ff;
       }}
-      .edit-panel {{
-        display: flex;
-        flex-direction: column;
-        gap: 8px;
+      .pdetails > summary {{
+        list-style:none;
+        cursor:pointer;
+        padding:8px;
+        border-radius:8px 8px 0 0;
       }}
-      .frow {{
-        display: flex;
-        gap: 10px;
-        align-items: center;
+      .pdetails[open] > summary {{
+        border-bottom:1px solid #e5e7eb;
+      }}
+      .summary-row {{
+        display:flex;gap:10px;align-items:center;
       }}
       .avatar {{
-        width: 36px;
-        height: 36px;
-        border-radius: 8px;
-        background: linear-gradient(135deg,#7c3aed,#60a5fa);
-        color: white;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        font-weight: 700;
+        width:32px;height:32px;border-radius:8px;
+        background:linear-gradient(135deg,#7c3aed,#60a5fa);
+        color:white;display:flex;align-items:center;
+        justify-content:center;font-weight:700;font-size:13px;
       }}
       .meta {{
-        flex: 1;
-        min-width: 0;
+        flex:1;min-width:0;
       }}
       .name {{
-        font-weight: 700;
-        color: #0b5ed7;
-        white-space: nowrap;
-        overflow: hidden;
-        text-overflow: ellipsis;
+        font-weight:700;color:#0b5ed7;white-space:nowrap;
+        overflow:hidden;text-overflow:ellipsis;
+      }}
+      .mode-tags {{
+        display:flex;gap:4px;margin-top:2px;font-size:11px;
+      }}
+      .tag-mode {{
+        padding:2px 8px;border-radius:999px;
+        border:1px solid #d1d5db;
+        color:#4b5563;
+      }}
+      .tag-edit {{
+        display:none;
+        background:#0b5ed7;
+        color:white;
+        border-color:#0b5ed7;
+      }}
+      .pdetails[open] .tag-view {{
+        display:none;
+      }}
+      .pdetails[open] .tag-edit {{
+        display:inline-flex;
       }}
       .small {{
-        font-size: 12px;
-        color: #374151;
-        margin-top: 4px;
+        font-size:12px;color:#374151;margin-top:4px;
+      }}
+      .block {{
+        padding:8px;
+      }}
+      .extras {{
+        font-size:13px;color:#374151;
+      }}
+      .extras b {{
+        font-weight:600;
+      }}
+      .mat summary {{
+        cursor:pointer;list-style:none;outline:none;
+        font-weight:700;color:#0b5ed7;
+      }}
+      .mlist {{
+        list-style:none;padding-left:12px;margin:6px 0 0 0;
+        display:flex;flex-direction:column;gap:4px;
+      }}
+      .mitem {{
+        background:#f1f5f9;padding:6px;border-radius:6px;
+        font-size:12px;color:#0f1724;
+      }}
+      .no-mat {{
+        margin-top:6px;color:#6b7280;font-size:13px;font-style:italic;
+      }}
+      .edit-panel-inner {{
+        display:flex;flex-direction:column;gap:8px;
       }}
       .form-grid {{
-        display: grid;
-        grid-template-columns: repeat(2, minmax(0, 1fr));
-        gap: 6px 10px;
-        margin-top: 6px;
+        display:grid;grid-template-columns:repeat(2,minmax(0,1fr));
+        gap:6px 10px;margin-top:6px;
       }}
       .field {{
-        display: flex;
-        flex-direction: column;
-        gap: 3px;
-        font-size: 12px;
+        display:flex;flex-direction:column;gap:3px;font-size:12px;
       }}
       .field.full {{
-        margin-top: 6px;
+        margin-top:6px;
       }}
       .field label {{
-        font-weight: 600;
-        color: #4b5563;
+        font-weight:600;color:#4b5563;
       }}
       .field input, .field textarea {{
-        width: 100%;
-        font-size: 12px;
-        padding: 5px 6px;
-        border-radius: 4px;
-        border: 1px solid #e5e7eb;
-        box-sizing: border-box;
+        width:100%;font-size:12px;padding:5px 6px;
+        border-radius:4px;border:1px solid #e5e7eb;
+        box-sizing:border-box;
       }}
       .field textarea {{
-        resize: vertical;
+        resize:vertical;
       }}
       .hint {{
-        font-size: 11px;
-        color: #6b7280;
-        margin-top: 4px;
-        font-style: italic;
+        font-size:11px;color:#6b7280;margin-top:4px;font-style:italic;
+      }}
+      .leaflet-popup-content {{
+          margin-top: 0 !important;
       }}
       </style>
     </div>
     """
     return html_out
+
+
 
 
