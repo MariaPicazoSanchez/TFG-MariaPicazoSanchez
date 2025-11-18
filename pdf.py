@@ -1,6 +1,6 @@
-import os, sys, subprocess, urllib.parse as up
 import time
 import streamlit as st
+import os, sys, subprocess, urllib.parse as up
 
 def open_in_system(path: str):
     if not path: return False, "Ruta vacía"

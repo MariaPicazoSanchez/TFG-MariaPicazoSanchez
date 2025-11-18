@@ -1,5 +1,5 @@
-import html, json, math
 import streamlit as st
+import html, json, math
 from urllib.parse import quote
 
 
@@ -215,7 +215,7 @@ def generate_dynamic_popup(row, programa: str, row_index: int) -> str:
                   <div class="summary-row">
                     <div class="avatar">{html.escape((nombre_raw or ' ').strip()[:1].upper())}</div>
                     <div class="meta">
-                      <div class="name">{nombre}</div>
+                      <div class="pname">{nombre}</div>
                     </div>
                   </div>
                 </summary>
@@ -224,15 +224,15 @@ def generate_dynamic_popup(row, programa: str, row_index: int) -> str:
                   <!-- interruptor ver/editar -->
                   <input type="checkbox" id="{toggle_id}" class="edit-toggle">
 
-                  <!-- resumen pequeño -->
-                  <div class="small">
-                    {_view_line("Email", email_val)}
-                    {_view_line("Curso", curso_val)}
-                    {_view_line("Cuatrimestre", cuatri_val)}
-                  </div>
 
                   <!-- Bloque de VISTA -->
                   <div class="block view-block">
+                    <!-- resumen pequeño -->
+                    <div class="small">
+                      {_view_line("Email", email_val)}
+                      {_view_line("Curso", curso_val)}
+                      {_view_line("Cuatrimestre", cuatri_val)}
+                    </div>
                     <div class="extras">
                       {_view_line("Duración (meses)", dur_val)}
                       {_view_line("Gestión LA", gest_val)}

@@ -1,10 +1,9 @@
-from duckdb import df
-from openpyxl import load_workbook
 import os
-import streamlit as st
 import json
 import pandas as pd
+import streamlit as st
 from domain import COMMON_COLS, SPEC_COLS
+from openpyxl import load_workbook
 from popup_templates import _normalize_estudiantes
 
 def first_sheet_name(xlsx_path: str) -> str:

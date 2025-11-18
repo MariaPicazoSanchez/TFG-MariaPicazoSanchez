@@ -1,6 +1,5 @@
 from __future__ import annotations
 import os
-import time
 import streamlit as st
 from sheets import sheets_for
 from pdf import open_in_system

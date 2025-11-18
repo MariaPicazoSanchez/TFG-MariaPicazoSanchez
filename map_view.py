@@ -1,7 +1,7 @@
-import pandas as pd
 import folium
-import leafmap.foliumap as leafmap
+import pandas as pd
 import streamlit as st
+import leafmap.foliumap as leafmap
 from popup_templates import generate_dynamic_popup
 from materias_in_loader import get_materias_in_por_estudiante
 from domain import PROGRAM_COLORS

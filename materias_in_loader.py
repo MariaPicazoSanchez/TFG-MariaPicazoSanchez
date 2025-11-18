@@ -1,4 +1,3 @@
-# materias_in_loader.py
 import pandas as pd
 
 def load_materias_in(config):
