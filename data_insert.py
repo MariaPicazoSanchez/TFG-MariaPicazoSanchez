@@ -1,5 +1,8 @@
+from duckdb import df
 from openpyxl import load_workbook
 import os
+import streamlit as st
+import json
 import pandas as pd
 from domain import COMMON_COLS, SPEC_COLS
 from popup_templates import _normalize_estudiantes
@@ -262,3 +265,175 @@ def export_materias_in_excel(dfs, config):
         return
 
     df_out.to_excel(path_materias, index=False)
+
+
+
+def handle_save_student_query():
+    params = st.query_params
+    if "save_student" not in params:
+        return
+
+    # helper robusto para extraer query params (lista o string)
+    def _qp_val(p, key):
+        v = p.get(key)
+        if v is None:
+            return None
+        if isinstance(v, list):
+            return v[0] if v else ""
+        if isinstance(v, str):
+            return v
+        return str(v)
+
+    # 1) Parámetros básicos
+    programa = _qp_val(params, "programa")
+    row_id   = _qp_val(params, "row_id")
+    idx_str  = _qp_val(params, "idx")
+
+    if programa is None or row_id is None or idx_str is None:
+        st.error("Faltan parámetros para guardar el alumno.")
+        return
+
+    try:
+        idx = int(idx_str)
+    except ValueError:
+        st.error("Índice de estudiante no válido.")
+        return
+
+    # 2) Campos simples del formulario
+    campos = {}
+    for key in (
+        "estudiante","email","curso","cuatrimestre",
+        "duracion_meses","gestion_LA","coordinador_destino",
+        "link_la","ToR","acta_equivalencias","link_plan","apellidos"
+    ):
+        campos[key] = _qp_val(params, key) or ""
+
+    # 3) Materias IN (solo Erasmus IN)
+    materias_list = []
+    materias_raw = _qp_val(params, "materias_raw") or ""
+    if materias_raw.strip():
+        for line in materias_raw.splitlines():
+            line = line.strip()
+            if not line:
+                continue
+            if "|" in line:
+                asig, cuat = [p.strip() for p in line.split("|", 1)]
+            else:
+                asig, cuat = line, ""
+            if asig:
+                materias_list.append({"asignatura": asig, "cuat": cuat})
+
+    # 4) Localizar ruta del Excel desde config
+    config = st.session_state.get("config", {})
+    ruta = config.get(programa)
+
+    if ruta is None:
+        key_norm = (programa or "").strip().lower()
+        norm_map = {
+            (k.strip().lower() if isinstance(k, str) else k): v
+            for k, v in config.items()
+        }
+        ruta = norm_map.get(key_norm)
+        if ruta is None:
+            for k, v in norm_map.items():
+                if key_norm and key_norm in str(k):
+                    ruta = v
+                    break
+
+    if not ruta:
+        st.error(f"No se ha encontrado ruta para {programa!r} en config.json")
+        return
+
+    try:
+        df = pd.read_excel(ruta)
+    except Exception as e:
+        st.error(f"No se ha podido leer el Excel {ruta}: {e}")
+        return
+
+    # --- Caso sin columna 'id' → buscar por email/nombre o añadir ---
+    if "id" not in df.columns:
+        c_email     = _pick_col(df, "email", "Email")
+        c_nombre    = _pick_col(df, "nombre", "Nombre")
+        c_apellidos = _pick_col(df, "apellidos", "Apellidos", "apellido1", "apellido2")
+
+        found_idx = None
+
+        # 1) por email
+        email_val = (campos.get("email") or "").strip()
+        if c_email and email_val:
+            mask = df[c_email].astype(str).str.strip().eq(email_val)
+            if mask.any():
+                found_idx = df.index[mask][0]
+
+        # 2) por nombre + apellidos
+        if found_idx is None:
+            nombre_val = (campos.get("estudiante") or "").strip()
+            apes_val   = (campos.get("apellidos") or "").strip()
+            if c_nombre and nombre_val:
+                mask_n = df[c_nombre].astype(str).str.strip().str.lower().eq(nombre_val.lower())
+                if c_apellidos and apes_val:
+                    mask_a = df[c_apellidos].astype(str).str.strip().str.lower().eq(apes_val.lower())
+                    mask = mask_n & mask_a
+                else:
+                    mask = mask_n
+                if mask.any():
+                    found_idx = df.index[mask][0]
+
+        # 2.1) si se encuentra fila → actualizar
+        if found_idx is not None:
+            for k, v in campos.items():
+                col = _pick_col(df, k, k.capitalize())
+                if col:
+                    df.at[found_idx, col] = v
+            if materias_list:
+                col_m = _pick_col(df, "materias_in", "Materias", "materias")
+                if col_m:
+                    df.at[found_idx, col_m] = str(materias_list)
+
+            try:
+                df.to_excel(ruta, index=False)
+                st.session_state["_student_saved"] = True
+                st.success("✅ Alumno actualizado correctamente.")
+            except Exception as e:
+                st.error(f"Error guardando Excel: {e}")
+            return
+
+        # 2.2) no se encontró → añadir fila nueva
+        st.warning("No se encontró 'id' ni coincidencia por email/nombre: se añadirá una nueva fila.")
+        try:
+            append_user_to_excel(ruta, programa, {**campos, "materias": materias_list}, None)
+            st.session_state["_student_saved"] = True
+            st.success("✅ Alumno añadido correctamente.")
+        except Exception as e:
+            st.error(f"Error añadiendo fila: {e}")
+        return
+
+    # --- Caso con columna 'id' → actualizar lista 'estudiantes' ---
+    mask = df["id"].astype(str) == str(row_id)
+    if not mask.any():
+        st.error(f"No se ha encontrado la fila con id={row_id} en {programa}.")
+        return
+
+    fila_idx = df[mask].index[0]
+
+    est_raw = df.at[fila_idx, "estudiantes"]
+    lista_est = _normalize_estudiantes(est_raw)
+
+    if not (0 <= idx < len(lista_est)):
+        st.error(f"Índice de estudiante {idx} fuera de rango.")
+        return
+
+    est = lista_est[idx] if isinstance(lista_est[idx], dict) else {}
+    est.update(campos)
+    if programa == "Erasmus IN":
+        est["materias_in"] = materias_list
+
+    lista_est[idx] = est
+    df.at[fila_idx, "estudiantes"] = json.dumps(lista_est, ensure_ascii=False)
+
+    try:
+        df.to_excel(ruta, index=False)
+        st.session_state["_student_saved"] = True
+        st.success("✅ Alumno actualizado correctamente.")
+    except Exception as e:
+        st.error(f"No se ha podido guardar en {ruta}: {e}")

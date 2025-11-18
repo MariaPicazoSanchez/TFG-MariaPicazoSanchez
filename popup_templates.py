@@ -72,7 +72,7 @@ def _link(label, url, text="Abrir", open_in_system=False):
     return f"<b>{label_html}:</b> <a href='{safe_url}' target='_blank' rel='noopener noreferrer'>{text_html}</a><br>"
 
 
-def generate_dynamic_popup(row, programa: str):
+def generate_dynamic_popup(row, programa: str, row_index: int) -> str:
     """
     Popup con:
       - vista de información por defecto (solo lectura)
@@ -87,6 +87,8 @@ def generate_dynamic_popup(row, programa: str):
     pais = html.escape(str(row.get("pais", "") or ""))
     ciudad = html.escape(str(row.get("ciudad", "") or ""))
 
+    row_id = str(row.get("id", ""))
+    row_id_attr = html.escape(row_id, quote=True)
     # # Intentar deducir el tipo del programa de forma robusta
     # tipo = (
     #     row.get("tipo")
@@ -136,7 +138,7 @@ def generate_dynamic_popup(row, programa: str):
             "</li>"
         )
     else:
-        for e in estudiantes:
+        for idx, e in enumerate(estudiantes):
             nombre_raw = str(e.get("estudiante", "(sin nombre)"))
             nombre = html.escape(nombre_raw)
 
@@ -155,12 +157,18 @@ def generate_dynamic_popup(row, programa: str):
             materias = e.get("materias_in") if isinstance(e, dict) else []
             has_materias = isinstance(materias, list) and len(materias) > 0
 
+            has_materias = False
             materias_view_html = ""
             materias_edit_block = ""
 
-            if has_materias:
-                lines = []
+            if programa == "Erasmus IN":
+                has_materias = True
+                materias = e.get("materias_in") if isinstance(e, dict) else []
+                if not isinstance(materias, list):
+                    materias = []
+
                 pills = []
+                lines = []
                 for m in materias:
                     if not isinstance(m, dict):
                         continue
@@ -169,37 +177,37 @@ def generate_dynamic_popup(row, programa: str):
                     if not asig:
                         continue
 
-                    # para el textarea
+                    # para la vista
+                    pill = html.escape(asig)
                     if cuat:
+                        pill += f" · {html.escape(cuat)}"
                         lines.append(f"{asig} | {cuat}")
                     else:
                         lines.append(asig)
+                    pills.append(f"<li class='mitem'>{pill}</li>")
 
-                    # para la vista
-                    pill_text = html.escape(asig)
-                    if cuat:
-                        pill_text += f" · {html.escape(cuat)}"
-                    pills.append(f"<li class='mitem'>{pill_text}</li>")
-
-                materias_text = "\n".join(lines)
                 if pills:
                     materias_view_html = (
-                        f"<details class='mat' role='group'>"
+                        "<details class='mat' role='group'>"
                         f"<summary>📚 Materias ({len(pills)})</summary>"
-                        f"<ul class='mlist'>{''.join(pills)}</ul>"
-                        f"</details>"
+                        "<ul class='mlist'>" + "".join(pills) + "</ul></details>"
                     )
                 else:
                     materias_view_html = "<div class='no-mat'>Sin asignaturas asignadas</div>"
 
+                materias_text = "\n".join(lines)
                 materias_edit_block = f"""
-                <div class="field full">
-                  <label>Materias IN (una por línea, opcionalmente 'Asignatura | Cuatrimestre')</label>
-                  <textarea rows="5">{html.escape(materias_text)}</textarea>
-                </div>
+                  <div class="field full">
+                    <label>Materias IN (una por línea, 'Asignatura | Cuatrimestre')</label>
+                    <textarea name="materias_raw" rows="4">{html.escape(materias_text)}</textarea>
+                  </div>
                 """
-
+            
             # Construir la tarjeta del alumno
+            toggle_id = f"edit-{idx}"
+            idx_attr = html.escape(str(idx), quote=True)
+            prog_attr = html.escape(programa, quote=True)
+            row_index_attr = html.escape(str(row_index), quote=True)
             items_html.append(f"""
             <li class="pitem">
               <details class="pdetails">
@@ -208,92 +216,115 @@ def generate_dynamic_popup(row, programa: str):
                     <div class="avatar">{html.escape((nombre_raw or ' ').strip()[:1].upper())}</div>
                     <div class="meta">
                       <div class="name">{nombre}</div>
-                      <div class="mode-tags">
-                        <span class="tag-mode tag-view">Ver</span>
-                        <span class="tag-mode tag-edit">Editar</span>
-                      </div>
-                      <div class="small">
-                        {_view_line("Email", email_val)}
-                        {_view_line("Curso", curso_val)}
-                        {_view_line("Cuatrimestre", cuatri_val)}
-                      </div>
                     </div>
                   </div>
                 </summary>
 
-                <!-- Bloque de vista -->
-                <div class="block view-block">
-                  <div class="extras">
-                    {_view_line("Duración (meses)", dur_val)}
-                    {_view_line("Gestión LA", gest_val)}
-                    {_view_line("Coordinador destino", coord_val)}
-                    {_view_line("Learning Agreement", la_val)}
-                    {_view_line("ToR", tor_val)}
-                    {_view_line("Acta de equivalencias", acta_val)}
-                    {_view_line("Plan de estudios", plan_val)}
-                    {materias_view_html if has_materias else ""}
+                <div class="pcontent">
+                  <!-- interruptor ver/editar -->
+                  <input type="checkbox" id="{toggle_id}" class="edit-toggle">
+
+                  <!-- resumen pequeño -->
+                  <div class="small">
+                    {_view_line("Email", email_val)}
+                    {_view_line("Curso", curso_val)}
+                    {_view_line("Cuatrimestre", cuatri_val)}
                   </div>
 
-                </div>
-
-                <!-- Bloque de edición -->
-                <div class="block edit-block">
-                  <div class="edit-panel-inner">
-                    <div class="form-grid">
-                      <div class="field">
-                        <label>Nombre</label>
-                        <input value="{html.escape(_clean(e.get("estudiante")), quote=True)}">
-                      </div>
-                      <div class="field">
-                        <label>Email</label>
-                        <input value="{html.escape(email_val, quote=True)}">
-                      </div>
-                      <div class="field">
-                        <label>Curso</label>
-                        <input value="{html.escape(curso_val, quote=True)}">
-                      </div>
-                      <div class="field">
-                        <label>Cuatrimestre</label>
-                        <input value="{html.escape(cuatri_val, quote=True)}">
-                      </div>
-                      <div class="field">
-                        <label>Duración (meses)</label>
-                        <input value="{html.escape(dur_val, quote=True)}">
-                      </div>
-                      <div class="field">
-                        <label>Gestión LA</label>
-                        <input value="{html.escape(gest_val, quote=True)}">
-                      </div>
-                      <div class="field">
-                        <label>Coordinador destino</label>
-                        <input value="{html.escape(coord_val, quote=True)}">
-                      </div>
-                      <div class="field">
-                        <label>Learning Agreement (ruta/enlace)</label>
-                        <input value="{html.escape(la_val, quote=True)}">
-                      </div>
-                      <div class="field">
-                        <label>ToR (ruta/enlace)</label>
-                        <input value="{html.escape(tor_val, quote=True)}">
-                      </div>
-                      <div class="field">
-                        <label>Acta de equivalencias</label>
-                        <input value="{html.escape(acta_val, quote=True)}">
-                      </div>
-                      <div class="field">
-                        <label>Plan de estudios (ruta/enlace)</label>
-                        <input value="{html.escape(plan_val, quote=True)}">
-                      </div>
+                  <!-- Bloque de VISTA -->
+                  <div class="block view-block">
+                    <div class="extras">
+                      {_view_line("Duración (meses)", dur_val)}
+                      {_view_line("Gestión LA", gest_val)}
+                      {_view_line("Coordinador destino", coord_val)}
+                      {_view_line("Learning Agreement", la_val)}
+                      {_view_line("ToR", tor_val)}
+                      {_view_line("Acta de equivalencias", acta_val)}
+                      {_view_line("Plan de estudios", plan_val)}
+                      {materias_view_html if has_materias else ""}
                     </div>
-
-                    {materias_edit_block if has_materias else ""}
-
-                    <div class="hint">
-                      Cambios solo visibles en este popup (aún no se guardan en los datos).
+                    <div class="view-actions">
+                      <label for="{toggle_id}" class="btn-icon edit-btn" title="Editar">
+                        ✏️ <span>Editar</span>
+                      </label>
                     </div>
                   </div>
-                </div>
 
+                  <!-- BLOQUE EDICIÓN -->
+                  <div class="block edit-block">
+                    <!-- FORMULARIO: evitamos la navegación desde el iframe y usamos postMessage -->
+                    <form id="edit-form-{row_index_attr}-{idx_attr}" class="edit-form">
+                      <!-- identificadores -->
+                      <input type="hidden" name="row_index" value="{row_index_attr}" onsubmit="return false;">
+                      <input type="hidden" name="save_student" value="1">
+                      <input type="hidden" name="programa" value="{prog_attr}">
+                      <input type="hidden" name="row_id" value="{row_id_attr}">
+                      <input type="hidden" name="idx" value="{idx_attr}">
+
+                      <div class="edit-panel-inner">
+                        <div class="form-grid">
+                          <div class="field">
+                            <label>Nombre</label>
+                            <input name="estudiante" value="{html.escape(_clean(e.get("estudiante")), quote=True)}">
+                          </div>
+                          <div class="field">
+                            <label>Email</label>
+                            <input name="email" value="{html.escape(email_val, quote=True)}">
+                          </div>
+                          <div class="field">
+                            <label>Curso</label>
+                            <input name="curso" value="{html.escape(curso_val, quote=True)}">
+                          </div>
+                          <div class="field">
+                            <label>Cuatrimestre</label>
+                            <input name="cuatrimestre" value="{html.escape(cuatri_val, quote=True)}">
+                          </div>
+                          <div class="field">
+                            <label>Duración (meses)</label>
+                            <input name="duracion_meses" value="{html.escape(dur_val, quote=True)}">
+                          </div>
+                          <div class="field">
+                            <label>Gestión LA</label>
+                            <input name="gestion_LA" value="{html.escape(gest_val, quote=True)}">
+                          </div>
+                          <div class="field">
+                            <label>Coordinador destino</label>
+                            <input name="coordinador_destino" value="{html.escape(coord_val, quote=True)}">
+                          </div>
+                          <div class="field">
+                            <label>Learning Agreement (ruta/enlace)</label>
+                            <input name="link_la" value="{html.escape(la_val, quote=True)}">
+                          </div>
+                          <div class="field">
+                            <label>ToR (ruta/enlace)</label>
+                            <input name="ToR" value="{html.escape(tor_val, quote=True)}">
+                          </div>
+                          <div class="field">
+                            <label>Acta de equivalencias</label>
+                            <input name="acta_equivalencias" value="{html.escape(acta_val, quote=True)}">
+                          </div>
+                          <div class="field">
+                            <label>Plan de estudios (ruta/enlace)</label>
+                            <input name="link_plan" value="{html.escape(plan_val, quote=True)}">
+                          </div>
+                        </div>
+
+                      {materias_edit_block if has_materias else ""}
+                      <div class="edit-actions">
+                        <!-- cancelar vuelve a la vista (label para el checkbox) -->
+                        <label for="{toggle_id}" class="btn-icon cancel-btn" title="Cancelar">✖</label>
+                        <!-- guardar: botón real que envía el formulario -->
+                        <button type="button" class="btn save-btn" title="Guardar">Guardar</button>
+                      </div>
+
+
+                      <div class="hint">
+                        Los cambios se guardan en el Excel de {html.escape(programa)} (fila {row_id_attr}).
+                    </div>
+                  </div>
+                  </form>
+                </div> <!-- edit-block -->
+                </div> <!-- pcontent -->
               </details>
             </li>
             """)
@@ -495,6 +526,54 @@ def generate_dynamic_popup(row, programa: str):
       .leaflet-popup-content {{
           margin-top: 0 !important;
       }}
+      .edit-toggle {{ display:none; }}        /* el checkbox NO se ve */
+      .view-block {{ display:block; }}
+      .edit-block {{ display:none; }}
+
+      .edit-toggle:checked ~ .view-block {{ display:none; }}
+      .edit-toggle:checked ~ .edit-block {{ display:block; }}
+      .btn-icon,
+      .save-btn {{
+        font-size: 12px;
+        border-radius: 999px;
+        padding: 4px 10px;
+        cursor: pointer;
+        text-decoration: none;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 4px;              /* espacio entre el icono y el texto */
+        border: none;
+      }}
+
+      /* BOTÓN EDITAR (lápiz) */
+      .edit-btn {{
+        background: #eff6ff;       /* azul muy clarito */
+        color: #1d4ed8;            /* azul intenso texto */
+        border: 1px solid #bfdbfe; /* borde suave */
+        font-weight: 600;
+      }}
+
+      .edit-btn:hover {{
+        background: #dbeafe;
+      }}
+      /* BOTÓN CANCELAR (X) */
+      .cancel-btn {{  
+        background: #f3f4f6;
+        color: #111827;
+        border: 1px solid #e5e7eb;
+      }}
+
+      /* BOTÓN GUARDAR */
+      .save-btn {{
+        background: #10b981;
+        color: #ffffff;
+        font-weight: 600;
+      }}
+      .save-btn:hover {{
+        filter: brightness(0.95);
+      }}
+
       </style>
     </div>
     """
