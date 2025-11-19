@@ -300,12 +300,14 @@ def handle_save_student_query():
 
     # 2) Campos simples del formulario
     campos = {}
-    for key in (
-        "estudiante","email","curso","cuatrimestre",
-        "duracion_meses","gestion_LA","coordinador_destino",
-        "link_la","ToR","acta_equivalencias","link_plan","apellidos"
-    ):
-        campos[key] = _qp_val(params, key) or ""
+    for key in ("estudiante","email","curso","cuatrimestre",
+                "duracion_meses","gestion_LA","coordinador_destino",
+                "link_la","ToR","acta_equivalencias","link_plan"):
+        v = _qp_val(params, key)
+        # Solo añadimos el campo si aparece en la query (si el input existía en el form)
+        if v is not None:
+            campos[key] = v
+
 
     # 3) Materias IN (solo Erasmus IN)
     materias_list = []
