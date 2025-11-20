@@ -20,7 +20,7 @@ def generate_dynamic_popup(row, programa: str, row_index: int) -> str:
     Asignaturas (materias_in) SOLO si el alumno realmente las tiene.
     Botón para abrir el Excel correspondiente al tipo (Erasmus IN/OUT, SICUE OUT).
 
-    Sin JavaScript: solo HTML + CSS (el envío real lo manejas fuera).
+    Sin JavaScript: solo HTML + CSS.
     """
     universidad = html.escape(str(row.get("universidad", "")) or "Sin universidad")
     pais = html.escape(str(row.get("pais", "") or ""))
@@ -31,6 +31,11 @@ def generate_dynamic_popup(row, programa: str, row_index: int) -> str:
 
     config = st.session_state.get("config", {})
     excel_path = config.get(programa)
+    materias_excel_path = config.get(f"{programa}_MATERIAS")
+
+    # URL del endpoint que guarda en Excel
+    form_action = "http://localhost:5000/update_student"
+
 
     estudiantes = _normalize_estudiantes(row.get("estudiantes", []))
     n = len(estudiantes)
@@ -80,12 +85,17 @@ def generate_dynamic_popup(row, programa: str, row_index: int) -> str:
             cuatri_val = _clean(e.get("cuatrimestre"))
             dur_val    = _clean(e.get("duracion_meses"))
             gest_val   = _clean(e.get("gestion_LA"))
-            coord_val  = _clean(e.get("coordinador_destino"))
+            coord_val  = _clean(e.get("coordinador_destino") or row.get("coordinador_destino") or row.get("Coordinador en destino"))
             la_val     = _clean(e.get("link_la"))
             tor_val    = _clean(e.get("ToR"))
             acta_val   = _clean(e.get("acta_equivalencias"))
-            plan_val   = _clean(e.get("link_plan"))
+            plan_val   = _clean(e.get("link_plan") or row.get("Plan de estudios") or row.get("Plan estudios") or row.get("Plan de estudios"))
 
+            destino_val = _clean(e.get("destino") or row.get("destino") or row.get("Destino") or row.get("universidad") )
+            origen_val  = _clean(e.get("origen") or row.get("origen") or row.get("Origen") or row.get("universidad"))
+            responsable_val = _clean(e.get("responsable") or row.get("responsable") or row.get("Responsable"))
+            pais_val    = _clean(e.get("pais") or row.get("pais") or row.get("País"))
+            ciudad_val  = _clean(e.get("ciudad") or row.get("ciudad") or row.get("Ciudad"))
             # Materias delegadas al módulo popup_materias
             has_materias, materias_view_html, materias_edit_block = build_materias_blocks(
                 e,
@@ -176,31 +186,31 @@ def generate_dynamic_popup(row, programa: str, row_index: int) -> str:
             destino_field = f'''
                               <div class="field">
                                 <label>Destino</label>
-                                <input name="destino" value="{html.escape(_clean(e.get("destino")), quote=True)}">
+                                <input name="destino" value="{html.escape(_clean(destino_val), quote=True)}">
                               </div>'''
 
             origen_field = f'''
                               <div class="field">
                                 <label>Origen</label>
-                                <input name="origen" value="{html.escape(_clean(e.get("origen")), quote=True)}">
+                                <input name="origen" value="{html.escape(_clean(origen_val), quote=True)}">
                               </div>'''
 
             responsable_field = f'''
                               <div class="field">
                                 <label>Responsable</label>
-                                <input name="responsable" value="{html.escape(_clean(e.get("responsable")), quote=True)}">
+                                <input name="responsable" value="{html.escape(_clean(responsable_val), quote=True)}">
                               </div>'''
 
             pais_field = f'''
                               <div class="field">
                                 <label>País</label>
-                                <input name="pais" value="{html.escape(_clean(e.get("pais")), quote=True)}">
+                                <input name="pais" value="{html.escape(_clean(pais_val), quote=True)}">
                               </div>'''
 
             ciudad_field = f'''
                               <div class="field">
                                 <label>Ciudad</label>
-                                <input name="ciudad" value="{html.escape(_clean(e.get("ciudad")), quote=True)}">
+                                <input name="ciudad" value="{html.escape(_clean(ciudad_val), quote=True)}">
                               </div>'''
 
             prog_upper = (programa or "").upper()
@@ -227,11 +237,11 @@ def generate_dynamic_popup(row, programa: str, row_index: int) -> str:
                 ]
 
             # Valores extra para vista
-            destino_val     = _clean(e.get("destino"))
-            origen_val      = _clean(e.get("origen"))
-            responsable_val = _clean(e.get("responsable"))
-            pais_val        = _clean(e.get("pais"))
-            ciudad_val      = _clean(e.get("ciudad"))
+            destino_val     = _clean(e.get("destino") or row.get("destino") or row.get("Destino"))
+            origen_val      = _clean(e.get("origen") or row.get("origen") or row.get("Origen"))
+            responsable_val = _clean(e.get("responsable") or row.get("responsable") or row.get("Responsable"))
+            pais_val        = _clean(e.get("pais") or row.get("pais") or row.get("País"))
+            ciudad_val      = _clean(e.get("ciudad") or row.get("ciudad") or row.get("Ciudad"))
 
             # === BLOQUES DE VISTA SEGÚN TIPO DE PROGRAMA ===
             view_small = []
@@ -305,10 +315,8 @@ def generate_dynamic_popup(row, programa: str, row_index: int) -> str:
                 </summary>
 
                 <div class="pcontent">
-                  <!-- interruptor ver/editar -->
                   <input type="checkbox" id="{toggle_id}" class="edit-toggle">
 
-                  <!-- Bloque de VISTA -->
                   <div class="block view-block">
                     <div class="small">
                       {view_small_html}
@@ -323,21 +331,30 @@ def generate_dynamic_popup(row, programa: str, row_index: int) -> str:
                     </div>
                   </div>
 
-                  <!-- BLOQUE EDICIÓN -->
                   <div class="block edit-block">
-                    <form id="edit-form-{row_index_attr}-{idx_attr}" class="edit-form">
+                    <form
+                      id="edit-form-{row_index_attr}-{idx_attr}"
+                      class="edit-form"
+                      action="{form_action}"
+                      method="POST"
+                      target="opener"
+                    >
+                      <!-- identificadores -->
+                      <iframe name="opener" style="display:none;width:0;height:0;border:0;"></iframe>
                       <input type="hidden" name="row_index" value="{row_index_attr}">
                       <input type="hidden" name="save_student" value="1">
                       <input type="hidden" name="programa" value="{prog_attr}">
-                      <input type="hidden" name="row_id" value="{row_id_attr}">
                       <input type="hidden" name="idx" value="{idx_attr}">
+                      <!--  mandamos también la ruta del Excel  y las materias-->
+                      <input type="hidden" name="excel_path" value="{html.escape(str(excel_path or ''), quote=True)}">
+                      <input type="hidden" name="materias_excel_path" value="{html.escape(str(materias_excel_path or ''), quote=True)}">
 
                       <div class="edit-panel-inner">
                         <div class="form-grid">
                           {edit_fields_html}
                         </div>
 
-                        {materias_edit_block if has_materias else ""}
+                        {materias_edit_block}
 
                         <div class="edit-actions">
                           <label for="{toggle_id}" class="btn-icon cancel-btn" title="Cancelar">✖</label>
@@ -345,7 +362,7 @@ def generate_dynamic_popup(row, programa: str, row_index: int) -> str:
                         </div>
 
                         <div class="hint">
-                          Los cambios se guardan en el Excel de {html.escape(programa)} (fila {row_id_attr}).
+                          Los cambios se guardan en el Excel de {html.escape(programa)}. 
                         </div>
                       </div>
                     </form>
@@ -357,7 +374,6 @@ def generate_dynamic_popup(row, programa: str, row_index: int) -> str:
 
     html_out = f"""
     <div class="al-popup">
-      <iframe name="opener" style="display:none;width:0;height:0;border:0;"></iframe>
 
       <header class="head">
         <div class="title-wrap">
@@ -378,6 +394,7 @@ def generate_dynamic_popup(row, programa: str, row_index: int) -> str:
       <style>
       {POPUP_STYLES}
       </style>
+    
     </div>
     """
     return html_out

@@ -6,7 +6,7 @@ import streamlit as st
 
 CONFIG_FILE = "config.json"
 
-USE_LOCAL_PICKER = True  # False en Cloud/producción (allí no puede abrir el diálogo del cliente)
+USE_LOCAL_PICKER = True
 
 def _list_sheets_in_file(path: str) -> list[str]:
     if not path or not os.path.exists(path):
@@ -165,7 +165,7 @@ def route_editor(config):
         ("Materias IN", "📑 Materias IN"),
     ]
 
-    new_config = {}
+    new_config = config.copy()
     for key, label in entries:
         col_text, col_btn = st.sidebar.columns([8, 2])
 
@@ -215,6 +215,9 @@ def route_editor(config):
         st.sidebar.info("No se han guardado cambios.")
         st.session_state["show_routes"] = False
         st.rerun()
+    # if st.sidebar.button("🔄 Recargar datos", use_container_width=True):
+    #     st.cache_data.clear()
+    #     st.rerun()
 
 def _unique_sheets_from_config(cfg: dict) -> list[str]:
     """Devuelve la lista de hojas únicas (union) ignorando '__CSV__'."""

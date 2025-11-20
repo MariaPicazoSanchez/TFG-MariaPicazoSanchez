@@ -1,110 +1,133 @@
-# popup_materias.py
 import html
 
 from popup_helpers import _clean
 
-
 def build_materias_blocks(e, programa: str, row_index_attr: str, idx_attr: str):
     """
-    Construye:
+    Devuelve:
       - has_materias: bool
-      - materias_view_html: HTML para la vista (píldoras / 'Sin asignaturas...')
-      - materias_edit_block: bloque HTML del editor de materias
+      - materias_view_html: bloque de vista (detalles con lista de materias)
+      - materias_edit_block: bloque de edición con lista + botones editar/borrar + añadir
 
-    Ahora mismo SOLO hace cosas para 'Erasmus IN'.
-    Para otros programas devuelve (False, "", "").
+    Solo actúa para Erasmus IN. Para otros programas -> (False, "", "").
     """
-    has_materias = False
-    materias_view_html = ""
-    materias_edit_block = ""
 
-    if programa == "Erasmus IN":
-        has_materias = True
-        materias = e.get("materias_in") if isinstance(e, dict) else []
-        if not isinstance(materias, list):
-            materias = []
+    prog_upper = (programa or "").upper()
+    if prog_upper != "ERASMUS IN":
+        return False, "", ""
 
-        pills = []
-        lines = []
-        for m in materias:
-            if not isinstance(m, dict):
-                continue
-            asig = _clean(m.get("asignatura"))
-            cuat = _clean(m.get("cuat"))
-            if not asig:
-                continue
+    # ---- 1) Sacar materias_in del estudiante ----
+    materias = e.get("materias_in") if isinstance(e, dict) else []
+    if not isinstance(materias, list):
+        materias = []
 
-            pill = html.escape(asig)
-            if cuat:
-                pill += f". Cuatri: {html.escape(cuat)}"
-                lines.append(f"{asig} | {cuat}")
-            else:
-                lines.append(asig)
-            pills.append(f"<li class='mitem'>{pill}</li>")
+    has_materias = len(materias) > 0
 
-        if pills:
-            materias_view_html = (
-                "<details class='mat' role='group'>"
-                f"<summary>📚 Materias ({len(pills)})</summary>"
-                "<ul class='mlist'>" + "".join(pills) + "</ul></details>"
-            )
-        else:
-            materias_view_html = "<div class='no-mat'>Sin asignaturas asignadas</div>"
+    pills = []   # para la vista
+    lines = []   # "Asignatura | Cuat | x"
+    materias_items = []  # filas <li> editables
 
-        # materias_text a partir de las líneas
-        materias_text = "\n".join(lines)
+    for j, m in enumerate(materias):
+        if not isinstance(m, dict):
+            continue
 
-        materias_items = []
-        for j, line in enumerate([l for l in materias_text.splitlines() if l.strip()]):
-            nombre_asig = line.split("|", 1)[0].strip() or "Sin nombre"
-            asig = html.escape(nombre_asig)
-            mid = f"{row_index_attr}-{idx_attr}-mat-{j}"
-            materias_items.append(f"""
-              <li class="materia-row" data-mindex="{j}">
-                <span class="materia-name">{asig}</span>
-                <span class="materia-actions">
-                  <button type="button" class="icon-btn materia-edit" title="Editar" data-mid="{mid}">✏️</button>
-                  <button type="button" class="icon-btn materia-delete" title="Eliminar" data-mid="{mid}">🗑️</button>
-                </span>
-              </li>
-            """)
+        asig = _clean(m.get("asignatura"))
+        if not asig:
+            continue
 
-        materias_items_html = "\n".join(materias_items)
+        cuat = _clean(m.get("cuat") or m.get("cuatrimestre"))
 
-        materias_edit_block = f"""
-          <div class="field full materias-block">
-            <label>Asignaturas (materias_in)</label>
+        # 👇 Cualquier valor tipo "x", "1", "s", "si"... lo tratamos como firmado
+        firmado_raw = str(m.get("firmado", "")).strip().lower()
+        firmado_flag = "x" if firmado_raw in ("x", "1", "s", "si", "sí", "true", "t") else ""
 
-            <ul class="materias-list">
-              {materias_items_html}
-              <li class="materia-row add-row">
-                <button type="button" class="icon-btn materia-add">+ Añadir asignatura</button>
-              </li>
-            </ul>
+        # Texto visible: "Nombre · Cuatri: 1 · Firmado/No firmado"
+        trozos = [asig]
+        if cuat:
+            trozos.append(f"Cuatri: {cuat}")
+        trozos.append("Firmado" if firmado_flag == "x" else "No firmado")
+        display_txt = " · ".join(trozos)
 
-            <div class="materia-editor" style="display:none;">
-              <div class="field">
-                <label>Asignatura</label>
-                <input type="text" name="mat_nombre">
-              </div>
-              <div class="field">
-                <label>Cuatrimestre</label>
-                <select name="mat_cuat" class="slim-select">
-                  <option value="">--</option>
-                  <option value="1">1</option>
-                  <option value="2">2</option>
-                </select>
-              </div>
-              <div class="field">
-                <label class="checkbox-label">
-                  <input type="checkbox" name="mat_firmado">
-                  Firmado
-                </label>
-              </div>
-            </div>
+        # Vista (pills)
+        pills.append(f"<li class='mitem'>{html.escape(display_txt)}</li>")
 
-            <textarea name="materias_raw" style="display:none;">{html.escape(materias_text)}</textarea>
+        # Texto raw para el textarea -> mismo formato que tu Excel (Firmado = x / vacío)
+        lines.append(f"{asig} | {cuat} | {firmado_flag}")
+
+        # Fila de la lista editable
+        mid = f"{row_index_attr}-{idx_attr}-mat-{j}"
+        mindex = len(materias_items)
+
+        materias_items.append(f"""
+          <li class="materia-row"
+              data-mindex="{mindex}"
+              data-nombre="{html.escape(asig, quote=True)}"
+              data-cuat="{html.escape(cuat or '', quote=True)}"
+              data-firmado="{html.escape(firmado_flag, quote=True)}">
+            <span class="materia-name">{html.escape(display_txt)}</span>
+            <span class="materia-actions">
+              <button type="button" class="icon-btn materia-edit" title="Editar" data-mid="{mid}">✏️</button>
+              <button type="button" class="icon-btn materia-delete" title="Eliminar" data-mid="{mid}">🗑️</button>
+            </span>
+          </li>
+        """)
+
+    materias_items_html = "\n".join(materias_items)
+
+    # ---- 2) Bloque de VISTA ----
+    if pills:
+        materias_view_html = (
+            "<details class='mat' role='group'>"
+            f"<summary>📚 Materias ({len(pills)})</summary>"
+            "<ul class='mlist'>" + "".join(pills) + "</ul></details>"
+        )
+    else:
+        materias_view_html = "<div class='no-mat'>Sin asignaturas asignadas</div>"
+
+    # ---- 3) Texto raw para enviar en el form ----
+    materias_text = "\n".join(lines)
+
+    # ---- 4) Bloque de EDICIÓN (lista + editor + textarea) ----
+    materias_edit_block = f"""
+      <div class="field full materias-block">
+        <label>Asignaturas (materias_in)</label>
+
+        <ul class="materias-list">
+          {materias_items_html}
+          <li class="materia-row add-row">
+            <button type="button" class="icon-btn materia-add">+ Añadir asignatura</button>
+          </li>
+        </ul>
+
+        <div class="materia-editor" style="display:none;">
+          <div class="field">
+            <label>Asignatura</label>
+            <input type="text" name="mat_nombre">
           </div>
-        """
+          <div class="field">
+            <label>Cuatrimestre</label>
+            <select name="mat_cuat" class="slim-select">
+              <option value="">--</option>
+              <option value="1">1</option>
+              <option value="2">2</option>
+            </select>
+          </div>
+          <div class="field">
+            <label class="checkbox-label">
+              <input type="checkbox" name="mat_firmado">
+              Firmado
+            </label>
+          </div>
+
+          <div class="field acciones-materia">
+            <button type="button" class="materia-save">Guardar</button>
+            <button type="button" class="materia-cancel">Cancelar</button>
+          </div>
+        </div>
+
+        <!-- Representación “raw” en texto, para enviar en el form -->
+        <textarea name="materias_raw" style="display:none;">{html.escape(materias_text)}</textarea>
+      </div>
+    """
 
     return has_materias, materias_view_html, materias_edit_block
