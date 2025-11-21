@@ -1,6 +1,7 @@
 import json
 import pandas as pd
 from geopy.geocoders import Nominatim
+import os
 
 _geolocator = Nominatim(user_agent="tfg-mapa-erasmus")
 
@@ -26,7 +27,7 @@ def update_student_in_excel(excel_path: str, row_index: str, idx: int, data: dic
 
     try:
         with pd.ExcelFile(excel_path) as xls:
-            sheet_name = xls.sheet_names[0]   # por ejemplo "2025-2026"
+            sheet_name = xls.sheet_names[0]
             print("[update_student_in_excel] Usando hoja:", sheet_name)
             df = pd.read_excel(xls, sheet_name=sheet_name)
             print("[update_student_in_excel] Columnas DF:", list(df.columns))
@@ -34,15 +35,47 @@ def update_student_in_excel(excel_path: str, row_index: str, idx: int, data: dic
         print("[update_student_in_excel] Error leyendo Excel:", e)
         return False
 
-    # Índice de fila
-    try:
-        row_i = int(row_index)
-    except ValueError:
-        print("[update_student_in_excel] row_index no es entero:", row_index)
-        return False
-    if row_i < 0 or row_i >= len(df):
-        print("[update_student_in_excel] row_index fuera de rango:", row_i)
-        return False
+    row_i = None
+    n_rows = len(df)
+
+    # 1) Intentar por EMAIL
+    email_val = (data.get("email") or "").strip().lower()
+    if email_val:
+        email_cols = ["email", "Email", "E-mail", "Correo", "Correo electrónico"]
+        for col in email_cols:
+            if col in df.columns:
+                mask = df[col].astype(str).str.strip().str.lower() == email_val
+                if mask.any():
+                    row_i = mask[mask].index[0]
+                    print(f"[update_student_in_excel] Fila localizada por email en columna '{col}':", row_i)
+                    break
+
+    # 2) Si no lo encontramos por email, probar por NOMBRE COMPLETO
+    if row_i is None:
+        full_name = (data.get("estudiante") or "").strip().lower()
+        if full_name:
+            name_cols = ["estudiante", "Estudiante", "NOMBRE COMPLETO", "Nombre completo"]
+            for col in name_cols:
+                if col in df.columns:
+                    mask = df[col].astype(str).str.strip().str.lower() == full_name
+                    if mask.any():
+                        row_i = mask[mask].index[0]
+                        print(f"[update_student_in_excel] Fila localizada por nombre en columna '{col}':", row_i)
+                        break
+
+    # 3) Último recurso: usar row_index tal cual (por compatibilidad)
+    if row_i is None:
+        try:
+            row_i = int(row_index)
+        except ValueError:
+            print("[update_student_in_excel] row_index no es entero:", row_index)
+            return False
+
+        if row_i < 0 or row_i >= n_rows:
+            print("[update_student_in_excel] row_index fuera de rango incluso como respaldo:", row_i)
+            return False
+        else:
+            print("[update_student_in_excel] Usando row_index como respaldo:", row_i)
 
     # Mapa: campo del formulario -> posibles nombres de columna en Excel
         # Mapa: campo del formulario -> posibles nombres de columna en Excel
@@ -297,8 +330,10 @@ def _recalculate_coords(df: pd.DataFrame, row_i: int):
 
 
 
-import pandas as pd
+
+
 import os
+import pandas as pd
 
 def actualizar_excel_materias_para_estudiante(
     materias_in,      # lista de dicts: {"asignatura", "cuat", "firmado"}
@@ -311,29 +346,32 @@ def actualizar_excel_materias_para_estudiante(
 
     - Las hojas del fichero van por curso (2023-2024, 2024-2025, 2025-2026, ...).
     - Se elige la hoja en la que YA está el estudiante (columna 'Estudiante').
-    - Si no está en ninguna, se usa por defecto la última hoja (asumimos curso más reciente).
-    - Solo se reemplaza esa hoja; las demás se mantienen.
+    - Si no está en ninguna, se usa por defecto la última hoja.
+    - Si no se puede leer o escribir el Excel, SE LANZA EXCEPCIÓN.
     """
     if not materias_path:
-        print("[materias] No hay ruta de Excel de materias, no se actualiza.")
-        return
+        raise ValueError("No se ha recibido la ruta del Excel de materias.")
 
     nombre = (est.get("estudiante") or "").strip()
     origen = (est.get("origen") or est.get("pais") or "").strip()
     centro = (est.get("destino") or est.get("Centro") or est.get("universidad") or "").strip()
 
     if not nombre:
-        print("[materias] Estudiante sin nombre, no actualizo Excel de asignaturas")
-        return
+        raise ValueError("El estudiante no tiene nombre; no se puede actualizar el Excel de asignaturas.")
 
     # ----------------------
     # 1) Cargar libro y decidir hoja
     # ----------------------
     sheet_name = None
     all_sheets = {}
-    if os.path.exists(materias_path):
-        try:
-            xls = pd.ExcelFile(materias_path)
+
+    if not os.path.exists(materias_path):
+        # ⚠️ Aquí consideramos que es un error: el Excel de materias debería existir
+        raise FileNotFoundError(f"El archivo de materias no existe: {materias_path}")
+
+    try:
+        # 🔐 Usar contexto para que NO deje el fichero abierto
+        with pd.ExcelFile(materias_path) as xls:
             # Leer todas las hojas en memoria
             for sh in xls.sheet_names:
                 try:
@@ -343,30 +381,26 @@ def actualizar_excel_materias_para_estudiante(
                     continue
                 all_sheets[sh] = df_sh
 
-            # Buscar en qué hoja está ya el estudiante
-            for sh, df_sh in all_sheets.items():
-                if "Estudiante" in df_sh.columns:
-                    mask = df_sh["Estudiante"].astype(str).str.strip().str.lower() == nombre.lower()
-                    if mask.any():
-                        sheet_name = sh
-                        break
+        # Buscar en qué hoja está ya el estudiante
+        for sh, df_sh in all_sheets.items():
+            if "Estudiante" in df_sh.columns:
+                mask = df_sh["Estudiante"].astype(str).str.strip().str.lower() == nombre.lower()
+                if mask.any():
+                    sheet_name = sh
+                    break
 
-            # Si no lo hemos encontrado en ninguna hoja, usamos la última hoja como curso actual
-            if sheet_name is None:
-                if all_sheets:
-                    sheet_name = list(all_sheets.keys())[-1]
-                else:
-                    sheet_name = "Asignaturas"
-        except Exception as e:
-            print("[materias] Error leyendo Excel existente, se crea nuevo:", e)
-            all_sheets = {}
-            sheet_name = "Asignaturas"
-    else:
-        # Fichero nuevo
-        all_sheets = {}
-        sheet_name = "Asignaturas"
+        # Si no lo hemos encontrado en ninguna hoja, usamos la última hoja como curso actual
+        if sheet_name is None:
+            if all_sheets:
+                sheet_name = list(all_sheets.keys())[-1]
+            else:
+                # Libro vacío: lo tratamos como error
+                raise RuntimeError("El Excel de materias no contiene ninguna hoja válida.")
+    except Exception as e:
+        # Lo dejamos caer para que api.py pueda mostrar el error
+        raise RuntimeError(f"No se ha podido leer el Excel de materias: {e}") from e
 
-    # DataFrame de la hoja elegida (si no existe aún, lo creamos)
+    # DataFrame de la hoja elegida
     df_mat = all_sheets.get(sheet_name)
     if df_mat is None or df_mat.empty:
         df_mat = pd.DataFrame(columns=["Asignatura", "Estudiante", "Origen", "Centro", "Cuat", "Firmado"])
@@ -401,8 +435,13 @@ def actualizar_excel_materias_para_estudiante(
     # ----------------------
     # 4) Guardar TODAS las hojas, reemplazando solo la del curso del alumno
     # ----------------------
-    with pd.ExcelWriter(materias_path, engine="openpyxl", mode="w") as writer:
-        for sh, df_sh in all_sheets.items():
-            df_sh.to_excel(writer, sheet_name=sh, index=False)
+    try:
+        from openpyxl import load_workbook  # asegura motor disponible
+        # 🔐 Este with también cierra bien el fichero al terminar
+        with pd.ExcelWriter(materias_path, engine="openpyxl", mode="w") as writer:
+            for sh, df_sh in all_sheets.items():
+                df_sh.to_excel(writer, sheet_name=sh, index=False)
+    except Exception as e:
+        raise RuntimeError(f"No se ha podido guardar el Excel de materias: {e}") from e
 
     print(f"[materias] Actualizado Excel de asignaturas para {nombre} en hoja '{sheet_name}' -> {materias_path}")

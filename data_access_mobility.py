@@ -97,9 +97,13 @@ def load_erasmus_out(path: str, sheet_name: str | None = None) -> pd.DataFrame:
     c_dest     = _pick(df, "Destino", "Universidad Destino", "Universidad")
     c_pais     = _pick(df, "País", "Pais")
     c_la       = _pick(df, "LA")
-    c_plan     = _pick(df, "Plan de estudios", "Plan estudios", "Plan_estudios")
+    c_plan     = _pick(df, "Plan de estudios", "Plan estudios", "Plan_estudios", "Enlace plan de estudios")
     c_lat      = _pick(df, "Latitud", "latitud", "lat")
     c_lon      = _pick(df, "Longitud", "longitud", "lon")
+    c_curso    = _pick(df, "Curso", "curso")
+    c_duracion = _pick(df, "Duracion meses", "Duración meses", "duracion_meses", "duración_meses")
+    c_resp     = _pick(df, "Responsable programa", "Responsable", "responsable")
+    c_tor      = _pick(df, "ToR", "tor")
 
     # estudiante
     if c_nombre or c_ap1 or c_ap2:
@@ -132,13 +136,23 @@ def load_erasmus_out(path: str, sheet_name: str | None = None) -> pd.DataFrame:
     df["link_plan"]   = df[c_plan] if c_plan else None
 
     def _to_records(g: pd.DataFrame) -> list[dict]:
-        keep = ["estudiante", "link_LA", "link_plan"]
-        if c_email and c_email in g.columns:
-            g = g.rename(columns={c_email: "email"})
-            keep.insert(1, "email")
-        keep = [c for c in keep if c in g.columns]
-        return g[keep].to_dict(orient="records")
-
+        # keep = ["estudiante", "link_LA", "link_plan"]
+        # if c_email and c_email in g.columns:
+        #     g = g.rename(columns={c_email: "email"})
+        #     keep.insert(1, "email")
+        # keep = [c for c in keep if c in g.columns]
+        # return g[keep].to_dict(orient="records")
+        mapping = {}
+        if c_email:    mapping[c_email]    = "email"
+        if c_curso:    mapping[c_curso]    = "curso"
+        if c_duracion: mapping[c_duracion] = "duracion_meses"
+        if c_resp:     mapping[c_resp]     = "responsable"
+        if c_tor:      mapping[c_tor]      = "ToR"
+        keep = ["estudiante", "link_LA", "link_plan"] + list(mapping.keys())
+        out = g[keep].copy() if keep else g.copy()
+        out = out.rename(columns=mapping)
+        return out.to_dict(orient="records")
+    
     grouped = (
         df.groupby(["universidad", "pais", "latitud", "longitud"], dropna=False)
           .apply(_to_records)
@@ -241,6 +255,7 @@ def load_sicue_out(path: str, sheet_name: str | None = None) -> pd.DataFrame:
     c_coords      = _pick(df, "Coordenadas", "coords")
     c_lat         = _pick(df, "Latitud", "latitud", "lat")
     c_lon         = _pick(df, "Longitud", "longitud", "lon")
+    c_plan = _pick(df, "Plan de estudios", "Plan estudios", "Plan_estudios", "Enlace plan de estudios", "plan de es")
 
     # estudiante
     if c_nombre or c_ap1 or c_ap2:
@@ -277,6 +292,7 @@ def load_sicue_out(path: str, sheet_name: str | None = None) -> pd.DataFrame:
     if c_coord_dest: mapping[c_coord_dest] = "coordinador_destino"
     if c_dur:        mapping[c_dur] = "duracion_meses"
     if c_email:      mapping[c_email] = "email"
+    if c_plan:       mapping[c_plan] = "link_plan"
 
     def _to_records(g: pd.DataFrame) -> list[dict]:
         keep = ["estudiante"] + [k for k in mapping.keys() if k in g.columns]

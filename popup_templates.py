@@ -2,6 +2,7 @@ import streamlit as st
 import html
 from urllib.parse import quote
 from styles import POPUP_STYLES
+from js_scripts import POPUP_SAVE_STATUS_SCRIPT
 from popup_helpers import (
     _normalize_estudiantes,
     _clean,
@@ -81,19 +82,19 @@ def generate_dynamic_popup(row, programa: str, row_index: int) -> str:
             nombre = html.escape(nombre_raw)
 
             email_val  = _clean(e.get("email"))
-            curso_val  = _clean(e.get("curso"))
+            curso_val  = _clean(e.get("curso") or row.get("curso") or row.get("Curso"))
+            curso = e.get("curso") or row.get("curso") or row.get("Curso")
             cuatri_val = _clean(e.get("cuatrimestre"))
-            dur_val    = _clean(e.get("duracion_meses"))
-            gest_val   = _clean(e.get("gestion_LA"))
+            dur_val    = _clean(e.get("duracion_meses") or row.get("duracion meses") or row.get("Duración (meses)") or row.get("Duracion (meses)") or row.get("duracion_meses"))
+            gest_val   = _clean(e.get("gestion_LA") or row.get("gestion_LA") or row.get("Gestión LA") or row.get("Gestion LA"))
             coord_val  = _clean(e.get("coordinador_destino") or row.get("coordinador_destino") or row.get("Coordinador en destino"))
             la_val     = _clean(e.get("link_la"))
-            tor_val    = _clean(e.get("ToR"))
+            tor_val    = _clean(e.get("ToR") or row.get("ToR") or row.get("tor"))
             acta_val   = _clean(e.get("acta_equivalencias"))
-            plan_val   = _clean(e.get("link_plan") or row.get("Plan de estudios") or row.get("Plan estudios") or row.get("Plan de estudios"))
-
+            plan_val   = _clean(e.get("link_plan") or row.get("Plan de estudios") or row.get("Plan estudios") or row.get("Enlace plan de estudios"))
             destino_val = _clean(e.get("destino") or row.get("destino") or row.get("Destino") or row.get("universidad") )
             origen_val  = _clean(e.get("origen") or row.get("origen") or row.get("Origen") or row.get("universidad"))
-            responsable_val = _clean(e.get("responsable") or row.get("responsable") or row.get("Responsable"))
+            responsable_val = _clean(e.get("responsable") or row.get("responsable") or row.get("Responsable") or row.get("responsable programa"))
             pais_val    = _clean(e.get("pais") or row.get("pais") or row.get("País"))
             ciudad_val  = _clean(e.get("ciudad") or row.get("ciudad") or row.get("Ciudad"))
             # Materias delegadas al módulo popup_materias
@@ -147,9 +148,9 @@ def generate_dynamic_popup(row, programa: str, row_index: int) -> str:
                                 <label>Gestión LA</label>
                                 <select name="gestion_LA">
                                   <option value="" {("selected" if gest_val not in ("Pendiente firma del coordinador", "Pendiente firma del estudiante", "Enviado a vicerrectorado") else "")}>-</option>
-                                  <option value="1" {("selected" if gest_val == "Pendiente firma del coordinador" else "")}>Pendiente firma del coordinador</option>
-                                  <option value="2" {("selected" if gest_val == "Pendiente firma del estudiante" else "")}>Pendiente firma del estudiante</option>
-                                  <option value="3" {("selected" if gest_val == "Enviado a vicerrectorado" else "")}>Enviado a vicerrectorado</option>
+                                  <option value="Pendiente firma del coordinador" {("selected" if gest_val == "Pendiente firma del coordinador" else "")}>Pendiente firma del coordinador</option>
+                                  <option value="Pendiente firma del estudiante" {("selected" if gest_val == "Pendiente firma del estudiante" else "")}>Pendiente firma del estudiante</option>
+                                  <option value="Enviado a vicerrectorado" {("selected" if gest_val == "Enviado a vicerrectorado" else "")}>Enviado a vicerrectorado</option>
                                 </select>
                               </div>'''
 
@@ -236,13 +237,6 @@ def generate_dynamic_popup(row, programa: str, row_index: int) -> str:
                     la_field, tor_field, acta_field, plan_field
                 ]
 
-            # Valores extra para vista
-            destino_val     = _clean(e.get("destino") or row.get("destino") or row.get("Destino"))
-            origen_val      = _clean(e.get("origen") or row.get("origen") or row.get("Origen"))
-            responsable_val = _clean(e.get("responsable") or row.get("responsable") or row.get("Responsable"))
-            pais_val        = _clean(e.get("pais") or row.get("pais") or row.get("País"))
-            ciudad_val      = _clean(e.get("ciudad") or row.get("ciudad") or row.get("Ciudad"))
-
             # === BLOQUES DE VISTA SEGÚN TIPO DE PROGRAMA ===
             view_small = []
             view_extras = []
@@ -255,8 +249,8 @@ def generate_dynamic_popup(row, programa: str, row_index: int) -> str:
                 view_extras.extend([
                     _view_line("Gestión LA", gest_val),
                     _view_line("Coordinador destino", coord_val),
-                    _view_link("Learning Agreement", la_val),
-                    _view_link("Plan de estudios", plan_val),
+                    _view_link("Learning Agreement", la_val, open_in_system=True),
+                    _view_link("Plan de estudios", plan_val, open_in_system=True),
                     _view_line("Ciudad", ciudad_val),
                 ])
 
@@ -266,9 +260,9 @@ def generate_dynamic_popup(row, programa: str, row_index: int) -> str:
                 view_extras.extend([
                     _view_line("Destino", destino_val),
                     _view_line("País", pais_val),
-                    _view_link("Learning Agreement", la_val),
-                    _view_link("Plan de estudios", plan_val),
-                    _view_link("ToR", tor_val),
+                    _view_link("Learning Agreement", la_val, open_in_system=True),
+                    _view_link("Plan de estudios", plan_val, open_in_system=True),
+                    _view_link("ToR", tor_val, open_in_system=True),
                     _view_line("Responsable", responsable_val),
                 ])
 
@@ -277,8 +271,7 @@ def generate_dynamic_popup(row, programa: str, row_index: int) -> str:
                 view_small.append(_view_line("Origen", origen_val))
                 view_extras.extend([
                     _view_line("País", pais_val),
-                    _view_line("Coordinador destino", coord_val),
-                    _view_link("Learning Agreement", la_val),
+                    _view_link("Learning Agreement", la_val, open_in_system=True),
                 ])
                 if has_materias and materias_view_html:
                     view_extras.append(materias_view_html)
@@ -290,10 +283,10 @@ def generate_dynamic_popup(row, programa: str, row_index: int) -> str:
                     _view_line("Duración (meses)", dur_val),
                     _view_line("Gestión LA", gest_val),
                     _view_line("Coordinador destino", coord_val),
-                    _view_link("Learning Agreement", la_val),
-                    _view_link("ToR", tor_val),
-                    _view_link("Acta de equivalencias", acta_val),
-                    _view_link("Plan de estudios", plan_val),
+                    _view_link("Learning Agreement", la_val, open_in_system=True),
+                    _view_link("ToR", tor_val, open_in_system=True),
+                    _view_link("Acta de equivalencias", acta_val, open_in_system=True),
+                    _view_link("Plan de estudios", plan_val, open_in_system=True),
                 ])
                 if has_materias and materias_view_html:
                     view_extras.append(materias_view_html)
@@ -394,7 +387,7 @@ def generate_dynamic_popup(row, programa: str, row_index: int) -> str:
       <style>
       {POPUP_STYLES}
       </style>
-    
+      <body>
     </div>
     """
     return html_out

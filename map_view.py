@@ -108,110 +108,247 @@ def show_map(dfs: dict, base_map, materias_in_por_estudiante=None):
                     .replace(/"/g, "&quot;")
                     .replace(/'/g, "&#39;");
                 }
+                function refreshMateriasView() {
+                    var blocks = document.querySelectorAll(".materias-block");
+                    for (var b = 0; b < blocks.length; b++) {
+                        var block = blocks[b];
+
+                        // Leemos las materias actuales de la parte editable
+                        var materias = getMateriasFromDOM(block);
+
+                        // Buscamos el <details class="mat"> de la vista
+                        var pcontent   = block.closest(".pcontent");
+                        if (!pcontent) continue;
+
+                        var matDetails = pcontent.querySelector(".view-block .extras details.mat");
+                        if (!matDetails) continue;
+
+                        var summary = matDetails.querySelector("summary");
+                        var ul      = matDetails.querySelector("ul.mlist");
+                        if (!summary || !ul) continue;
+
+                        // Actualizar contador y lista
+                        summary.textContent = "📚 Materias (" + materias.length + ")";
+
+                        while (ul.firstChild) {
+                        ul.removeChild(ul.firstChild);
+                        }
+
+                        for (var i = 0; i < materias.length; i++) {
+                        var m = materias[i];
+                        var trozos = [];
+                        var nombre = m.nombre || "Sin nombre";
+                        trozos.push(nombre);
+                        if (m.cuat) {
+                            trozos.push("Cuatri: " + m.cuat);
+                        }
+                        trozos.push(m.firmado ? "Firmado" : "No firmado");
+                        var displayTxt = trozos.join(" · ");
+
+                        var li = document.createElement("li");
+                        li.className = "mitem";
+                        li.textContent = displayTxt;
+                        ul.appendChild(li);
+                        }
+                    }
+                    }
 
                 // Lee las materias actuales desde el DOM (data-*)
                 function getMateriasFromDOM(block) {
-                var rows = block.querySelectorAll(".materia-row:not(.add-row)");
-                var result = [];
-                for (var i = 0; i < rows.length; i++) {
-                    var row = rows[i];
-                    var nombre = (row.getAttribute("data-nombre") || "");
-                    if (!nombre && row.querySelector(".materia-name")) {
-                    nombre = row.querySelector(".materia-name").textContent || "";
-                    }
-                    var cuat = (row.getAttribute("data-cuat") || "");
-                    var firmado = (row.getAttribute("data-firmado") || "").toUpperCase() === "X";
+                    var rows = block.querySelectorAll(".materia-row:not(.add-row)");
+                    var result = [];
+                    for (var i = 0; i < rows.length; i++) {
+                        var row = rows[i];
+                        var nombre = (row.getAttribute("data-nombre") || "");
+                        if (!nombre && row.querySelector(".materia-name")) {
+                        nombre = row.querySelector(".materia-name").textContent || "";
+                        }
+                        var cuat = (row.getAttribute("data-cuat") || "");
+                        var firmado = (row.getAttribute("data-firmado") || "").toUpperCase() === "X";
 
-                    row.setAttribute("data-mindex", String(i));
-                    result.push({
-                    nombre: nombre.trim(),
-                    cuat: cuat.trim(),
-                    firmado: firmado
-                    });
+                        row.setAttribute("data-mindex", String(i));
+                        result.push({
+                        nombre: nombre.trim(),
+                        cuat: cuat.trim(),
+                        firmado: firmado
+                        });
+                    }
+                    return result;
                 }
-                return result;
-                }
+                
+                function closeAllEditModes() {
+                    var toggles = document.querySelectorAll(".edit-toggle");
+                    for (var i = 0; i < toggles.length; i++) {
+                        toggles[i].checked = false;  // vuelve a la vista "normal"
+                    }
+                    }
 
                 // Convierte array -> texto del textarea ("Nombre | cuat | x")
                 function stringifyMaterias(mats) {
-                var lines = [];
-                if (!mats) return "";
-                for (var i = 0; i < mats.length; i++) {
-                    var m = mats[i];
-                    var nombre = (m.nombre || "").trim();
-                    var cuat = (m.cuat || "").trim();
-                    var firmadoFlag = m.firmado ? "x" : "";
-                    var line = nombre + " | " + cuat + " | " + firmadoFlag;
-                    line = line.replace(/\\s+\\|/g, " |").replace(/\\|\\s+/g, "| ");
-                    lines.push(line.trim());
+                    var lines = [];
+                    if (!mats) return "";
+                    for (var i = 0; i < mats.length; i++) {
+                        var m = mats[i];
+                        var nombre = (m.nombre || "").trim();
+                        var cuat = (m.cuat || "").trim();
+                        var firmadoFlag = m.firmado ? "x" : "";
+                        var line = nombre + " | " + cuat + " | " + firmadoFlag;
+                        line = line.replace(/\\s+\\|/g, " |").replace(/\\|\\s+/g, "| ");
+                        lines.push(line.trim());
+                    }
+                    return lines.join("\\n");
                 }
-                return lines.join("\\n");
-                }
+                // Muestra un popup de estado (ok, mensajes)
+                function showStatusPopup(ok, messages) {
+                    var popup = document.getElementById("save-status-popup");
+                    if (!popup) {
+                        popup = document.createElement("div");
+                        popup.id = "save-status-popup";
+                        popup.style.position = "fixed";
+                        popup.style.top = "50%";
+                        popup.style.left = "50%";
+                        popup.style.transform = "translate(-50%, -50%)";
+                        popup.style.zIndex = "999999";
+                        popup.style.maxWidth = "420px";
+                        popup.style.width = "90%";
+                        popup.style.background = "#1f1f1f";
+                        popup.style.color = "#fff";
+                        popup.style.padding = "16px 20px";
+                        popup.style.borderRadius = "12px";
+                        popup.style.boxShadow = "0 8px 24px rgba(0,0,0,0.45)";
+                        popup.style.fontFamily = "Segoe UI, Arial, sans-serif";
+                        popup.style.fontSize = "14px";
+
+                        popup.innerHTML =
+                        '<div id="save-status-title" style="font-weight:600;margin-bottom:8px;"></div>' +
+                        '<ul id="save-status-list" style="margin:0 0 8px 18px;padding:0;"></ul>' +
+                        '<div style="text-align:right;margin-top:4px;">' +
+                            '<button id="save-status-close" type="button" ' +
+                            'style="padding:4px 10px;border-radius:8px;border:none;cursor:pointer;">' +
+                            'Cerrar' +
+                            '</button>' +
+                        '</div>';
+
+                        document.body.appendChild(popup);
+
+                        var btn = document.getElementById("save-status-close");
+                        btn.onclick = function () {
+                        popup.style.display = "none";
+                        };
+                    }
+
+                    var titleEl = document.getElementById("save-status-title");
+                    var listEl  = document.getElementById("save-status-list");
+
+                    titleEl.textContent = ok ? "Cambios guardados" : "Se ha producido un problema";
+                    popup.style.borderLeft = ok ? "4px solid #4caf50" : "4px solid #f44336";
+
+                    while (listEl.firstChild) {
+                        listEl.removeChild(listEl.firstChild);
+                    }
+
+                    if (messages && messages.length) {
+                        for (var i = 0; i < messages.length; i++) {
+                        var li = document.createElement("li");
+                        li.textContent = messages[i];
+                        listEl.appendChild(li);
+                        }
+                    }
+
+                    popup.style.display = "block";
+
+                    if (ok) {
+                        setTimeout(function () {
+                        popup.style.display = "none";
+                        }, 3000);
+                    }
+                    }
+
+                    // 🔍 DEBUG + listener de mensajes del iframe
+                    window.addEventListener("message", function (event) {
+                    console.log("[MateriasJS] message recibido:", event.data);
+                    var data = event.data;
+
+                    // Puede venir como string o como objeto
+                    if (typeof data === "string") {
+                        try {
+                        data = JSON.parse(data);
+                        } catch (e) {
+                        console.log("[MateriasJS] no es JSON, se ignora");
+                        return;
+                        }
+                    }
+
+                    if (!data || data.type !== "saveStatus") return;
+
+                    var msgs = data.messages || [];
+                    showStatusPopup(!!data.ok, msgs);
+                    });
 
                 // Pinta la lista a partir del array y actualiza data-*
                 function renderMateriasList(block, materias) {
-                var list = block.querySelector(".materias-list");
-                if (!list) return;
+                    var list = block.querySelector(".materias-list");
+                    if (!list) return;
 
-                var addRow = list.querySelector(".add-row");
-                var olds = list.querySelectorAll(".materia-row:not(.add-row)");
-                for (var i = 0; i < olds.length; i++) {
-                    list.removeChild(olds[i]);
-                }
-
-                for (var j = 0; j < materias.length; j++) {
-                    var m = materias[j];
-                    var li = document.createElement("li");
-                    li.className = "materia-row";
-                    li.setAttribute("data-mindex", String(j));
-                    li.setAttribute("data-nombre", m.nombre || "");
-                    li.setAttribute("data-cuat", m.cuat || "");
-                    li.setAttribute("data-firmado", m.firmado ? "x" : "");
-
-                    var trozos = [];
-                    var nombre = m.nombre || "Sin nombre";
-                    trozos.push(nombre);
-                    if (m.cuat) {
-                    trozos.push("Cuatri: " + m.cuat);
+                    var addRow = list.querySelector(".add-row");
+                    var olds = list.querySelectorAll(".materia-row:not(.add-row)");
+                    for (var i = 0; i < olds.length; i++) {
+                        list.removeChild(olds[i]);
                     }
-                    trozos.push(m.firmado ? "Firmado" : "No firmado");
-                    var displayTxt = trozos.join(" · ");
 
-                    li.innerHTML =
-                    '<span class="materia-name">' + escapeHtml(displayTxt) + '</span>' +
-                    '<span class="materia-actions">' +
-                        '<button type="button" class="icon-btn materia-edit" title="Editar">✏️</button>' +
-                        '<button type="button" class="icon-btn materia-delete" title="Eliminar">🗑️</button>' +
-                    '</span>';
+                    for (var j = 0; j < materias.length; j++) {
+                        var m = materias[j];
+                        var li = document.createElement("li");
+                        li.className = "materia-row";
+                        li.setAttribute("data-mindex", String(j));
+                        li.setAttribute("data-nombre", m.nombre || "");
+                        li.setAttribute("data-cuat", m.cuat || "");
+                        li.setAttribute("data-firmado", m.firmado ? "x" : "");
 
-                    list.insertBefore(li, addRow);
-                }
+                        var trozos = [];
+                        var nombre = m.nombre || "Sin nombre";
+                        trozos.push(nombre);
+                        if (m.cuat) {
+                        trozos.push("Cuatri: " + m.cuat);
+                        }
+                        trozos.push(m.firmado ? "Firmado" : "No firmado");
+                        var displayTxt = trozos.join(" · ");
+
+                        li.innerHTML =
+                        '<span class="materia-name">' + escapeHtml(displayTxt) + '</span>' +
+                        '<span class="materia-actions">' +
+                            '<button type="button" class="icon-btn materia-edit" title="Editar">✏️</button>' +
+                            '<button type="button" class="icon-btn materia-delete" title="Eliminar">🗑️</button>' +
+                        '</span>';
+
+                        list.insertBefore(li, addRow);
+                    }
                 }
 
                 function openEditor(block, idx, materias) {
-                var editor = block.querySelector(".materia-editor");
-                var list = block.querySelector(".materias-list");
-                if (!editor || !list) return;
+                    var editor = block.querySelector(".materia-editor");
+                    var list = block.querySelector(".materias-list");
+                    if (!editor || !list) return;
 
-                var nombreInput = editor.querySelector('input[name="mat_nombre"]');
-                var cuatSelect = editor.querySelector('select[name="mat_cuat"]');
-                var firmadoCheck = editor.querySelector('input[name="mat_firmado"]');
+                    var nombreInput = editor.querySelector('input[name="mat_nombre"]');
+                    var cuatSelect = editor.querySelector('select[name="mat_cuat"]');
+                    var firmadoCheck = editor.querySelector('input[name="mat_firmado"]');
 
-                var mat;
-                if (idx >= 0 && idx < materias.length) {
-                    mat = materias[idx];
-                } else {
-                    mat = { nombre: "", cuat: "", firmado: false };
-                }
+                    var mat;
+                    if (idx >= 0 && idx < materias.length) {
+                        mat = materias[idx];
+                    } else {
+                        mat = { nombre: "", cuat: "", firmado: false };
+                    }
 
-                nombreInput.value = mat.nombre || "";
-                cuatSelect.value = mat.cuat || "";
-                firmadoCheck.checked = !!mat.firmado;
+                    nombreInput.value = mat.nombre || "";
+                    cuatSelect.value = mat.cuat || "";
+                    firmadoCheck.checked = !!mat.firmado;
 
-                editor.setAttribute("data-edit-index", String(idx));
+                    editor.setAttribute("data-edit-index", String(idx));
 
-                editor.style.display = "";
-                list.style.display = "none";
+                    editor.style.display = "";
+                    list.style.display = "none";
                 }
 
                 function closeEditor(block) {
@@ -317,7 +454,47 @@ def show_map(dfs: dict, base_map, materias_in_por_estudiante=None):
     m.get_root().html.add_child(folium.Element(js_materias))
 
 
+    m.get_root().html.add_child(folium.Element("""
+        <script>
+        (function() {
+        // evitar registrar el listener varias veces
+        if (window.__erasmusSaveStatusInit) return;
+        window.__erasmusSaveStatusInit = true;
 
+        window.addEventListener("message", function(event) {
+            var data = event.data || {};
+
+            // Por si viene como string JSON
+            if (typeof data === "string") {
+            try {
+                data = JSON.parse(data);
+            } catch (e) {
+                console.log("[Mapa] Mensaje no JSON, se ignora");
+                return;
+            }
+            }
+
+            if (!data || data.type !== "saveStatus") return;
+
+            console.log("[Mapa] saveStatus recibido:", data);
+
+            // Solo actuamos si todo ha ido bien
+            if (!data.ok) return;
+
+            // Desmarcar todos los checkboxes de edición
+            var toggles = document.querySelectorAll(".edit-toggle");
+            if (!toggles || !toggles.length) {
+            console.log("[Mapa] No se han encontrado .edit-toggle");
+            return;
+            }
+
+            toggles.forEach(function(ch) {
+            ch.checked = false;
+            });
+        });
+        })();
+        </script>
+        """))
 
     # m.get_root().html.add_child(folium.Element("""
     # <style>

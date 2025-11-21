@@ -3,9 +3,10 @@ import html
 import json
 import math
 from urllib.parse import quote
-
-
 def _normalize_estudiantes(estudiantes):
+    """Normaliza la lista de estudiantes y mapea los nombres de columnas
+    del Excel a claves internas homogéneas.
+    """
     if isinstance(estudiantes, str):
         try:
             estudiantes = json.loads(estudiantes)
@@ -15,17 +16,59 @@ def _normalize_estudiantes(estudiantes):
         estudiantes = [estudiantes]
     if estudiantes is None or (isinstance(estudiantes, float) and math.isnan(estudiantes)):
         estudiantes = []
+
     out = []
     for e in estudiantes:
-        if isinstance(e, dict):
-            norm = {str(k).strip(): v for k, v in e.items()}
-            if "link_LA" in norm and "link_la" not in norm:
-                norm["link_la"] = norm["link_LA"]
-            if "Plan de estudios" in norm and "link_plan" not in norm:
-                norm["link_plan"] = norm["Plan de estudios"]
-            out.append(norm)
-    return out
+        if not isinstance(e, dict):
+            continue
 
+        norm = {str(k).strip(): v for k, v in e.items()}
+
+        # ---- Enlaces LA ----
+        if "link_la" not in norm:
+            for k in ("link_LA", "LA", "la", "La"):
+                if k in norm and str(norm[k]).strip():
+                    norm["link_la"] = norm[k]
+                    break
+
+        # ---- Plan de estudios ----
+        if "link_plan" not in norm:
+            for k in ("Enlace plan de estudios", "Plan de estudios", "plan de estudios", "plan_estudios"):
+                if k in norm and str(norm[k]).strip():
+                    norm["link_plan"] = norm[k]
+                    break
+
+        # ---- Duración ----
+        if "duracion_meses" not in norm:
+            for k in ("duracion meses", "duración meses", "Duración meses",
+                      "Duracion meses", "Duración (meses)", "Duracion (meses)"):
+                if k in norm and str(norm[k]).strip():
+                    norm["duracion_meses"] = norm[k]
+                    break
+
+        # ---- Gestión LA ----
+        if "gestion_LA" not in norm:
+            for k in ("Gestión LA", "Gestion LA", "gestión LA", "gestion LA"):
+                if k in norm and str(norm[k]).strip():
+                    norm["gestion_LA"] = norm[k]
+                    break
+
+        # ---- Coordinador destino ----
+        if "coordinador_destino" not in norm:
+            for k in ("Coordinador en destino", "Coordinador destino", "coordinador destino"):
+                if k in norm and str(norm[k]).strip():
+                    norm["coordinador_destino"] = norm[k]
+                    break
+
+        # ---- Responsable programa (Erasmus OUT) ----
+        if "responsable_programa" not in norm:
+            for k in ("responsable programa", "Responsable programa", "Responsable"):
+                if k in norm and str(norm[k]).strip():
+                    norm["responsable_programa"] = norm[k]
+                    break
+
+        out.append(norm)
+    return out
 
 def _clean(v):
     s = "" if v is None else str(v).strip()
@@ -57,7 +100,8 @@ def _view_link(label, url, text="Abrir", open_in_system=False):
     """
     url = _clean(url)
     if not url:
-        return ""
+        val_html = "<span style='color:#9ca3af;font-style:italic;'>Sin datos</span>"
+        return f"<b>{html.escape(label)}:</b> {val_html}<br>"
 
     label_html = html.escape(label, quote=True)
     text_html = html.escape(text, quote=True)
