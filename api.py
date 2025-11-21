@@ -88,6 +88,22 @@ def update_student():
 
     messages = []
     ok_global = True
+        # === Validación de campos obligatorios ===
+    nombre = (form.get("estudiante") or "").strip()
+    email = (form.get("email") or "").strip()
+    ciudad = (form.get("ciudad") or "").strip()
+    pais = (form.get("pais") or "").strip()
+
+    if not nombre:
+        return _build_js_response(False, ["El nombre no puede estar vacío."])
+    if not email:
+        return _build_js_response(False, ["El correo no puede estar vacío."])
+    if not ciudad and not pais:
+        return _build_js_response(False, ["Debe indicar ciudad o país."])
+
+    if idx < 0 or not excel_path:
+        return _build_js_response(False, ["Índices o ruta del Excel principal inválidos."])
+
 
     if idx < 0 or not excel_path:
         return _build_js_response(False, ["Índices o ruta del Excel principal inválidos."])

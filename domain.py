@@ -1,4 +1,5 @@
 ESTADOS_FIRMA = [
+    "",
     "Pendiente firma estudiante",
     "Pendiente firma coordinador",
     "Enviado a Vicerrectorado",

@@ -4,7 +4,7 @@ import pandas as pd
 import streamlit as st
 from domain import COMMON_COLS, SPEC_COLS
 from openpyxl import load_workbook
-from popup_templates import _normalize_estudiantes
+from popup_helpers import _normalize_estudiantes
 
 def first_sheet_name(xlsx_path: str) -> str:
     try:
@@ -39,6 +39,8 @@ def _sheet_exists(xlsx_path: str, sheet_name: str) -> bool:
         return sheet_name in wb.sheetnames
     except Exception:
         return False
+    
+
 
 def append_user_to_excel(xlsx_path: str, tipo: str, row_data: dict, sheet_name: str | None):
     """
@@ -192,10 +194,18 @@ def append_user_to_excel(xlsx_path: str, tipo: str, row_data: dict, sheet_name: 
         c_cuatri = _pick_col(df, "Cuatrimestre", "Cuatirmestre")
         c_uo     = _pick_col(df, "Universidad Origen")
         c_pais   = _pick_col(df, "País", "Pais")
-        if c_cuatri: new_row[c_cuatri] = (row_data.get("cuatrimestre_in") or None)
-        if c_uo:     new_row[c_uo]     = (row_data.get("uni_origen_in") or None)
-        if c_pais:   new_row[c_pais]   = (row_data.get("pais_in") or None)
 
+        # 👇 Si 'Universidad Origen' es la MISMA columna que c_univ,
+        # no la usamos para el opcional para no pisar el valor obligatorio.
+        if c_uo == c_univ:
+            c_uo = None
+
+        if c_cuatri:
+            new_row[c_cuatri] = (row_data.get("cuatrimestre_in") or None)
+        if c_uo:
+            new_row[c_uo] = (row_data.get("uni_origen_in") or None)
+        if c_pais:
+            new_row[c_pais] = (row_data.get("pais_in") or None)
 
     out = pd.concat([df, pd.DataFrame([new_row])], ignore_index=True).reindex(columns=cols_order)
 

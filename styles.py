@@ -322,4 +322,129 @@ POPUP_STYLES = """
   border-radius: 6px;
   background: #f6f8fa;
 }
+
+/* === Editor de materia (formulario) === */
+.materia-editor {
+  margin-top: 0.75rem;
+  padding: 0.75rem 0.75rem 0.6rem;
+  border-radius: 10px;
+  border: 1px solid #e5e7eb;
+  background: #f9fafb;
+}
+
+.materia-editor .field {
+  margin-bottom: 0.6rem;
+}
+
+.materia-editor .field label {
+  font-size: 0.95rem;   /* antes 0.8rem */
+  font-weight: 600;
+  color: #475569;
+  margin-bottom: 0.25rem;
+  display: block;
+}
+
+.materia-editor input[type="text"],
+.materia-editor select {
+  width: 100%;
+  padding: 0.35rem 0.5rem;
+  border-radius: 6px;
+  border: 1px solid #cbd5e1;
+  font-size: 0.95rem;   /* antes 0.85rem */
+}
+
+.materia-editor input[type="text"]:focus,
+.materia-editor select:focus {
+  outline: none;
+  border-color: #3b82f6;
+  box-shadow: 0 0 0 1px rgba(59, 130, 246, 0.35);
+}
+
+/* Cuatri + Firmado en la misma fila */
+.materia-editor-row {
+  display: flex;
+  gap: 0.75rem;
+}
+
+.materia-editor-row .field {
+  flex: 1;
+}
+
+/* === Toggle de Firmado como botón pill === */
+.firmado-toggle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  cursor: pointer;
+}
+
+.firmado-toggle input {
+  display: none; /* ocultamos el checkbox nativo */
+}
+
+.firmado-pill {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  padding: 0.35rem 0.75rem;
+  border-radius: 999px;
+  border: 1px solid #94a3b8;
+  font-size: 0.95rem;   /* antes 0.8rem */
+  font-weight: 600;
+  color: #475569;
+  background: #f8fafc;
+  transition:
+    background 0.15s ease,
+    border-color 0.15s ease,
+    color 0.15s ease,
+    box-shadow 0.15s ease,
+    transform 0.05s ease;
+}
+
+/* Estado “firmado” (checkbox marcado) */
+.firmado-toggle input:checked + .firmado-pill {
+  background: #dcfce7;
+  border-color: #16a34a;
+  color: #166534;
+  box-shadow: 0 0 0 1px rgba(22, 163, 74, 0.2);
+  transform: translateY(-1px);
+}
+
+/* Botones Guardar / Cancelar más monos */
+.materia-editor .acciones-materia {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.5rem;
+  margin-top: 0.25rem;
+}
+
+.materia-editor .acciones-materia .materia-save,
+.materia-editor .acciones-materia .materia-cancel {
+  border-radius: 999px;
+  padding: 0.35rem 0.9rem;
+  font-size: 0.95rem;   /* antes 0.8rem */
+  border: none;
+  cursor: pointer;
+}
+
+.materia-editor .acciones-materia .materia-save {
+  background: #3b82f6;
+  color: #ffffff;
+}
+
+.materia-editor .acciones-materia .materia-save:hover {
+  background: #2563eb;
+}
+
+.materia-editor .acciones-materia .materia-cancel {
+  background: #e5e7eb;
+  color: #374151;
+}
+
+.materia-editor .acciones-materia .materia-cancel:hover {
+  background: #d1d5db;
+}
+
 """

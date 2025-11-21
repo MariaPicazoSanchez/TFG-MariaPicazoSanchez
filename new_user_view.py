@@ -4,7 +4,53 @@ import streamlit as st
 from sheets import sheets_for
 from pdf import open_in_system
 from domain import ESTADOS_FIRMA,ICON_BY_TIPO
+from es_cities import CITIES_ES
 from data_insert import append_user_to_excel, first_sheet_name
+import pycountry
+import pandas as pd
+from babel import Locale
+
+
+def _clear_new_user_form_state():
+    """
+    Limpia TODO el formulario de nuevo usuario.
+    """
+    # 1) Borrar todos los campos del formulario (nu_*)
+    for k in list(st.session_state.keys()):
+        if k.startswith("nu_"):
+            del st.session_state[k]
+
+    # 2) Seguridad extra: forzar vacío en estos tres por si Streamlit
+    # los vuelve a crear con valor anterior en este mismo run
+    for k in ("nu_nombre", "nu_apellidos", "nu_email", "nu_destino_origen", "nu_pais", "nu_ciudad", "nu_direccion", "nu_pais_out","nu_pais_in", "nu_ciudad_out", "nu_direccion_out", "nu_tor", "nu_curso", "nu_la_out"):
+        st.session_state[k] = ""
+
+
+
+# ────────────────────────────────────────────────────────────────────────────────
+# Lista de países (estándar ISO) con caché
+# ────────────────────────────────────────────────────────────────────────────────
+
+@st.cache_data
+def get_country_options() -> list[str]:
+    locale_es = Locale('es')
+    nombres = []
+
+    for c in pycountry.countries:
+        # Intentamos coger el nombre en español según el código alpha_2 (ES, FR, IT...)
+        nombre_es = locale_es.territories.get(c.alpha_2)
+        if not nombre_es:
+            # Si no hay traducción, usamos el nombre en inglés
+            nombre_es = c.name
+        nombres.append(nombre_es)
+
+    # Añadimos una opción vacía al principio
+    return [""] + sorted(set(nombres))
+
+COUNTRY_OPTIONS = get_country_options()
+
+
+
 
 # ────────────────────────────────────────────────────────────────────────────────
 # Geocoding (con caché)
@@ -54,6 +100,12 @@ def _sheet_options_for(cfg: dict, tipo: str) -> list[str]:
 
 
 def render_new_user_form(available_types: list[str], config: dict) -> dict | None:
+    # Si venimos de un guardado correcto:
+    if st.session_state.pop("_user_saved", False):
+        _clear_new_user_form_state()
+
+        st.success("✅ Estudiante creado y guardado en Excel.")
+        st.toast("Guardado correctamente")
     st.header("👤 Crear nuevo estudiante")
 
     if not available_types:
@@ -109,7 +161,9 @@ def render_new_user_form(available_types: list[str], config: dict) -> dict | Non
     st.session_state["nu_sheet"] = selected_sheet
 
     open_clicked = False
-    # Formulario
+    # ────────────────────────────────────────────────────────────────
+    # FORMULARIO PRINCIPAL
+    # ────────────────────────────────────────────────────────────────
     with st.form("new_user_form", clear_on_submit=False):
         
 
@@ -126,50 +180,162 @@ def render_new_user_form(available_types: list[str], config: dict) -> dict | Non
         # — específicos obligatorios (los que ya tenías) + OPCIONALES nuevos —
         extra: dict = {}
 
+        # _____________________________________
+        # Erasmus OUT
+        # _____________________________________
+
         if tipo_norm == "Erasmus OUT":
+            col1, col2 = st.columns(2)
             # obligatorios
-            extra["tor"] = st.text_input("ToR (ruta o enlace)", key="nu_tor")
-            extra["curso"] = st.text_input("Curso", key="nu_curso")
-            extra["acta_equivalencias"] = st.text_input("Acta de equivalencias (ruta o enlace)", key="nu_acta")
+            with col1:
+                extra["pais_out"] = st.selectbox("País", options=COUNTRY_OPTIONS, key="nu_pais_out")
+                extra["tor"] = st.text_input("ToR (ruta o enlace)", key="nu_tor")
+            with col2:
+                extra["curso"] = st.selectbox("Curso", options=["","1", "2", "3", "4"], key="nu_curso")
+                extra["la_out"]    = st.text_input("LA (enlace)", key="nu_la_out_opt")
+
             # opcionales
             with st.expander("Campos opcionales (Erasmus OUT)", expanded=False):
-                extra["dur_out"]  = st.text_input("Duración (meses) — opcional", key="nu_dur_out")
-                extra["resp_prog"] = st.text_input("Responsable del programa — opcional", key="nu_resp_prog")
-                extra["la_out"]    = st.text_input("LA (enlace) — opcional", key="nu_la_out_opt")
-                extra["plan_out"]  = st.text_input("Plan de estudios (enlace) — opcional", key="nu_plan_out")
-                # extra["destino_tabla_out"] = st.text_input("Destino (tabla) — opcional", key="nu_destino_tabla")
-                extra["pais_out"]  = st.text_input("País — opcional", key="nu_pais_out")
+                col1, col2 = st.columns(2)
+                with col1:
+                    extra["acta_equivalencias"] = st.text_input("Acta de equivalencias (ruta o enlace)", key="nu_acta")
+                    dur_out_val = st.text_input("Duración (meses)", key="nu_dur_out")
+                    # Validar que solo contiene números
+                    if dur_out_val and not dur_out_val.strip().isdigit():
+                        st.error("La duración debe ser un número")
+                        extra["dur_out"] = ""
+                    else:
+                        extra["dur_out"] = dur_out_val
+                with col2:
+                    extra["resp_prog"] = st.text_input("Responsable del programa", key="nu_resp_prog")
+                with col2:
+                    extra["plan_out"]  = st.text_input("Plan de estudios (enlace)", key="nu_plan_out")
+        # _____________________________________
+        # Erasmus IN
+        # _____________________________________
 
         elif tipo_norm == "Erasmus IN":
-            # obligatorios
-            extra["la"]      = st.text_input("LA (enlace)", key="nu_la_in")
-            extra["horario"] = st.text_input("Horario (enlace)", key="nu_horario")
-            # opcionales
-            with st.expander("Campos opcionales (Erasmus IN)", expanded=False):
-                extra["cuatrimestre_in"]   = st.text_input("Cuatrimestre — opcional", key="nu_cuatri_in")
-                # extra["uni_origen_in"]     = st.text_input("Universidad Origen — opcional", key="nu_uni_origen_opt")
-                extra["pais_in"]           = st.text_input("País — opcional", key="nu_pais_in")
+            col1, col2 = st.columns(2)
+            with col1:
+                # obligatorios
+                extra["pais_in"] = st.selectbox("País", options=COUNTRY_OPTIONS, key="nu_pais_in")
+                extra["la"]      = st.text_input("LA (enlace)", key="nu_la_in")
+            with col2:
+                extra["horario"] = st.text_input("Plan de estudios (enlace)", key="nu_horario")
+                extra["cuatrimestre_in"] = st.selectbox("Cuatrimestre", options=["1", "2"], key="nu_cuatri_in")
+            
+            
+        # _____________________________________
+        # SICUE OUT
+        # _____________________________________
 
         elif tipo_norm == "SICUE OUT":
+            col1, col2 = st.columns(2)
             # obligatorios
-            extra["la"]             = st.text_input("LA (enlace)", key="nu_la_sicue")
-            extra["estado_firmas"]  = st.selectbox("Estado de firmas", ESTADOS_FIRMA, key="nu_estado")
-            extra["plan_estudios"]  = st.text_input("Plan de estudios (enlace)", key="nu_plan")
-            # opcionales
-            with st.expander("Campos opcionales (SICUE OUT)", expanded=False):
-                extra["dur_sicue"]  = st.text_input("Duración (meses) — opcional", key="nu_dur_sicue")
-                extra["coord_dest"] = st.text_input("Coordinador en destino — opcional", key="nu_coord_dest")
-                extra["ciudad_sicue"] = st.text_input(
-                    "Ciudad — opcional",
+            with col1:
+                extra["ciudad_sicue"] = st.selectbox(
+                    "Ciudad",
+                    options=CITIES_ES,
+                    index=0,
                     help="Si no se encuentran coordenadas por la universidad, se intentará con esta ciudad.",
                     key="nu_ciudad",
                 )
+                extra["la"]             = st.text_input("LA (enlace)", key="nu_la_sicue")
+            with col2:
+                extra["estado_firmas"]  = st.selectbox("Estado de firmas", ESTADOS_FIRMA, key="nu_estado")
+                extra["plan_estudios"]  = st.text_input("Plan de estudios (enlace)", key="nu_plan")
+            # opcionales
+            with st.expander("Campos opcionales (SICUE OUT)", expanded=False):
+                col1, col2 = st.columns(2)
+                with col1:
+                    dur_sicue_val = st.text_input("Duración (meses)", key="nu_dur_sicue")
+                    # Validar que solo contiene números
+                    if dur_sicue_val and not dur_sicue_val.strip().isdigit():
+                        st.error("La duración debe ser un número")
+                        extra["dur_sicue"] = ""
+                    else:
+                        extra["dur_sicue"] = dur_sicue_val
+                with col2:
+                    extra["coord_dest"] = st.text_input("Coordinador en destino", key="nu_coord_dest")
 
         # — fila con los dos botones: Crear y Abrir Excel (dinámico) —
         bcol1, bcol2 = st.columns([1, 1], gap="small")
         submit_clicked = bcol1.form_submit_button("✅ Crear", use_container_width=True)
         open_clicked   = bcol2.form_submit_button(open_label, use_container_width=True)
+    # ────────────────────────────────────────────────────────────────
+    # BLOQUE DE ASIGNATURAS ERASMUS IN (FUERA DEL FORM)
+    # ────────────────────────────────────────────────────────────────
+    if tipo_norm == "Erasmus IN":
+        st.markdown("### 📚 Asignaturas (Erasmus IN)")
 
+        materias_key = "nu_materias_in"
+        materias = st.session_state.setdefault(materias_key, [])
+
+        with st.container(border=True):
+            # Cabecera tipo tabla
+            header_cols = st.columns([3, 1, 1, 0.8, 0.8])
+            with header_cols[0]:
+                st.caption("Nombre de la asignatura")
+            with header_cols[1]:
+                st.caption("Cuatr.")
+            with header_cols[2]:
+                st.caption("Firmado")
+            with header_cols[3]:
+                st.caption("Acciones")
+            with header_cols[4]:
+                # Botón de añadir arriba a la derecha
+                st.write("")
+                if st.button("➕ Añadir", key=f"{materias_key}_add_top"):
+                    materias.append({"nombre": "", "cuatrimestre": "1", "firmado": False})
+                    st.rerun()
+
+            if not materias:
+                st.info("Aún no hay asignaturas añadidas para este estudiante.")
+
+            # Filas de asignaturas
+            for i, mat in enumerate(materias):
+                row_cols = st.columns([3, 1, 1, 0.8, 0.8])
+
+                with row_cols[0]:
+                    mat["nombre"] = st.text_input(
+                        f"Asignatura {i+1}",
+                        key=f"{materias_key}_nombre_{i}",
+                        value=mat.get("nombre", ""),
+                        label_visibility="collapsed",
+                    )
+
+                with row_cols[1]:
+                    cuatri_val = str(mat.get("cuatrimestre", "1"))
+                    opciones_cuatri = ["1", "2"]
+                    idx_cuatri = opciones_cuatri.index(cuatri_val) if cuatri_val in opciones_cuatri else 0
+                    mat["cuatrimestre"] = st.selectbox(
+                        "Cuat.",
+                        options=opciones_cuatri,
+                        index=idx_cuatri,
+                        key=f"{materias_key}_cuatri_{i}",
+                        label_visibility="collapsed",
+                    )
+
+                with row_cols[2]:
+                    mat["firmado"] = st.checkbox(
+                        "Firmado",
+                        value=bool(mat.get("firmado", False)),
+                        key=f"{materias_key}_firmado_{i}",
+                        label_visibility="collapsed",
+                    )
+
+                with row_cols[3]:
+                    st.write(f"#{i+1}")
+
+                with row_cols[4]:
+                    if st.button("🗑️", key=f"{materias_key}_del_{i}"):
+                        materias.pop(i)
+                        st.rerun()
+
+
+    # ────────────────────────────────────────────────────────────────
+    # ACCIONES DE BOTONES DEL FORM
+    # ────────────────────────────────────────────────────────────────
     if open_clicked:
         if xlsx_for_tipo:
             ok2, err2 = open_in_system(os.path.abspath(xlsx_for_tipo))
@@ -181,30 +347,37 @@ def render_new_user_form(available_types: list[str], config: dict) -> dict | Non
 
     if not submit_clicked:
         return None
-
-
-    # Validaciones mínimas
+    
+    # ────────────────────────────────────────────────────────────────
+    # VALIDACIONES
+    # ────────────────────────────────────────────────────────────────
     missing = []
     if not nombre.strip():          missing.append("Nombre")
     if not apellidos.strip():       missing.append("Apellidos")
     if not email.strip():           missing.append("Email")
     if not destino_origen.strip():  missing.append("Destino/Origen")
     if tipo_norm == "Erasmus OUT":
-        if not extra["tor"].strip():   missing.append("ToR")
-        if not extra["curso"].strip(): missing.append("Curso")
-        if not extra["acta_equivalencias"].strip(): missing.append("Acta de equivalencias")
+        if not extra["pais_out"].strip():   missing.append("País")
+        # if not extra["tor"].strip():        missing.append("ToR")
+        # if not extra["curso"].strip():      missing.append("Curso")
     elif tipo_norm == "Erasmus IN":
-        if not extra["la"].strip():      missing.append("LA")
-        if not extra["horario"].strip(): missing.append("Horario")
+        if not extra["pais_in"].strip():    missing.append("País")
+        # if not extra["la"].strip():         missing.append("LA")
+        # if not extra["horario"].strip():    missing.append("Horario")
     elif tipo_norm == "SICUE OUT":
-        if not extra["la"].strip():            missing.append("LA")
-        if not extra["plan_estudios"].strip(): missing.append("Plan de estudios")
+        if not extra["ciudad_sicue"].strip():   missing.append("Ciudad")
+        # if not extra["la"].strip():             missing.append("LA")
+        # if not extra["estado_firmas"].strip():  missing.append("Estado de firmas")
+        # if not extra["plan_estudios"].strip():  missing.append("Plan de estudios")
 
     if missing:
         st.error("Faltan campos: " + ", ".join(missing))
         return None
 
-    # Geocodificar
+
+    # ────────────────────────────────────────────────────────────────
+    # GEOCODING
+    # ────────────────────────────────────────────────────────────────
     lat, lon, gerr = _geocode_cached(destino_origen.strip())
     if (lat is None or lon is None) and tipo_norm == "SICUE OUT":
         ciudad_opt = (extra.get("ciudad_sicue") or "").strip()
@@ -214,7 +387,9 @@ def render_new_user_form(available_types: list[str], config: dict) -> dict | Non
                 gerr = None  # mejoró con ciudad
     if gerr:
         st.warning(f"No se pudo geocodificar ‘{destino_origen}’: {gerr}")
-
+    # ────────────────────────────────────────────────────────────────
+    # PAYLOAD + MATERIAS
+    # ────────────────────────────────────────────────────────────────
     payload = {
         "tipo": tipo_norm,
         "nombre": nombre.strip(),
@@ -224,8 +399,32 @@ def render_new_user_form(available_types: list[str], config: dict) -> dict | Non
         "coordenadas": (lat, lon),
         **{k: (v.strip() if isinstance(v, str) else v) for k, v in extra.items()},
     }
+    if tipo_norm == "Erasmus IN":
+        materias_payload = []
+        for m in st.session_state.get("nu_materias_in", []):
+            nom = (m.get("nombre") or "").strip()
+            if not nom:
+                # ignoramos filas vacías
+                continue
+            cuatri = str(m.get("cuatrimestre") or "").strip()
+            firmado_bool = bool(m.get("firmado"))
+            materias_payload.append(
+                {
+                    "asignatura": nom,
+                    "cuatrimestre": cuatri,
+                    "cuat": cuatri,
+                    "firmado": "x" if firmado_bool else "",
+                }
+            )
+        if materias_payload:
+            payload["materias_in"] = materias_payload
+    else:
+        materias_payload = []
 
-    # Excel destino desde config
+
+    # ────────────────────────────────────────────────────────────────
+    # GUARDAR EN EXCEL
+    # ────────────────────────────────────────────────────────────────
     xlsx_path = config.get(tipo_norm)
     if not xlsx_path:
         st.error(f"No hay Excel configurado para ‘{tipo_norm}’. Ábrelo en ‘Cambiar rutas’.")
@@ -236,31 +435,78 @@ def render_new_user_form(available_types: list[str], config: dict) -> dict | Non
         st.error(f"Error guardando en Excel: {err}")
         return None
 
-    st.success("✅ Estudiante creado y guardado en Excel.")
-    # st.session_state["last_save"] = {
-    #     "path": os.path.abspath(xlsx_path),
-    #     "sheet": st.session_state.get("nu_sheet")
-    # }
-    # with st.container(border=True):
-    #     c1, c2 = st.columns([3, 1], gap="small")
-    #     with c1:
-    #         st.caption(f"📄 {os.path.basename(xlsx_path)} — hoja: {selected_sheet or first_sheet_name(xlsx_path)}")
-    #     with c2:
-    #         if st.button("Abrir en Excel", key=f"open_excel_{int(time.time()*1000)}"):
-    #             ok2, err2 = open_in_system(os.path.abspath(xlsx_path))
-    #             if not ok2:
-    #                 st.warning(f"No se pudo abrir el archivo: {err2}")
-    st.toast("Guardado correctamente")
-    # if "last_save" in st.session_state:
-    #     last = st.session_state["last_save"]
-    #     with st.container(border=True):
-    #         c1, c2 = st.columns([3, 1], gap="small")
-    #         with c1:
-    #             st.caption(f"📄 {os.path.basename(last['path'])}"
-    #                     + (f" — hoja: {last.get('sheet')}" if last.get('sheet') else ""))
-    #         with c2:
-    #             if st.button("Abrir en Excel", key="btn_open_excel_persist"):
-    #                 ok2, err2 = open_in_system(last["path"])
-    #                 if not ok2:
-    #                     st.warning(f"No se pudo abrir el archivo: {err2}")
-    # return payload
+    # Si es Erasmus IN y hay materias, añadimos también al Excel 'Materias IN'
+    if tipo_norm == "Erasmus IN" and materias_payload:
+        _append_materias_in_excel_single_student(materias_payload, payload, config)
+
+
+    # Marcamos éxito para mostrar el mensaje en el siguiente run
+    st.session_state["_user_saved"] = True
+    st.rerun()
+
+
+def _append_materias_in_excel_single_student(
+    materias_payload: list[dict],
+    student_payload: dict,
+    config: dict,
+):
+    """
+    Añade las materias de UN estudiante Erasmus IN al Excel 'Materias IN'
+    indicado en config["Materias IN"].
+    """
+    path_materias = (config or {}).get("Materias IN")
+    if not path_materias or not materias_payload:
+        return
+
+    # Datos comunes
+    nombre_est = f"{student_payload.get('nombre', '')} {student_payload.get('apellidos', '')}".strip()
+    origen = student_payload.get("pais_in") or ""
+    centro = student_payload.get("destino_origen") or ""
+
+    rows_out = []
+    for m in materias_payload:
+        asig = m.get("asignatura", "").strip()
+        if not asig:
+            continue
+        cuat = (m.get("cuat") or m.get("cuatrimestre") or "").strip()
+        firmado = m.get("firmado") or ""
+        rows_out.append(
+            {
+                "Asignatura": asig,
+                "Estudiante": nombre_est,
+                "Origen": origen,
+                "Universidad Origen": centro,
+                "Cuat": cuat,
+                "Firmado": firmado,
+            }
+        )
+
+    if not rows_out:
+        return
+
+    cols = ["Asignatura", "Estudiante", "Origen", "Universidad Origen", "Cuat", "Firmado"]
+    df_new = pd.DataFrame(rows_out, columns=cols)
+
+    try:
+        if os.path.exists(path_materias):
+            try:
+                df_old = pd.read_excel(path_materias)
+                # alineamos columnas
+                for c in cols:
+                    if c not in df_old.columns:
+                        df_old[c] = None
+                for c in df_old.columns:
+                    if c not in df_new.columns:
+                        df_new[c] = None
+                df_out = pd.concat(
+                    [df_old[cols], df_new[cols]],
+                    ignore_index=True,
+                )
+            except Exception:
+                df_out = df_new
+        else:
+            df_out = df_new
+
+        df_out.to_excel(path_materias, index=False)
+    except Exception as e:
+        st.warning(f"No se pudo actualizar el Excel de 'Materias IN': {e}")

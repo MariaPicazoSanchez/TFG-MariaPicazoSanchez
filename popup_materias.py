@@ -28,49 +28,48 @@ def build_materias_blocks(e, programa: str, row_index_attr: str, idx_attr: str):
     materias_items = []  # filas <li> editables
 
     for j, m in enumerate(materias):
-        if not isinstance(m, dict):
-            continue
+      if not isinstance(m, dict):
+        continue
 
-        asig = _clean(m.get("asignatura"))
-        if not asig:
-            continue
+      asig = _clean(m.get("asignatura"))
+      if not asig:
+        continue
 
-        cuat = _clean(m.get("cuat") or m.get("cuatrimestre"))
+      cuat = _clean(m.get("cuat") or m.get("cuatrimestre"))
 
-        # 👇 Cualquier valor tipo "x", "1", "s", "si"... lo tratamos como firmado
-        firmado_raw = str(m.get("firmado", "")).strip().lower()
-        firmado_flag = "x" if firmado_raw in ("x", "1", "s", "si", "sí", "true", "t") else ""
+      firmado_raw = str(m.get("firmado", "")).strip().lower()
+      firmado_flag = "x" if firmado_raw in ("x", "1", "s", "si", "sí", "true", "t") else ""
 
-        # Texto visible: "Nombre · Cuatri: 1 · Firmado/No firmado"
-        trozos = [asig]
-        if cuat:
-            trozos.append(f"Cuatri: {cuat}")
-        trozos.append("Firmado" if firmado_flag == "x" else "No firmado")
-        display_txt = " · ".join(trozos)
+      trozos = [asig]
+      if cuat:
+        trozos.append(f"Cuatri: {cuat}")
+      trozos.append("Firmado" if firmado_flag == "x" else "No firmado")
+      display_txt = " · ".join(trozos)
 
-        # Vista (pills)
-        pills.append(f"<li class='mitem'>{html.escape(display_txt)}</li>")
+      pills.append(f"<li class='mitem'>{html.escape(display_txt)}</li>")
+      lines.append(f"{asig} | {cuat} | {firmado_flag}")
 
-        # Texto raw para el textarea -> mismo formato que tu Excel (Firmado = x / vacío)
-        lines.append(f"{asig} | {cuat} | {firmado_flag}")
+      mid = f"{row_index_attr}-{idx_attr}-mat-{j}"
+      mindex = len(materias_items)
 
-        # Fila de la lista editable
-        mid = f"{row_index_attr}-{idx_attr}-mat-{j}"
-        mindex = len(materias_items)
+      # --- AQUI AÑADES LA CLASE SI ES NUEVA ---
+      clase = "materia-row"
+      if m.get("nueva"):
+        clase += " materia-nueva"
 
-        materias_items.append(f"""
-          <li class="materia-row"
-              data-mindex="{mindex}"
-              data-nombre="{html.escape(asig, quote=True)}"
-              data-cuat="{html.escape(cuat or '', quote=True)}"
-              data-firmado="{html.escape(firmado_flag, quote=True)}">
-            <span class="materia-name">{html.escape(display_txt)}</span>
-            <span class="materia-actions">
-              <button type="button" class="icon-btn materia-edit" title="Editar" data-mid="{mid}">✏️</button>
-              <button type="button" class="icon-btn materia-delete" title="Eliminar" data-mid="{mid}">🗑️</button>
-            </span>
-          </li>
-        """)
+      materias_items.append(f"""
+        <li class="{clase}"
+          data-mindex="{mindex}"
+          data-nombre="{html.escape(asig, quote=True)}"
+          data-cuat="{html.escape(cuat or '', quote=True)}"
+          data-firmado="{html.escape(firmado_flag, quote=True)}">
+          <span class="materia-name">{html.escape(display_txt)}</span>
+          <span class="materia-actions">
+            <button type="button" class="icon-btn materia-edit" title="Editar" data-mid="{mid}">✏️</button>
+            <button type="button" class="icon-btn materia-delete" title="Eliminar" data-mid="{mid}">🗑️</button>
+          </span>
+        </li>
+      """)
 
     materias_items_html = "\n".join(materias_items)
 
@@ -95,28 +94,32 @@ def build_materias_blocks(e, programa: str, row_index_attr: str, idx_attr: str):
         <ul class="materias-list">
           {materias_items_html}
           <li class="materia-row add-row">
-            <button type="button" class="icon-btn materia-add">+ Añadir asignatura</button>
+            <button type="button" class="icon-btn materia-add"> Añadir asignatura</button>
           </li>
         </ul>
 
         <div class="materia-editor" style="display:none;">
           <div class="field">
             <label>Asignatura</label>
-            <input type="text" name="mat_nombre">
+            <input type="text" name="mat_nombre" placeholder="Nombre de la asignatura">
           </div>
-          <div class="field">
-            <label>Cuatrimestre</label>
-            <select name="mat_cuat" class="slim-select">
-              <option value="">--</option>
-              <option value="1">1</option>
-              <option value="2">2</option>
-            </select>
-          </div>
-          <div class="field">
-            <label class="checkbox-label">
-              <input type="checkbox" name="mat_firmado">
-              Firmado
-            </label>
+
+          <div class="materia-editor-row">
+            <div class="field">
+              <label>Cuatrimestre</label>
+              <select name="mat_cuat" class="slim-select">
+                <option value="">-</option>
+                <option value="1">1</option>
+                <option value="2">2</option>
+              </select>
+            </div>
+
+            <div class="field field-firmado">
+              <label class="firmado-toggle">
+                <input type="checkbox" name="mat_firmado">
+                <span class="firmado-pill">Firmado</span>
+              </label>
+            </div>
           </div>
 
           <div class="field acciones-materia">
@@ -124,7 +127,6 @@ def build_materias_blocks(e, programa: str, row_index_attr: str, idx_attr: str):
             <button type="button" class="materia-cancel">Cancelar</button>
           </div>
         </div>
-
         <!-- Representación “raw” en texto, para enviar en el form -->
         <textarea name="materias_raw" style="display:none;">{html.escape(materias_text)}</textarea>
       </div>

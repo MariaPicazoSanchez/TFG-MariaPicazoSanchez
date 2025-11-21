@@ -2,7 +2,9 @@ import streamlit as st
 import html
 from urllib.parse import quote
 from styles import POPUP_STYLES
-from js_scripts import POPUP_SAVE_STATUS_SCRIPT
+from js_scripts import POPUP_LIVE_UPDATE_JS
+from es_cities import CITIES_ES
+from new_user_view import COUNTRY_OPTIONS
 from popup_helpers import (
     _normalize_estudiantes,
     _clean,
@@ -202,17 +204,31 @@ def generate_dynamic_popup(row, programa: str, row_index: int) -> str:
                                 <input name="responsable" value="{html.escape(_clean(responsable_val), quote=True)}">
                               </div>'''
 
+            pais_options = "\n".join(
+                f'<option value="{html.escape(p, quote=True)}"{" selected" if _clean(pais_val) == _clean(p) else ""}>{html.escape(p)}</option>'
+                for p in COUNTRY_OPTIONS if p
+            )
             pais_field = f'''
-                              <div class="field">
-                                <label>País</label>
-                                <input name="pais" value="{html.escape(_clean(pais_val), quote=True)}">
-                              </div>'''
+              <div class="field">
+                <label>País</label>
+                <select name="pais">
+                  <option value=""></option>
+                  {pais_options}
+                </select>
+              </div>'''
 
+            ciudad_options = "\n".join(
+                f'<option value="{html.escape(c, quote=True)}"{" selected" if _clean(ciudad_val) == _clean(c) else ""}>{html.escape(c)}</option>'
+                for c in CITIES_ES if c
+            )
             ciudad_field = f'''
-                              <div class="field">
-                                <label>Ciudad</label>
-                                <input name="ciudad" value="{html.escape(_clean(ciudad_val), quote=True)}">
-                              </div>'''
+                <div class="field">
+                  <label>Ciudad</label>
+                  <select name="ciudad">
+                    <option value=""></option>
+                    {ciudad_options}
+                  </select>
+                </div>'''
 
             prog_upper = (programa or "").upper()
             grid_fields = [nombre_field, email_field]
@@ -387,7 +403,7 @@ def generate_dynamic_popup(row, programa: str, row_index: int) -> str:
       <style>
       {POPUP_STYLES}
       </style>
-      <body>
     </div>
     """
     return html_out
+
