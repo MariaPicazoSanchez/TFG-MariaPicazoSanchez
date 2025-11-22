@@ -369,7 +369,9 @@ def generate_dynamic_popup(row, programa: str, row_index: int) -> str:
                           <label for="{toggle_id}" class="btn-icon cancel-btn" title="Cancelar">✖</label>
                           <button type="submit" class="btn save-btn" title="Guardar">Guardar</button>
                         </div>
-
+                        <div class="recarga-toast">
+                          ⚠️ Recarga la página para ver los cambios actualizados.
+                        </div>
                         <div class="hint">
                           Los cambios se guardan en el Excel de {html.escape(programa)}. 
                         </div>
@@ -403,6 +405,7 @@ def generate_dynamic_popup(row, programa: str, row_index: int) -> str:
       <style>
       {POPUP_STYLES}
       </style>
+
     </div>
     """
     return html_out

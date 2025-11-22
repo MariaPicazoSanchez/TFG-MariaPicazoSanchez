@@ -388,13 +388,14 @@ POPUP_STYLES = """
   align-items: center;
   justify-content: center;
   width: 100%;
-  padding: 0.35rem 0.75rem;
+  padding: 0.8rem 0.75rem;
   border-radius: 999px;
   border: 1px solid #94a3b8;
-  font-size: 0.95rem;   /* antes 0.8rem */
+  font-size: 1.3rem;   /* antes 0.8rem */  
   font-weight: 600;
   color: #475569;
   background: #f8fafc;
+  margin-top: 12px !important;
   transition:
     background 0.15s ease,
     border-color 0.15s ease,
@@ -424,18 +425,18 @@ POPUP_STYLES = """
 .materia-editor .acciones-materia .materia-cancel {
   border-radius: 999px;
   padding: 0.35rem 0.9rem;
-  font-size: 0.95rem;   /* antes 0.8rem */
+  font-size: 1.3rem;   /* antes 0.8rem */
   border: none;
   cursor: pointer;
 }
 
 .materia-editor .acciones-materia .materia-save {
-  background: #3b82f6;
+  background: #f97316;
   color: #ffffff;
 }
 
 .materia-editor .acciones-materia .materia-save:hover {
-  background: #2563eb;
+  background: #ea580c;
 }
 
 .materia-editor .acciones-materia .materia-cancel {
@@ -446,5 +447,23 @@ POPUP_STYLES = """
 .materia-editor .acciones-materia .materia-cancel:hover {
   background: #d1d5db;
 }
-
+.materia-editor,
+.materia-editor input[type="text"],
+.materia-editor select,
+.materia-editor .field label,
+.materia-editor .acciones-materia .materia-save,
+.materia-editor .acciones-materia .materia-cancel,
+.firmado-pill {
+  font-size: 1.15rem !important;
+}
+.recarga-toast {
+  background: #ffeeba;
+  color: #856404;
+  border-radius: 6px;
+  padding: 10px 16px;
+  margin: 16px 0 0 0;
+  font-size: 1rem;
+  text-align: center;
+  border: 1px solid #ffeeba;
+}
 """
