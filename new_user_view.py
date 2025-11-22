@@ -22,7 +22,7 @@ def _clear_new_user_form_state():
 
     # 2) Seguridad extra: forzar vacío en estos tres por si Streamlit
     # los vuelve a crear con valor anterior en este mismo run
-    for k in ("nu_nombre", "nu_apellidos", "nu_email", "nu_destino_origen", "nu_pais", "nu_ciudad", "nu_direccion", "nu_pais_out","nu_pais_in", "nu_ciudad_out", "nu_direccion_out", "nu_tor", "nu_curso", "nu_la_out"):
+    for k in ("nu_nombre", "nu_apellidos", "nu_email", "nu_destino_origen", "nu_pais_out", "nu_ciudad", "nu_tor", "nu_curso","nu_la_out_opt", "nu_acta", "nu_dur_out", "nu_resp_prog", "nu_plan_out", "nu_pais_in", "nu_la_in", "nu_horario", "nu_cuatri_in", "nu_la_sicue", "nu_estado", "nu_plan", "nu_dur_sicue", "nu_coord_dest", "nu_materias_in"):
         st.session_state[k] = ""
 
 
@@ -222,7 +222,7 @@ def render_new_user_form(available_types: list[str], config: dict) -> dict | Non
                 extra["la"]      = st.text_input("LA (enlace)", key="nu_la_in")
             with col2:
                 extra["horario"] = st.text_input("Plan de estudios (enlace)", key="nu_horario")
-                extra["cuatrimestre_in"] = st.selectbox("Cuatrimestre", options=["1", "2"], key="nu_cuatri_in")
+                extra["cuatrimestre_in"] = st.selectbox("Cuatrimestre", options=["", "1", "2"], key="nu_cuatri_in")
             
             
         # _____________________________________
