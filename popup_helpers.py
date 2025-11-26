@@ -24,6 +24,15 @@ def _normalize_estudiantes(estudiantes):
 
         norm = {str(k).strip(): v for k, v in e.items()}
 
+        # ---- Ciudad ----
+        ciudad_val = None
+        for k in ("ciudad", "Ciudad", "ciudad destino", "Ciudad destino", "City", "city"):
+            if k in norm and not _is_empty(norm[k]):
+                ciudad_val = norm[k]
+                break
+        if ciudad_val is not None:
+            norm["ciudad"] = ciudad_val
+
         # ---- Enlaces LA ----
         if "link_la" not in norm:
             for k in ("link_LA", "LA", "la", "La"):
@@ -118,3 +127,13 @@ def _view_link(label, url, text="Abrir", open_in_system=False):
     # Comportamiento normal para enlaces web
     safe_url = html.escape(str(url), quote=True)
     return f"<b>{label_html}:</b> <a href='{safe_url}' target='_blank' rel='noopener noreferrer'>{text_html}</a><br>"
+
+def _is_empty(value):
+    import math
+    if value is None:
+        return True
+    if isinstance(value, float) and math.isnan(value):
+        return True
+    if isinstance(value, str) and not value.strip():
+        return True
+    return False

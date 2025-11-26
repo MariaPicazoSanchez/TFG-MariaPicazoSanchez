@@ -76,7 +76,10 @@ def show_map(dfs: dict, base_map, materias_in_por_estudiante=None):
     if hasattr(base_map, "add_child"):
         m = base_map
     else:
-        m = leafmap.Map(center=(40.4168, -3.7038), zoom=4, tiles=None)
+        m = leafmap.Map(center=(40.4168, -3.7038), zoom=4, tiles=None, draw_control=False,
+            measure_control=False,
+            search_control=True
+        )
         try:
             m.add_basemap(base_map if isinstance(base_map, str) else "CartoDB.Positron")
         except Exception:
@@ -542,7 +545,6 @@ def show_map(dfs: dict, base_map, materias_in_por_estudiante=None):
                         nombre = str(e.get("estudiante", "")).strip()
                         e["materias_in"] = materias_in_por_estudiante.get(nombre, [])
 
-                # A partir de aquí todo como lo tienes
                 content = generate_dynamic_popup(row, program, row_index)
                 n = max(1, len(row.get("estudiantes", [])) if isinstance(row.get("estudiantes"), list) else 1)
                 w = _estimate_popup_width_px(row)

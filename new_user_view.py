@@ -10,6 +10,9 @@ import pycountry
 import pandas as pd
 from babel import Locale
 
+from sidebar import pick_local_file
+USE_LOCAL_PICKER = True
+
 
 def _clear_new_user_form_state():
     """
@@ -22,7 +25,7 @@ def _clear_new_user_form_state():
 
     # 2) Seguridad extra: forzar vacío en estos tres por si Streamlit
     # los vuelve a crear con valor anterior en este mismo run
-    for k in ("nu_nombre", "nu_apellidos", "nu_email", "nu_destino_origen", "nu_pais_out", "nu_ciudad", "nu_tor", "nu_curso","nu_la_out_opt", "nu_acta", "nu_dur_out", "nu_resp_prog", "nu_plan_out", "nu_pais_in", "nu_la_in", "nu_horario", "nu_cuatri_in", "nu_la_sicue", "nu_estado", "nu_plan", "nu_dur_sicue", "nu_coord_dest", "nu_materias_in"):
+    for k in ("nu_nombre", "nu_apellidos", "nu_email", "nu_destino_origen", "nu_pais_out", "nu_ciudad", "nu_tor", "nu_curso","nu_la_out_opt", "nu_acta", "nu_dur_out", "nu_resp_prog", "nu_plan_out", "nu_pais_in", "nu_la_in", "nu_horario", "nu_cuatri_in", "nu_la_sicue", "nu_estado", "nu_plan", "nu_dur_sicue", "nu_coord_dest", "nu_materias_in", "nu_plan_sic_out"):
         st.session_state[k] = ""
 
 
@@ -58,6 +61,8 @@ COUNTRY_OPTIONS = get_country_options()
 try:
     from geopy.geocoders import Nominatim
     from geopy.extra.rate_limiter import RateLimiter
+    import tkinter as tk
+    from tkinter import filedialog
     _GEOCODER = Nominatim(user_agent="tfg-movilidad-esii")
     _GEOCODE = RateLimiter(_GEOCODER.geocode, min_delay_seconds=1)
 except Exception:
@@ -97,6 +102,41 @@ def _sheet_options_for(cfg: dict, tipo: str) -> list[str]:
         return sorted({s for s in known if s and s != "__CSV__"})
     path = (cfg or {}).get(tipo, "")
     return [s for s in sheets_for(path) if s != "__CSV__"] if path else []
+
+def _invisible_suffix_from_id(button_id: str) -> str:
+    """
+    Genera un sufijo invisible único a partir de button_id,
+    usando combinaciones de caracteres zero-width.
+    """
+    # Codificamos el button_id en bits y los traducimos a caracteres invisibles.
+    bits = "".join(f"{ord(c):08b}" for c in button_id)  # p.ej. '01101010...'
+    return "".join("\u200b" if b == "0" else "\u200c" for b in bits)
+    # \u200b y \u200c son invisibles, pero la secuencia será distinta para cada id.
+
+
+def file_picker_button(label: str, text_input_key: str, button_id: str, help: str = "Seleccionar archivo del equipo"):
+    """
+    Muestra un botón para seleccionar archivo y actualiza el campo text_input correspondiente.
+    Visualmente se muestra solo `label` (📁), pero internamente cada botón tendrá
+    un label diferente gracias a button_id.
+    """
+    invisible_suffix = _invisible_suffix_from_id(button_id)
+    real_label = label + invisible_suffix   # p.ej. '📁' + <muchos invisibles>
+
+    # OJO: sin key, porque tu versión de Streamlit no lo soporta
+    clicked = st.form_submit_button(real_label, help=help)
+
+    if clicked:
+        if USE_LOCAL_PICKER:
+            current_val = st.session_state.get(text_input_key, "")
+            path = pick_local_file(current_val, filetypes=[("Todos", "*.*")])
+            if path:
+                st.session_state[text_input_key] = path
+        else:
+            st.sidebar.warning("Ejecuta la app en local para seleccionar rutas del equipo.")
+        st.rerun()
+    return clicked
+
 
 
 def render_new_user_form(available_types: list[str], config: dict) -> dict | None:
@@ -160,6 +200,13 @@ def render_new_user_form(available_types: list[str], config: dict) -> dict | Non
     selected_sheet = (new_sheet_name.strip() if new_sheet_name else (None if choice == SENT_NEW else choice))
     st.session_state["nu_sheet"] = selected_sheet
 
+    # Flags para los botones "📁" dentro del form
+    browse_tor_clicked = False
+    browse_la_out_clicked = False
+    browse_plan_out_clicked = False
+    browse_la_in_clicked = False
+    browse_horario_clicked = False
+
     open_clicked = False
     # ────────────────────────────────────────────────────────────────
     # FORMULARIO PRINCIPAL
@@ -183,46 +230,84 @@ def render_new_user_form(available_types: list[str], config: dict) -> dict | Non
         # _____________________________________
         # Erasmus OUT
         # _____________________________________
-
         if tipo_norm == "Erasmus OUT":
             col1, col2 = st.columns(2)
             # obligatorios
             with col1:
                 extra["pais_out"] = st.selectbox("País", options=COUNTRY_OPTIONS, key="nu_pais_out")
-                extra["tor"] = st.text_input("ToR (ruta o enlace)", key="nu_tor")
+                dur_out_val = st.text_input("Duración (meses)", key="nu_dur_out")
+                # Validar que solo contiene números
+                if dur_out_val and not dur_out_val.strip().isdigit():
+                    st.error("La duración debe ser un número")
+                    extra["dur_out"] = ""
+                else:
+                    extra["dur_out"] = dur_out_val
+                extra["acta_equivalencias"] = st.text_input("Acta de equivalencias (ruta o enlace)", key="nu_acta")
+                tor_col1, tor_col2 = st.columns([3, 1])
+                with tor_col2:
+                    st.markdown("<br>", unsafe_allow_html=True)
+                    browse_tor_clicked = file_picker_button("📁", "nu_tor", "nu_tor_browse", "Abrir explorador de archivos.")
+                with tor_col1:
+                    extra["tor"] = st.text_input("ToR (ruta o enlace)", key="nu_tor")
+                plan_col1, plan_col2 = st.columns([3, 1])
+                with plan_col2:
+                    st.markdown("<br>", unsafe_allow_html=True)
+                    browse_plan_out_clicked = file_picker_button("📁", "nu_plan_out", "nu_plan_out_browse", "Abrir explorador de archivos.")
+                
+                with plan_col1:
+                    extra["plan_out"] = st.text_input(
+                        "Propuesta alumno LA (ruta o enlace)",
+                        # key="nu_plan_out",
+                    )
+                
             with col2:
                 extra["curso"] = st.selectbox("Curso", options=["","1", "2", "3", "4"], key="nu_curso")
-                extra["la_out"]    = st.text_input("LA (enlace)", key="nu_la_out_opt")
-
-            # opcionales
-            with st.expander("Campos opcionales (Erasmus OUT)", expanded=False):
-                col1, col2 = st.columns(2)
-                with col1:
-                    extra["acta_equivalencias"] = st.text_input("Acta de equivalencias (ruta o enlace)", key="nu_acta")
-                    dur_out_val = st.text_input("Duración (meses)", key="nu_dur_out")
-                    # Validar que solo contiene números
-                    if dur_out_val and not dur_out_val.strip().isdigit():
-                        st.error("La duración debe ser un número")
-                        extra["dur_out"] = ""
-                    else:
-                        extra["dur_out"] = dur_out_val
-                with col2:
-                    extra["resp_prog"] = st.text_input("Responsable del programa", key="nu_resp_prog")
-                with col2:
-                    extra["plan_out"]  = st.text_input("Plan de estudios (enlace)", key="nu_plan_out")
+                extra["ciudad"] = st.text_input("Ciudad", key="nu_ciudad")
+                extra["resp_prog"] = st.text_input("Responsable del programa", key="nu_resp_prog")
+                la_col1, la_col2 = st.columns([3, 1])
+                with la_col2:
+                    st.markdown("<br>", unsafe_allow_html=True)
+                    browse_la_out_clicked = file_picker_button("📁", "nu_la_out_opt", "nu_la_out_opt_browse", "Abrir explorador de archivos.")
+                
+                with la_col1:
+                    extra["la_out"] = st.text_input("LA (enlace o ruta)", key="nu_la_out_opt")
+                    
         # _____________________________________
         # Erasmus IN
         # _____________________________________
 
         elif tipo_norm == "Erasmus IN":
             col1, col2 = st.columns(2)
+
             with col1:
-                # obligatorios
                 extra["pais_in"] = st.selectbox("País", options=COUNTRY_OPTIONS, key="nu_pais_in")
-                extra["la"]      = st.text_input("LA (enlace)", key="nu_la_in")
-            with col2:
-                extra["horario"] = st.text_input("Plan de estudios (enlace)", key="nu_horario")
                 extra["cuatrimestre_in"] = st.selectbox("Cuatrimestre", options=["", "1", "2"], key="nu_cuatri_in")
+
+                # LA con selector de archivo o ruta manual
+                la_col1, la_col2 = st.columns([3, 1])
+
+                with la_col2:
+                    st.markdown("<br>", unsafe_allow_html=True)
+                    browse_la_in_clicked = file_picker_button("📁", "nu_la_in", "nu_la_in_browse", "Abrir explorador de archivos.")
+
+                with la_col1:
+                    extra["la_in"] = st.text_input("LA (enlace o ruta)", key="nu_la_in")
+
+            # opcionales
+            with col2:
+                extra["ciudad"] = st.text_input("Ciudad", key="nu_ciudad")
+
+                col_hor1, col_hor2 = st.columns([3, 1])
+
+                with col_hor2:
+                    st.markdown("<br>", unsafe_allow_html=True)
+                    browse_horario_clicked = file_picker_button("📁", "nu_horario", "nu_horario_browse", "Abrir explorador de archivos.")
+
+                with col_hor1:
+                    extra["horario"] = st.text_input(
+                        "Propuesta alumno LA (ruta o enlace)",
+                        key="nu_horario",
+                    )
             
             
         # _____________________________________
@@ -240,28 +325,37 @@ def render_new_user_form(available_types: list[str], config: dict) -> dict | Non
                     help="Si no se encuentran coordenadas por la universidad, se intentará con esta ciudad.",
                     key="nu_ciudad",
                 )
-                extra["la"]             = st.text_input("LA (enlace)", key="nu_la_sicue")
+                dur_sicue_val = st.text_input("Duración (meses)", key="nu_dur_sicue")
+                # Validar que solo contiene números
+                if dur_sicue_val and not dur_sicue_val.strip().isdigit():
+                    st.error("La duración debe ser un número")
+                    extra["dur_sicue"] = ""
+                else:
+                    extra["dur_sicue"] = dur_sicue_val
+                la_col1, la_col2 = st.columns([3, 1])
+                with la_col2:
+                    st.markdown("<br>", unsafe_allow_html=True)
+                    browse_la_in_clicked = file_picker_button("📁", "nu_la_sicue", "nu_la_sicue_browse", "Abrir explorador de archivos.")
+                with la_col1:
+                    extra["la_in"] = st.text_input("LA (enlace o ruta)", key="nu_la_sicue")
             with col2:
                 extra["estado_firmas"]  = st.selectbox("Estado de firmas", ESTADOS_FIRMA, key="nu_estado")
-                extra["plan_estudios"]  = st.text_input("Plan de estudios (enlace)", key="nu_plan")
-            # opcionales
-            with st.expander("Campos opcionales (SICUE OUT)", expanded=False):
-                col1, col2 = st.columns(2)
-                with col1:
-                    dur_sicue_val = st.text_input("Duración (meses)", key="nu_dur_sicue")
-                    # Validar que solo contiene números
-                    if dur_sicue_val and not dur_sicue_val.strip().isdigit():
-                        st.error("La duración debe ser un número")
-                        extra["dur_sicue"] = ""
-                    else:
-                        extra["dur_sicue"] = dur_sicue_val
-                with col2:
-                    extra["coord_dest"] = st.text_input("Coordinador en destino", key="nu_coord_dest")
+                extra["coord_dest"] = st.text_input("Coordinador en destino", key="nu_coord_dest")
+
+                plan_col1, plan_col2 = st.columns([3, 1])
+                with plan_col2:
+                    st.markdown("<br>", unsafe_allow_html=True)
+                    browse_plan_out_clicked =  file_picker_button("📁", "nu_plan_sic_out", "nu_plan_sic_out_browse", "Abrir explorador de archivos.")
+                with plan_col1:
+                    extra["plan_sic_out"] = st.text_input(
+                        "Propuesta alumno LA (ruta o enlace)",
+                        key="nu_plan_sic_out",
+                    )
 
         # — fila con los dos botones: Crear y Abrir Excel (dinámico) —
         bcol1, bcol2 = st.columns([1, 1], gap="small")
-        submit_clicked = bcol1.form_submit_button("✅ Crear", use_container_width=True)
-        open_clicked   = bcol2.form_submit_button(open_label, use_container_width=True)
+        open_clicked   = bcol1.form_submit_button(open_label, use_container_width=True)
+        submit_clicked = bcol2.form_submit_button("✅ Crear", use_container_width=True)
     # ────────────────────────────────────────────────────────────────
     # BLOQUE DE ASIGNATURAS ERASMUS IN (FUERA DEL FORM)
     # ────────────────────────────────────────────────────────────────
@@ -292,6 +386,7 @@ def render_new_user_form(available_types: list[str], config: dict) -> dict | Non
             if not materias:
                 st.info("Aún no hay asignaturas añadidas para este estudiante.")
 
+            delete_idx = None
             # Filas de asignaturas
             for i, mat in enumerate(materias):
                 row_cols = st.columns([3, 1, 1, 0.8, 0.8])
@@ -329,13 +424,65 @@ def render_new_user_form(available_types: list[str], config: dict) -> dict | Non
 
                 with row_cols[4]:
                     if st.button("🗑️", key=f"{materias_key}_del_{i}"):
-                        materias.pop(i)
-                        st.rerun()
+                        delete_idx = i
+            if delete_idx is not None:
+                materias.pop(delete_idx)
+                st.rerun()
 
 
     # ────────────────────────────────────────────────────────────────
     # ACCIONES DE BOTONES DEL FORM
     # ────────────────────────────────────────────────────────────────
+    if browse_tor_clicked:
+        if USE_LOCAL_PICKER:
+            current_val = st.session_state.get("nu_tor", "")
+            path = pick_local_file(current_val)
+            if path:
+                st.session_state["nu_tor"] = path
+        else:
+            st.sidebar.warning("Ejecuta la app en local para seleccionar rutas del equipo.")
+        st.rerun()
+
+    if browse_la_out_clicked:
+        if USE_LOCAL_PICKER:
+            current_val = st.session_state.get("nu_la_out_opt", "")
+            path = pick_local_file(current_val)
+            if path:
+                st.session_state["nu_la_out_opt"] = path
+        else:
+            st.sidebar.warning("Ejecuta la app en local para seleccionar rutas del equipo.")
+        st.rerun()
+
+    if browse_plan_out_clicked:
+        if USE_LOCAL_PICKER:
+            current_val = st.session_state.get("nu_plan_out", "")
+            path = pick_local_file(current_val)
+            if path:
+                st.session_state["nu_plan_out"] = path
+        else:
+            st.sidebar.warning("Ejecuta la app en local para seleccionar rutas del equipo.")
+        st.rerun()
+
+    if browse_la_in_clicked:
+        if USE_LOCAL_PICKER:
+            current_val = st.session_state.get("nu_la_in", "")
+            path = pick_local_file(current_val)
+            if path:
+                st.session_state["nu_la_in"] = path
+        else:
+            st.sidebar.warning("Ejecuta la app en local para seleccionar rutas del equipo.")
+        st.rerun()
+
+    if browse_horario_clicked:
+        if USE_LOCAL_PICKER:
+            current_val = st.session_state.get("nu_horario", "")
+            path = pick_local_file(current_val)
+            if path:
+                st.session_state["nu_horario"] = path
+        else:
+            st.sidebar.warning("Ejecuta la app en local para seleccionar rutas del equipo.")
+        st.rerun()
+
     if open_clicked:
         if xlsx_for_tipo:
             ok2, err2 = open_in_system(os.path.abspath(xlsx_for_tipo))

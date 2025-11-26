@@ -1,21 +1,35 @@
 import time
 import streamlit as st
+from urllib.parse import unquote
 import os, sys, subprocess, urllib.parse as up
 
 def open_in_system(path: str):
     if not path: return False, "Ruta vacía"
     if not os.path.exists(path): return False, f"No existe: {path}"
+    raw = path
+    path = unquote(str(path))
+    path = path.strip().strip('"').strip("'")
+    path = os.path.expanduser(path)
+    path = os.path.abspath(path)
+
+    # print(f"[open_in_system] raw   = {raw!r}")
+    # print(f"[open_in_system] final = {path!r}")
+    # print(f"[open_in_system] exists? {os.path.exists(path)}")
+
+    if not os.path.exists(path):
+        return False, f"No existe: {path}"
+
     try:
         if sys.platform.startswith("win"):
             try:
                 os.startfile(path)  # type: ignore[attr-defined]
             except Exception:
-                subprocess.Popen(['cmd','/c','start','', path], shell=True)
+                subprocess.Popen(['cmd', '/c', 'start', '', path], shell=True)
             return True, None
         elif sys.platform == "darwin":
             subprocess.Popen(["open", path]);  return True, None
         else:
-            subprocess.Popen(["xdg-open", path]); return True, None
+            subprocess.Popen(["xdg-open", path]);  return True, None
     except Exception as e:
         if sys.platform.startswith("win"):
             try:

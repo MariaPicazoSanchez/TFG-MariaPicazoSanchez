@@ -95,6 +95,7 @@ def load_erasmus_out(path: str, sheet_name: str | None = None) -> pd.DataFrame:
     c_email    = _pick(df, "Email", "email")
     c_coords   = _pick(df, "Coordenadas", "coords")
     c_dest     = _pick(df, "Destino", "Universidad Destino", "Universidad")
+    c_ciudad   = _pick(df, "Ciudad", "Ciudad Origen", "Ciudad origen", "City", "city", "ciudad")
     c_pais     = _pick(df, "País", "Pais")
     c_la       = _pick(df, "LA")
     c_plan     = _pick(df, "Plan de estudios", "Plan estudios", "Plan_estudios", "Enlace plan de estudios")
@@ -136,12 +137,6 @@ def load_erasmus_out(path: str, sheet_name: str | None = None) -> pd.DataFrame:
     df["link_plan"]   = df[c_plan] if c_plan else None
 
     def _to_records(g: pd.DataFrame) -> list[dict]:
-        # keep = ["estudiante", "link_LA", "link_plan"]
-        # if c_email and c_email in g.columns:
-        #     g = g.rename(columns={c_email: "email"})
-        #     keep.insert(1, "email")
-        # keep = [c for c in keep if c in g.columns]
-        # return g[keep].to_dict(orient="records")
         mapping = {}
         if c_email:    mapping[c_email]    = "email"
         if c_curso:    mapping[c_curso]    = "curso"
@@ -151,6 +146,8 @@ def load_erasmus_out(path: str, sheet_name: str | None = None) -> pd.DataFrame:
         keep = ["estudiante", "link_LA", "link_plan"] + list(mapping.keys())
         out = g[keep].copy() if keep else g.copy()
         out = out.rename(columns=mapping)
+        if c_ciudad and c_ciudad in g.columns:
+            out["ciudad"] = g[c_ciudad]
         return out.to_dict(orient="records")
     
     grouped = (
@@ -179,6 +176,7 @@ def load_erasmus_in(path: str, sheet_name: str | None = None) -> pd.DataFrame:
     c_cuatri  = _pick(df, "Cuatrimestre", "Cuatirmestre")
     c_la      = _pick(df, "LA")
     c_uni     = _pick(df, "Universidad Origen", "Univ. Origen", "Universidad")
+    c_ciudad   = _pick(df, "Ciudad", "Ciudad Origen", "Ciudad origen", "City", "city", "ciudad")
     c_pais    = _pick(df, "País", "Pais")
     c_coords  = _pick(df, "Coordenadas", "coords")
     c_lat     = _pick(df, "Latitud", "latitud", "lat")
@@ -221,6 +219,8 @@ def load_erasmus_in(path: str, sheet_name: str | None = None) -> pd.DataFrame:
         out = g[cols].copy()
         if c_email and c_email in out.columns:
             out = out.rename(columns={c_email: "email"})
+        if c_ciudad and c_ciudad in g.columns:
+            out["ciudad"] = g[c_ciudad]
         return out.to_dict(orient="records")
 
     grouped = (

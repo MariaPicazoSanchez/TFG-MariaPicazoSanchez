@@ -54,7 +54,7 @@ def _unique_sheets_from_config_or_files(cfg: dict) -> list[str]:
                 names.add(str(name))
     return sorted(names)
 
-def pick_local_file(initial_path: str | None = None):
+def pick_local_file(initial_path: str | None = None, filetypes=[("Excel/CSV", "*.xlsx *.xls"), ("Todos", "*.*")]):
     """Abre el diálogo nativo del SO y devuelve la ruta seleccionada (o None). Solo en local."""
     import os
     try:
@@ -86,7 +86,7 @@ def pick_local_file(initial_path: str | None = None):
             parent=root,
             initialdir=initdir if initdir else None,
             title="Selecciona un archivo",
-            filetypes=[("Excel/CSV", "*.xlsx *.xls"), ("Todos", "*.*")]
+            filetypes=filetypes
         )
     finally:
         try:
@@ -156,7 +156,7 @@ def get_placeholder(config, key):
     return ruta if ruta else f"Inserte la ruta del archivo {key} aquí"
 
 def route_editor(config):
-    st.sidebar.subheader("📁 Modificar rutas de los archivos Excel")
+    st.sidebar.subheader("📁 Modificar fuentes de datos")
 
     entries = [
         ("SICUE OUT", "📘 SICUE OUT"),
@@ -209,12 +209,12 @@ def route_editor(config):
 
 
     col1, col2 = st.sidebar.columns(2)
-    if col1.button("💾", use_container_width=True):
-        close_routes_editor(new_config)
-    if col2.button("❌", use_container_width=True):
+    if col1.button("❌", use_container_width=True):
         st.sidebar.info("No se han guardado cambios.")
         st.session_state["show_routes"] = False
         st.rerun()
+    if col2.button("💾", use_container_width=True):
+        close_routes_editor(new_config)
     # if st.sidebar.button("🔄 Recargar datos", use_container_width=True):
     #     st.cache_data.clear()
     #     st.rerun()
@@ -354,7 +354,7 @@ def sidebar_controls():
         #  GESTIÓN DE RUTAS
         # ==========================
         if not st.session_state["show_routes"]:
-            st.sidebar.button("🔁 Cambiar rutas", on_click=open_routes_editor)
+            st.sidebar.button("✏️ Fuentes de datos", on_click=open_routes_editor)
         else:
             route_editor(st.session_state["config"])
 

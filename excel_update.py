@@ -278,40 +278,46 @@ def update_student_in_excel(excel_path: str, row_index: str, idx: int, data: dic
 
 
 def _recalculate_coords(df: pd.DataFrame, row_i: int):
-    """
-    A partir de Destino / Ciudad / País recalcula lat, lon y los guarda en las
-    columnas de coordenadas que existan en el DF.
-    """
-    # Leemos lo que haya en la fila
+    print(f"[coords] Recalculando para fila {row_i}")
     destino = None
     ciudad = None
     pais = None
 
     for col in df.columns:
         col_norm = str(col).strip().lower()
-        if col_norm == "destino":
-            destino = df.at[row_i, col]
+        val = df.at[row_i, col]
+        if col_norm in ("destino", "universidad", "universidad destino"):
+            destino = val
         elif col_norm == "ciudad":
-            ciudad = df.at[row_i, col]
-        elif col_norm in ("pais", "país"):
-            pais = df.at[row_i, col]
+            ciudad = val
+        elif col_norm == "país" or col_norm == "pais":
+            pais = val
 
-    partes = [str(x).strip() for x in (destino, ciudad, pais) if str(x).strip()]
-    if not partes:
-        print("[coords] No hay destino/ciudad/pais para recalcular coords")
-        return
+    print(f"[coords] Valores: destino={destino!r}, ciudad={ciudad!r}, pais={pais!r}")
 
-    query = ", ".join(partes)
-    print(f"[coords] Geocodificando: {query!r}")
+    # Prueba con todas las combinaciones posibles
+    queries = []
+    partes = [str(x).strip() for x in (destino, ciudad, pais) if x is not None and str(x).strip() and str(x).strip().lower() != "none"]
+    if partes:
+        queries.append(", ".join(partes))
+    if ciudad and pais:
+        queries.append(f"{ciudad}, {pais}")
+    if pais:
+        queries.append(str(pais).strip())
 
-    try:
-        loc = _geolocator.geocode(query, timeout=10)
-    except Exception as e:
-        print("[coords] Error geocodificando:", e)
-        return
+    loc = None
+    for query in queries:
+        print(f"[coords] Geocodificando: {query!r}")
+        try:
+            loc = _geolocator.geocode(query, timeout=10)
+        except Exception as e:
+            print(f"[coords] Error geocodificando {query!r}: {e}")
+            loc = None
+        if loc:
+            break
 
     if not loc:
-        print("[coords] No se han encontrado coords para", query)
+        print(f"[coords] No se han encontrado coords para ninguna combinación: {queries}")
         return
 
     lat, lon = loc.latitude, loc.longitude
@@ -320,20 +326,12 @@ def _recalculate_coords(df: pd.DataFrame, row_i: int):
     # Escribimos en las columnas que existan
     for col in df.columns:
         col_norm = str(col).strip().lower()
-        if col_norm in ("latitud", "lat"):
+        if col_norm in ("latitud", "latitude"):
             df.at[row_i, col] = lat
-        elif col_norm in ("longitud", "lon", "lng"):
+        elif col_norm in ("longitud", "longitude"):
             df.at[row_i, col] = lon
         elif col_norm == "coordenadas":
             df.at[row_i, col] = f"{lat},{lon}"
-
-
-
-
-
-
-import os
-import pandas as pd
 
 def actualizar_excel_materias_para_estudiante(
     materias_in,      # lista de dicts: {"asignatura", "cuat", "firmado"}
@@ -366,7 +364,6 @@ def actualizar_excel_materias_para_estudiante(
     all_sheets = {}
 
     if not os.path.exists(materias_path):
-        # ⚠️ Aquí consideramos que es un error: el Excel de materias debería existir
         raise FileNotFoundError(f"El archivo de materias no existe: {materias_path}")
 
     try:
@@ -437,7 +434,7 @@ def actualizar_excel_materias_para_estudiante(
     # ----------------------
     try:
         from openpyxl import load_workbook  # asegura motor disponible
-        # 🔐 Este with también cierra bien el fichero al terminar
+        # Este with también cierra bien el fichero al terminar
         with pd.ExcelWriter(materias_path, engine="openpyxl", mode="w") as writer:
             for sh, df_sh in all_sheets.items():
                 df_sh.to_excel(writer, sheet_name=sh, index=False)

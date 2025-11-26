@@ -1,3 +1,4 @@
+import unicodedata
 import streamlit as st
 import html
 from urllib.parse import quote
@@ -12,6 +13,11 @@ from popup_helpers import (
     _view_link,
 )
 from popup_materias import build_materias_blocks
+
+def _normalize_str(s):
+    s = str(s or "").strip().lower()
+    s = "".join(c for c in unicodedata.normalize("NFD", s) if unicodedata.category(c) != "Mn")
+    return s
 
 
 def generate_dynamic_popup(row, programa: str, row_index: int) -> str:
@@ -82,12 +88,20 @@ def generate_dynamic_popup(row, programa: str, row_index: int) -> str:
 
             nombre_raw = str(e.get("estudiante", "(sin nombre)"))
             nombre = html.escape(nombre_raw)
-
             email_val  = _clean(e.get("email"))
-            curso_val  = _clean(e.get("curso") or row.get("curso") or row.get("Curso"))
-            curso = e.get("curso") or row.get("curso") or row.get("Curso")
-            cuatri_val = _clean(e.get("cuatrimestre"))
-            dur_val    = _clean(e.get("duracion_meses") or row.get("duracion meses") or row.get("Duración (meses)") or row.get("Duracion (meses)") or row.get("duracion_meses"))
+            
+            curso_val_raw  = _clean(e.get("curso") or row.get("curso") or row.get("Curso"))
+            cuatri_val_raw = _clean(e.get("cuatrimestre"))
+            dur_val_raw = _clean(e.get("duracion_meses") or row.get("duracion meses") or row.get("Duración (meses)") or row.get("Duracion (meses)") or row.get("duracion_meses"))
+            try:
+              dur_val = str(int(float(dur_val_raw))) if dur_val_raw else ""
+              curso_val = str(int(float(curso_val_raw))) if curso_val_raw and str(curso_val_raw).replace('.','').isdigit() else ""
+              cuatri_val = str(int(float(cuatri_val_raw))) if cuatri_val_raw and str(cuatri_val_raw).replace('.','').isdigit() else ""
+            except (ValueError, TypeError):
+              dur_val = dur_val_raw
+              curso_val = curso_val_raw
+              cuatri_val = cuatri_val_raw
+
             gest_val   = _clean(e.get("gestion_LA") or row.get("gestion_LA") or row.get("Gestión LA") or row.get("Gestion LA"))
             coord_val  = _clean(e.get("coordinador_destino") or row.get("coordinador_destino") or row.get("Coordinador en destino"))
             la_val     = _clean(e.get("link_la"))
@@ -124,26 +138,32 @@ def generate_dynamic_popup(row, programa: str, row_index: int) -> str:
                               </div>'''
 
             curso_field = f'''
-                              <div class="field">
-                                <label>Curso</label>
-                                <input name="curso" value="{html.escape(curso_val, quote=True)}">
-                              </div>'''
+                      <div class="field">
+                      <label>Curso</label>
+                      <select name="curso">
+                        <option value="" {("selected" if curso_val not in ("1", "2", "3", "4") else "")}>-</option>
+                        <option value="1" {("selected" if curso_val == "1" or curso_val == "1.0" else "")}>1</option>
+                        <option value="2" {("selected" if curso_val == "2" or curso_val == "2.0" else "")}>2</option>
+                        <option value="3" {("selected" if curso_val == "3" or curso_val == "3.0" else "")}>3</option>
+                        <option value="4" {("selected" if curso_val == "4" or curso_val == "4.0" else "")}>4</option>
+                      </select>
+                      </div>'''
 
             cuatri_field = f'''
                               <div class="field">
                                 <label>Cuatrimestre</label>
                                 <select name="cuatrimestre">
                                   <option value="" {("selected" if cuatri_val not in ("1", "2") else "")}>-</option>
-                                  <option value="1" {("selected" if cuatri_val == "1" else "")}>1</option>
-                                  <option value="2" {("selected" if cuatri_val == "2" else "")}>2</option>
+                                  <option value="1" {("selected" if cuatri_val == "1" or cuatri_val == "1.0" else "")}>1</option>
+                                  <option value="2" {("selected" if cuatri_val == "2" or cuatri_val == "2.0" else "")}>2</option>
                                 </select>
                               </div>'''
 
             dur_field = f'''
-                              <div class="field">
-                                <label>Duración (meses)</label>
-                                <input name="duracion_meses" value="{html.escape(dur_val, quote=True)}">
-                              </div>'''
+                      <div class="field">
+                      <label>Duración (meses)</label>
+                      <input name="duracion_meses" type="number" step="1" value="{html.escape(dur_val, quote=True)}">
+                      </div>'''
 
             gest_field = f'''
                               <div class="field">
@@ -162,17 +182,11 @@ def generate_dynamic_popup(row, programa: str, row_index: int) -> str:
                                 <input name="coordinador_destino" value="{html.escape(coord_val, quote=True)}">
                               </div>'''
 
-            la_field = f'''
-                              <div class="field">
-                                <label>Learning Agreement</label>
-                                <input name="link_la" value="{html.escape(la_val, quote=True)}">
-                              </div>'''
+            la_field   = build_link_file_field("LA", "link_la",
+                                   la_val, row_index_attr, idx_attr, "la")
 
-            tor_field = f'''
-                              <div class="field">
-                                <label>ToR</label>
-                                <input name="ToR" value="{html.escape(tor_val, quote=True)}">
-                              </div>'''
+            tor_field  = build_link_file_field("ToR", "link_tor",
+                                   tor_val, row_index_attr, idx_attr, "tor")
 
             acta_field = f'''
                               <div class="field">
@@ -180,11 +194,8 @@ def generate_dynamic_popup(row, programa: str, row_index: int) -> str:
                                 <input name="acta_equivalencias" value="{html.escape(acta_val, quote=True)}">
                               </div>'''
 
-            plan_field = f'''
-                              <div class="field">
-                                <label>Plan de estudios</label>
-                                <input name="link_plan" value="{html.escape(plan_val, quote=True)}">
-                              </div>'''
+            plan_field = build_link_file_field("Propuesta Alumno LA", "link_plan",
+                                   plan_val, row_index_attr, idx_attr, "plan")
 
             destino_field = f'''
                               <div class="field">
@@ -205,7 +216,7 @@ def generate_dynamic_popup(row, programa: str, row_index: int) -> str:
                               </div>'''
 
             pais_options = "\n".join(
-                f'<option value="{html.escape(p, quote=True)}"{" selected" if _clean(pais_val) == _clean(p) else ""}>{html.escape(p)}</option>'
+                f'<option value="{html.escape(p, quote=True)}"{" selected" if _normalize_str(pais_val) == _normalize_str(p) else ""}>{html.escape(p)}</option>'
                 for p in COUNTRY_OPTIONS if p
             )
             pais_field = f'''
@@ -221,7 +232,7 @@ def generate_dynamic_popup(row, programa: str, row_index: int) -> str:
                 f'<option value="{html.escape(c, quote=True)}"{" selected" if _clean(ciudad_val) == _clean(c) else ""}>{html.escape(c)}</option>'
                 for c in CITIES_ES if c
             )
-            ciudad_field = f'''
+            ciudad_field_sicue = f'''
                 <div class="field">
                   <label>Ciudad</label>
                   <select name="ciudad">
@@ -229,21 +240,27 @@ def generate_dynamic_popup(row, programa: str, row_index: int) -> str:
                     {ciudad_options}
                   </select>
                 </div>'''
-
+            
+            ciudad_field = f'''
+                <div class="field">
+                  <label>Ciudad</label>
+                  <input name="ciudad" value="{html.escape(ciudad_val, quote=True)}">
+                </div>'''
+            
             prog_upper = (programa or "").upper()
             grid_fields = [nombre_field, email_field]
 
             # SICUE OUT: nombre, email, duración, coordinador destino, gestión LA, LA, plan, destino, ciudad
             if "SICUE" in prog_upper:
-                grid_fields += [dur_field, coord_field, gest_field, la_field, plan_field, destino_field, ciudad_field]
+                grid_fields += [dur_field, coord_field, gest_field, la_field, plan_field, destino_field, ciudad_field_sicue]
 
             # Erasmus OUT: nombre, email, curso, duración, LA, plan, ToR, responsable, destino, país
             elif "ERASMUS OUT" == prog_upper:
-                grid_fields += [curso_field, dur_field, la_field, plan_field, tor_field, responsable_field, destino_field, pais_field]
+                grid_fields += [curso_field, dur_field, la_field, plan_field, tor_field, responsable_field, destino_field, pais_field, ciudad_field]
 
             # Erasmus IN: nombre, email, cuatrimestre, LA, origen, país
             elif "ERASMUS IN" == prog_upper:
-                grid_fields += [cuatri_field, la_field, origen_field, pais_field]
+                grid_fields += [cuatri_field, la_field, origen_field, pais_field, ciudad_field]
 
             # Cualquier otro (fallback): todo
             else:
@@ -262,48 +279,44 @@ def generate_dynamic_popup(row, programa: str, row_index: int) -> str:
             if "SICUE" in prog_upper:
                 view_small.append(_view_line("Duración (meses)", dur_val))
                 view_small.append(_view_line("Destino", destino_val))
-                view_extras.extend([
-                    _view_line("Gestión LA", gest_val),
-                    _view_line("Coordinador destino", coord_val),
-                    _view_link("Learning Agreement", la_val, open_in_system=True),
-                    _view_link("Plan de estudios", plan_val, open_in_system=True),
-                    _view_line("Ciudad", ciudad_val),
-                ])
+                view_small.append(_view_line("Ciudad", ciudad_val))
+                view_small.append(_view_line("Gestión LA", gest_val))
+                view_small.append(_view_line("Coordinador destino", coord_val))
+                view_small.append(_view_link("Learning Agreement", la_val, open_in_system=True))
+                view_small.append(_view_link("Propuesta Alumno LA", plan_val, open_in_system=True))
 
             elif "ERASMUS OUT" == prog_upper:
                 view_small.append(_view_line("Curso", curso_val))
                 view_small.append(_view_line("Duración (meses)", dur_val))
-                view_extras.extend([
-                    _view_line("Destino", destino_val),
-                    _view_line("País", pais_val),
-                    _view_link("Learning Agreement", la_val, open_in_system=True),
-                    _view_link("Plan de estudios", plan_val, open_in_system=True),
-                    _view_link("ToR", tor_val, open_in_system=True),
-                    _view_line("Responsable", responsable_val),
-                ])
+                view_small.append(_view_line("Ciudad", ciudad_val))
+                view_small.append(_view_line("Destino", destino_val))
+                view_small.append(_view_line("País", pais_val))
+                view_small.append(_view_link("Learning Agreement", la_val, open_in_system=True))
+                view_small.append(_view_link("Propuesta Alumno LA", plan_val, open_in_system=True))
+                view_small.append(_view_link("ToR", tor_val, open_in_system=True))
+                view_small.append(_view_line("Responsable", responsable_val))
 
             elif "ERASMUS IN" == prog_upper:
                 view_small.append(_view_line("Cuatrimestre", cuatri_val))
                 view_small.append(_view_line("Origen", origen_val))
-                view_extras.extend([
-                    _view_line("País", pais_val),
-                    _view_link("Learning Agreement", la_val, open_in_system=True),
-                ])
+                view_small.append(_view_line("País", pais_val))
+                view_small.append(_view_line("Ciudad", ciudad_val))
+                view_small.append(_view_link("Learning Agreement", la_val, open_in_system=True))
                 if has_materias and materias_view_html:
                     view_extras.append(materias_view_html)
 
             else:
                 view_small.append(_view_line("Curso", curso_val))
                 view_small.append(_view_line("Cuatrimestre", cuatri_val))
-                view_extras.extend([
-                    _view_line("Duración (meses)", dur_val),
-                    _view_line("Gestión LA", gest_val),
-                    _view_line("Coordinador destino", coord_val),
-                    _view_link("Learning Agreement", la_val, open_in_system=True),
-                    _view_link("ToR", tor_val, open_in_system=True),
-                    _view_link("Acta de equivalencias", acta_val, open_in_system=True),
-                    _view_link("Plan de estudios", plan_val, open_in_system=True),
-                ])
+                view_small.append(_view_line("Duración (meses)", dur_val))
+                view_small.append(_view_line("Ciudad", ciudad_val))
+                view_small.append(_view_line("Gestión LA", gest_val))
+                view_small.append(_view_line("Coordinador destino", coord_val))
+                view_small.append(_view_link("Learning Agreement", la_val, open_in_system=True))
+                view_small.append(_view_link("ToR", tor_val, open_in_system=True))
+                view_small.append(_view_link("Acta de equivalencias", acta_val, open_in_system=True))
+                view_small.append(_view_link("Propuesta Alumno LA", plan_val, open_in_system=True))
+
                 if has_materias and materias_view_html:
                     view_extras.append(materias_view_html)
 
@@ -410,3 +423,52 @@ def generate_dynamic_popup(row, programa: str, row_index: int) -> str:
     """
     return html_out
 
+
+def build_link_file_field(label, input_name, current_value,
+                          row_index_attr, idx_attr, slug):
+    safe_val = html.escape(current_value or "", quote=True)
+    input_id = f"{slug}_input_{row_index_attr}_{idx_attr}"
+    file_id  = f"{slug}_file_{row_index_attr}_{idx_attr}"
+
+    return f"""
+      <div class="field">
+        <label>{html.escape(label)}</label>
+        <div class="file-input-row"
+             style="display:flex;align-items:center;gap:0.5rem;">
+          <input name="{input_name}"
+                 value="{safe_val}"
+                 id="{input_id}"
+                 style="flex:1;min-width:0;">
+
+          <button type="button"
+                  class="file-picker-btn"
+                  style="
+                    padding:0.7rem 0.75rem;
+                    font-size:1.2rem;
+                    border-radius:6px;
+                    border:1px solid #ddd;
+                    background:#f5f5f5;
+                    display:inline-flex;
+                    align-items:center;
+                    gap:0.35rem;
+                    cursor:pointer;
+                  "
+                  onclick="document.getElementById('{file_id}').click();">
+            📂
+          </button>
+
+          <input type="file"
+                 id="{file_id}"
+                 accept=".pdf,.doc,.docx,.xlsx,.xls"
+                 style="display:none;"
+                 onchange="
+                   var inp = document.getElementById('{input_id}');
+                   if (this.files && this.files[0]) {{
+                     inp.value = this.files[0].name;
+                   }} else {{
+                     inp.value = '';
+                   }}
+                 ">
+        </div>
+      </div>
+    """
