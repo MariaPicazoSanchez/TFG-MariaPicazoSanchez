@@ -163,7 +163,6 @@ def append_user_to_excel(xlsx_path: str, tipo: str, row_data: dict, sheet_name: 
         if c_gestion: new_row[c_gestion] = row_data.get("gestion_la") or row_data.get("gestion")
         if c_estado:  new_row[c_estado]  = row_data.get("estado_firmas")
         if c_plan:    new_row[c_plan]    = row_data.get("plan_estudios")
-        # opcionales SICUE OUT
         c_dur    = _pick_col(df, "duracion meses", "duración meses", "duracion_meses")
         c_coord  = _pick_col(df, "Coordinador en destino")
         c_ciudad = _pick_col(df, "Ciudad")
@@ -176,7 +175,6 @@ def append_user_to_excel(xlsx_path: str, tipo: str, row_data: dict, sheet_name: 
         if c_tor:   new_row[c_tor]   = row_data.get("tor")
         if c_curso: new_row[c_curso] = row_data.get("curso")
         if c_acta:  new_row[c_acta]  = row_data.get("acta_equivalencias")
-        # opcionales OUT
         c_dur   = _pick_col(df, "duracion meses", "duración meses", "duracion_meses")
         c_resp  = _pick_col(df, "responsable programa", "responsable del programa")
         c_la    = _pick_col(df, "LA")
@@ -193,12 +191,11 @@ def append_user_to_excel(xlsx_path: str, tipo: str, row_data: dict, sheet_name: 
     else:
         if c_la:      new_row[c_la]      = row_data.get("la")
         if c_horario: new_row[c_horario] = row_data.get("horario")
-        # opcionales IN
         c_cuatri = _pick_col(df, "Cuatrimestre", "Cuatirmestre")
         c_uo     = _pick_col(df, "Universidad Origen")
         c_pais   = _pick_col(df, "País", "Pais")
 
-        # 👇 Si 'Universidad Origen' es la MISMA columna que c_univ,
+        # Si 'Universidad Origen' es la MISMA columna que c_univ,
         # no la usamos para el opcional para no pisar el valor obligatorio.
         if c_uo == c_univ:
             c_uo = None

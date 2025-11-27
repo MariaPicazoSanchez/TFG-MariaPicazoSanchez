@@ -216,9 +216,6 @@ def route_editor(config):
         st.rerun()
     if col2.button("💾", use_container_width=True):
         close_routes_editor(new_config)
-    # if st.sidebar.button("🔄 Recargar datos", use_container_width=True):
-    #     st.cache_data.clear()
-    #     st.rerun()
 
 def _unique_sheets_from_config(cfg: dict) -> list[str]:
     """Devuelve la lista de hojas únicas (union) ignorando '__CSV__'."""

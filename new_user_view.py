@@ -121,9 +121,8 @@ def file_picker_button(label: str, text_input_key: str, button_id: str, help: st
     un label diferente gracias a button_id.
     """
     invisible_suffix = _invisible_suffix_from_id(button_id)
-    real_label = label + invisible_suffix   # p.ej. '📁' + <muchos invisibles>
+    real_label = label + invisible_suffix
 
-    # OJO: sin key, porque tu versión de Streamlit no lo soporta
     clicked = st.form_submit_button(real_label, help=help)
 
     if clicked:
@@ -224,7 +223,6 @@ def render_new_user_form(available_types: list[str], config: dict) -> dict | Non
             dest_label = "Origen (universidad)" if tipo_norm.lower() == "erasmus in" else "Destino (universidad)"
             destino_origen = st.text_input(dest_label, key="nu_destino_origen")
 
-        # — específicos obligatorios (los que ya tenías) + OPCIONALES nuevos —
         extra: dict = {}
 
         # _____________________________________
@@ -257,7 +255,6 @@ def render_new_user_form(available_types: list[str], config: dict) -> dict | Non
                 with plan_col1:
                     extra["plan_out"] = st.text_input(
                         "Propuesta alumno LA (ruta o enlace)",
-                        # key="nu_plan_out",
                     )
                 
             with col2:
@@ -377,7 +374,6 @@ def render_new_user_form(available_types: list[str], config: dict) -> dict | Non
             with header_cols[3]:
                 st.caption("Acciones")
             with header_cols[4]:
-                # Botón de añadir arriba a la derecha
                 st.write("")
                 if st.button("➕ Añadir", key=f"{materias_key}_add_top"):
                     materias.append({"nombre": "", "cuatrimestre": "1", "firmado": False})

@@ -267,7 +267,7 @@ def show_map(dfs: dict, base_map, materias_in_por_estudiante=None):
                     }
                     }
 
-                    // 🔍 DEBUG + listener de mensajes del iframe
+                    // DEBUG + listener de mensajes del iframe
                     window.addEventListener("message", function (event) {
                     console.log("[MateriasJS] message recibido:", event.data);
                     var data = event.data;
@@ -499,16 +499,6 @@ def show_map(dfs: dict, base_map, materias_in_por_estudiante=None):
         </script>
         """))
 
-    # m.get_root().html.add_child(folium.Element("""
-    # <style>
-    # .leaflet-popup-content { margin:0 !important; }
-    # .leaflet-popup-content-wrapper { padding:0 !important; }
-    # </style>
-    # """))
-
-    # m.get_root().html.add_child(folium.Element(js_materias))
-
-
     # Helpers de tamaño
     def _estimate_popup_width_px(row):
         def s(v): return str(v or "")
@@ -608,8 +598,6 @@ def show_map(dfs: dict, base_map, materias_in_por_estudiante=None):
                                 </body>
                                 </html>"""
 
-            # iframe = folium.IFrame(html=html_doc, width=w, height=h)
-            # popup  = folium.Popup(iframe, max_width=w)
             popup = folium.Popup(content, max_width=480) 
 
             folium.Marker(

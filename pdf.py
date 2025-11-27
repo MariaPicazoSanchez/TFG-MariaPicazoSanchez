@@ -12,10 +12,6 @@ def open_in_system(path: str):
     path = os.path.expanduser(path)
     path = os.path.abspath(path)
 
-    # print(f"[open_in_system] raw   = {raw!r}")
-    # print(f"[open_in_system] final = {path!r}")
-    # print(f"[open_in_system] exists? {os.path.exists(path)}")
-
     if not os.path.exists(path):
         return False, f"No existe: {path}"
 

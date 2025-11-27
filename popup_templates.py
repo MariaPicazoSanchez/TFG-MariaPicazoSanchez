@@ -1,9 +1,9 @@
 import unicodedata
 import streamlit as st
 import html
+import re
 from urllib.parse import quote
 from styles import POPUP_STYLES
-from js_scripts import POPUP_LIVE_UPDATE_JS
 from es_cities import CITIES_ES
 from new_user_view import COUNTRY_OPTIONS
 from popup_helpers import (
@@ -52,13 +52,13 @@ def generate_dynamic_popup(row, programa: str, row_index: int) -> str:
     # Subtítulo: Programa · Ciudad · País
     loc_text = " · ".join(p for p in (ciudad, pais) if p)  # primero ciudad, luego país
 
-    if programa and loc_text:
-        subtitle_text = f"{html.escape(programa)} · {loc_text}"
-    elif programa:
-        subtitle_text = html.escape(programa)
+    # Solo mostrar "Erasmus OUT" y el país
+    if programa and programa.upper() == "ERASMUS OUT":
+        subtitle_text = f"{html.escape(programa)}"
+        if pais:
+            subtitle_text += f" · {pais}"
     else:
-        subtitle_text = loc_text
-
+      subtitle_text = ""
     subtitle_html = f"<div class='sub'>{subtitle_text}</div>" if subtitle_text else ""
 
     # Botón "Abrir Excel <programa>" SOLO si tenemos ruta local

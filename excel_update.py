@@ -96,7 +96,6 @@ def update_student_in_excel(excel_path: str, row_index: str, idx: int, data: dic
         return False
 
     # Mapa: campo del formulario -> posibles nombres de columna en Excel
-        # Mapa: campo del formulario -> posibles nombres de columna en Excel
     field_to_cols = {
         "estudiante": [
             "estudiante", "Estudiante", "NOMBRE COMPLETO", "Nombre completo",
@@ -111,33 +110,25 @@ def update_student_in_excel(excel_path: str, row_index: str, idx: int, data: dic
             "cuatrimestre", "Cuatrimestre",
         ],
         "duracion_meses": [
-            # SICUE OUT
             "duracion meses",
-            # otros posibles formatos
             "duracion_meses",
             "Duración (meses)",
             "Duración meses",
             "Duración",
         ],
         "gestion_LA": [
-            # SICUE OUT
             "Gestion LA",
-            # otros
             "gestion_LA",
             "Gestión LA",
         ],
         "coordinador_destino": [
-            # SICUE OUT
             "Coordinador en destino",
-            # otros
             "coordinador_destino",
             "Coordinador destino",
             "Coordinador de destino",
         ],
         "link_la": [
-            # SICUE OUT
             "LA",
-            # otros
             "link_la",
             "Learning agreement",
             "Learning Agreement",
@@ -149,9 +140,7 @@ def update_student_in_excel(excel_path: str, row_index: str, idx: int, data: dic
             "acta_equivalencias", "Acta de equivalencias",
         ],
         "link_plan": [
-            # SICUE OUT
             "Plan de estudios",
-            # otros
             "link_plan",
             "Plan estudios",
             "Plan",
@@ -195,16 +184,13 @@ def update_student_in_excel(excel_path: str, row_index: str, idx: int, data: dic
             return
         nombre, ape1, ape2 = _split_full_name(full)
         col_val_map = {
-            # nombre
             "nombre": nombre,
             "Nombre": nombre,
             "NOMBRE": nombre,
-            # apellido1
             "apellido1": ape1,
             "apellido_1": ape1,
             "Apellido1": ape1,
             "APELLIDO1": ape1,
-            # apellido2
             "apellido2": ape2,
             "apellido_2": ape2,
             "Apellido2": ape2,
@@ -390,7 +376,7 @@ def actualizar_excel_materias_para_estudiante(
         raise FileNotFoundError(f"El archivo de materias no existe: {materias_path}")
 
     try:
-        # 🔐 Usar contexto para que NO deje el fichero abierto
+        # Usar contexto para que NO deje el fichero abierto
         with pd.ExcelFile(materias_path) as xls:
             # Leer todas las hojas en memoria
             for sh in xls.sheet_names:

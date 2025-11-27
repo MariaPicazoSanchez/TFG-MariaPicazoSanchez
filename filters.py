@@ -75,7 +75,6 @@ def render_filters(unique_sheets: list[str]) -> str:
 
 
     if "filter_only_no_LA" not in st.session_state:
-        # nuevo flag: True => mostrar solo Erasmus OUT sin LA
         st.session_state["filter_only_no_LA"] = False
 
     if "global_sheet" not in st.session_state:
@@ -102,7 +101,7 @@ def render_filters(unique_sheets: list[str]) -> str:
 
     col_lbl, col_sel = st.sidebar.columns([1, 3], gap="small")
     with col_lbl:
-        st.markdown("**Curso**")  # etiqueta a la izquierda (misma fila)
+        st.markdown("**Curso**")
     with col_sel:
         choice = st.selectbox(
             "Curso",

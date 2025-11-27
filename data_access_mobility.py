@@ -177,7 +177,7 @@ def load_erasmus_in(path: str, sheet_name: str | None = None) -> pd.DataFrame:
     c_cuatri  = _pick(df, "Cuatrimestre", "Cuatirmestre")
     c_la      = _pick(df, "LA")
     c_uni     = _pick(df, "Universidad Origen", "Univ. Origen", "Universidad")
-    c_ciudad   = _pick(df, "Ciudad", "Ciudad Origen", "Ciudad origen", "City", "city", "ciudad")
+    c_ciudad  = _pick(df, "Ciudad", "Ciudad Origen", "Ciudad origen", "City", "city", "ciudad")
     c_pais    = _pick(df, "País", "Pais")
     c_coords  = _pick(df, "Coordenadas", "coords")
     c_lat     = _pick(df, "Latitud", "latitud", "lat")
@@ -277,7 +277,7 @@ def load_sicue_out(path: str, sheet_name: str | None = None) -> pd.DataFrame:
     # coords
     if c_coords:
         lats, lons = zip(*df[c_coords].map(_parse_coords))
-        df["latitud"] = pd.to_numeric(lats, errors="coerce")
+        df["latitud"]  = pd.to_numeric(lats, errors="coerce")
         df["longitud"] = pd.to_numeric(lons, errors="coerce")
     else:
         df["latitud"]  = pd.to_numeric(df[c_lat], errors="coerce") if c_lat else pd.NA
