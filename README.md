@@ -8,6 +8,9 @@ python -m pip install Babel
 
 python -m pip install --upgrade pip
 python -m pip install flask
+pip install flask playwright
+playwright install chromium
+
 
 
 python -m streamlit run streamlit_app.py

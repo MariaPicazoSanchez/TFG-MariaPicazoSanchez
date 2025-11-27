@@ -251,13 +251,32 @@ def sidebar_controls():
             st.session_state["view"] = "new_user"
             st.rerun()
 
+        # --------------------------
+        #  EXPORTACIÓN DEL MAPA
+        # --------------------------
+        # with st.sidebar.expander("📤 Exportar mapa"):
+        #     fmt_label = st.radio(
+        #         "Formato",
+        #         ["PNG", "SVG"],
+        #         index=0,
+        #         horizontal=True,
+        #         key="export_format_sidebar",
+        #     )
 
+        #     if st.button("Generar exportación", use_container_width=True, key="do_export_btn"):
+        #         st.session_state["export_map_format"] = fmt_label.lower()  # "png" / "svg"
+        #         st.toast(f"Preparando exportación del mapa en {fmt_label}…")
+                
         # ==========================
         #  GESTIÓN DE RUTAS
         # ==========================
-        if not st.session_state["show_routes"]:
-            st.sidebar.button("✏️ Fuentes de datos", on_click=open_routes_editor)
-        else:
+        # Abrir automáticamente el gestor de rutas si no existe config.json
+        if not os.path.exists(CONFIG_FILE) and not st.session_state.get("show_routes", False):
+            st.session_state["show_routes"] = True
+
+        if st.session_state["show_routes"]:
             route_editor(st.session_state["config"])
+        else:
+            st.sidebar.button("✏️ Fuentes de datos", on_click=open_routes_editor)
 
         return base_map

@@ -1,12 +1,14 @@
 import os
 import unicodedata
 import streamlit as st
+import requests
 from map_view import show_map
 from sidebar import setup_session, sidebar_controls
 from new_user_view import render_new_user_form
 from pdf import handle_open_pdf_query, handle_open_excel_query
 from data_access_mobility import load_all_dataframes
 from materias_in_loader import get_materias_in_por_estudiante
+from map_export import create_static_map
 
 def main():
     st.set_page_config(page_title="Movilidad UCLM", layout="wide", initial_sidebar_state="expanded" )
@@ -173,7 +175,46 @@ def main():
         render_new_user_form(available_types, config)
     else:
         show_map(dfs, base_map, materias_in_por_est)
+    if st.session_state.get("view", "map") == "new_user":
+        render_new_user_form(available_types, config)
+    else:
+        show_map(dfs, base_map, materias_in_por_est)
 
+        html_map = st.session_state.get("last_map_html")
 
+        with st.sidebar.expander("📤 Exportar mapa tal cual (PNG)"):
+            if html_map is None:
+                st.info("Todavía no hay mapa para exportar.")
+            else:
+                width = st.number_input("Ancho (px)", 600, 3000, 1200, 100)
+                height = st.number_input("Alto (px)", 400, 3000, 800, 100)
+
+                if st.button("Generar PNG", use_container_width=True):
+                    try:
+                        resp = requests.post(
+                            "http://localhost:5000/screenshot",
+                            json={
+                                "html": html_map,
+                                "width": int(width),
+                                "height": int(height),
+                            },
+                            timeout=60,
+                        )
+                        resp.raise_for_status()
+                        png_bytes = resp.content
+                        st.session_state["last_map_png"] = png_bytes
+                        st.success("PNG generado. Descárgalo abajo 👇")
+                    except Exception as e:
+                        st.error(f"No se pudo generar el PNG: {e}")
+
+                png_bytes = st.session_state.get("last_map_png")
+                if png_bytes:
+                    st.download_button(
+                        "Descargar mapa como PNG",
+                        data=png_bytes,
+                        file_name="mapa_movilidad.png",
+                        mime="image/png",
+                        use_container_width=True,
+                    )
 if __name__ == "__main__":
     main()

@@ -3,8 +3,10 @@ import pandas as pd
 import streamlit as st
 import leafmap.foliumap as leafmap
 from popup_templates import generate_dynamic_popup
-from materias_in_loader import get_materias_in_por_estudiante
 from domain import PROGRAM_COLORS
+
+from map_export import add_export_control
+
 
 
 def add_points_to_map(m, df, nombre_capa, color):
@@ -607,6 +609,22 @@ def show_map(dfs: dict, base_map, materias_in_por_estudiante=None):
                 icon=folium.Icon(color=color, icon="globe", prefix="fa"),
             ).add_to(m)
 
+    # --- Exportación: leer lo que ha pedido el sidebar ---
+    # export_format = None
+    # if "export_map_format" in st.session_state:
+    #     export_format = st.session_state.get("export_map_format")
+    #     # limpiar el trigger para que no se repita en cada rerun
+    #     del st.session_state["export_map_format"]
+
+    # # Inyectar el JS de exportación (si export_format es "png"/"svg" → auto-export)
+    # inject_export_js(m, export_format)
+    # Añadimos los botones PNG / SVG al mapa
+    add_export_control(m)
+
     # 3) Render en Streamlit
     html_map = m.get_root().render()
+
+    # Guardamos el HTML completo del mapa para poder descargarlo luego
+    st.session_state["last_map_html"] = html_map
+
     st.components.v1.html(html_map, height=750, scrolling=True)
