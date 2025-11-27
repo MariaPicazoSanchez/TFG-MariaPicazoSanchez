@@ -20,8 +20,7 @@ def _split_full_name(full_name: str):
     ape2 = " ".join(parts[2:])
     return nombre, ape1, ape2
 
-
-def update_student_in_excel(excel_path: str, row_index: str, idx: int, data: dict) -> bool:
+def update_student_in_excel(excel_path: str, row_index: str, idx: int, data: dict, old_email: str = None, old_nombre: str = None) -> bool:
     print("[update_student_in_excel] excel_path =", excel_path,
           "row_index =", row_index, "idx =", idx)
 
@@ -39,7 +38,8 @@ def update_student_in_excel(excel_path: str, row_index: str, idx: int, data: dic
     n_rows = len(df)
 
     # 1) Intentar por EMAIL
-    email_val = (data.get("email") or "").strip().lower()
+    email_val = (data.get("old_email") or old_email or data.get("old_email") or "").strip().lower()
+    print("[update_student_in_excel] Buscando por email:", email_val)
     if email_val:
         email_cols = ["email", "Email", "E-mail", "Correo", "Correo electrónico"]
         for col in email_cols:
@@ -50,9 +50,15 @@ def update_student_in_excel(excel_path: str, row_index: str, idx: int, data: dic
                     print(f"[update_student_in_excel] Fila localizada por email en columna '{col}':", row_i)
                     break
 
+
     # 2) Si no lo encontramos por email, probar por NOMBRE COMPLETO
-    if row_i is None:
-        full_name = (data.get("estudiante") or "").strip().lower()
+    # if row_i is None:
+    if True:
+        full_name_raw = (data.get("old_nombre") or old_nombre or data.get("estudiante") or "").strip()
+        full_name = full_name_raw.lower()
+        print("[update_student_in_excel] Buscando por nombre completo:", full_name)
+
+        # 2.a) Buscar en columnas con nombre completo (estudiante / Nombre completo)
         if full_name:
             name_cols = ["estudiante", "Estudiante", "NOMBRE COMPLETO", "Nombre completo"]
             for col in name_cols:
@@ -60,22 +66,34 @@ def update_student_in_excel(excel_path: str, row_index: str, idx: int, data: dic
                     mask = df[col].astype(str).str.strip().str.lower() == full_name
                     if mask.any():
                         row_i = mask[mask].index[0]
-                        print(f"[update_student_in_excel] Fila localizada por nombre en columna '{col}':", row_i)
+                        print(f"[update_student_in_excel] Fila localizada por nombre completo en columna '{col}':", row_i)
                         break
 
-    # 3) Último recurso: usar row_index tal cual (por compatibilidad)
-    if row_i is None:
-        try:
-            row_i = int(row_index)
-        except ValueError:
-            print("[update_student_in_excel] row_index no es entero:", row_index)
-            return False
+        # 2.b) Si sigue sin encontrarse, probar por nombre + apellido1
+        if row_i is None and full_name_raw:
+            nombre, ape1, ape2 = _split_full_name(full_name_raw)
+            nombre = nombre.lower()
+            ape1 = ape1.lower()
 
-        if row_i < 0 or row_i >= n_rows:
-            print("[update_student_in_excel] row_index fuera de rango incluso como respaldo:", row_i)
-            return False
-        else:
-            print("[update_student_in_excel] Usando row_index como respaldo:", row_i)
+            posibles_nombres = ["nombre", "Nombre", "NOMBRE"]
+            posibles_ape1 = ["apellido1", "apellido_1", "Apellido1", "APELLIDO1"]
+
+            col_nom = next((c for c in posibles_nombres if c in df.columns), None)
+            col_ape1 = next((c for c in posibles_ape1 if c in df.columns), None)
+
+            if col_nom and col_ape1 and nombre and ape1:
+                mask_nom = df[col_nom].astype(str).str.strip().str.lower() == nombre
+                mask_ape = df[col_ape1].astype(str).str.strip().str.lower() == ape1
+                mask = mask_nom & mask_ape
+                if mask.any():
+                    row_i = mask[mask].index[0]
+                    print(f"[update_student_in_excel] Fila localizada por nombre+apellido1 en columnas '{col_nom}'/'{col_ape1}':", row_i)
+
+
+    # 3) Si no se encuentra por email ni por nombre → NO se actualiza nada
+    if row_i is None:
+        print("[update_student_in_excel] ERROR: no se ha encontrado ninguna fila con ese email/nombre. No se actualiza nada.")
+        return False
 
     # Mapa: campo del formulario -> posibles nombres de columna en Excel
         # Mapa: campo del formulario -> posibles nombres de columna en Excel
@@ -164,6 +182,9 @@ def update_student_in_excel(excel_path: str, row_index: str, idx: int, data: dic
         posibles = field_to_cols.get(field_name, [field_name])
         for col in posibles:
             if col in df.columns:
+                # Forzar la columna a object si el valor es string y la columna es float
+                if pd.api.types.is_float_dtype(df[col]) and isinstance(value, str):
+                    df[col] = df[col].astype(object)
                 df.at[row_i, col] = value
                 print(f"[update_student_in_excel] {field_name} -> columna '{col}' = {value}")
                 return  # solo actualizamos la primera que exista
@@ -286,7 +307,7 @@ def _recalculate_coords(df: pd.DataFrame, row_i: int):
     for col in df.columns:
         col_norm = str(col).strip().lower()
         val = df.at[row_i, col]
-        if col_norm in ("destino", "universidad", "universidad destino"):
+        if col_norm in ("destino", "universidad", "universidad destino", "universidad origen"):
             destino = val
         elif col_norm == "ciudad":
             ciudad = val
@@ -302,6 +323,8 @@ def _recalculate_coords(df: pd.DataFrame, row_i: int):
         queries.append(", ".join(partes))
     if ciudad and pais:
         queries.append(f"{ciudad}, {pais}")
+    if ciudad:
+        queries.append(str(ciudad).strip())
     if pais:
         queries.append(str(pais).strip())
 

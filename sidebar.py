@@ -3,6 +3,7 @@ import json
 import xlrd
 import pandas as pd
 import streamlit as st
+from filters import render_filters
 
 CONFIG_FILE = "config.json"
 
@@ -231,8 +232,7 @@ def _unique_sheets_from_config(cfg: dict) -> list[str]:
 
 
 def sidebar_controls():
-    """Crea la barra lateral con filtros y gestión de rutas."""  
-    # --- NUEVO USUARIO ---
+    """Crea la barra lateral con filtros y gestión de rutas."""
     if "view" not in st.session_state:
         st.session_state["view"] = "map"
 
@@ -240,115 +240,20 @@ def sidebar_controls():
         if st.sidebar.button("⬅️ Volver al mapa", use_container_width=True):
             st.session_state["view"] = "map"
             st.rerun()
-        # Si quieres ocultar el resto de controles cuando estás en 'new_user',
     else:
         # ==========================
-        #  SECCIÓN DE FILTROS
+        #  FILTROS (archivo filters.py)
         # ==========================
-        st.sidebar.header("Filtros")  
         cfg = st.session_state.get("config", {})
         unique_sheets = _unique_sheets_from_config_or_files(cfg)
+        base_map = render_filters(unique_sheets)
 
-    
-        # --- SELECCIÓN DE CURSO (HOJA) ---
-        options = ["Todas"] + unique_sheets
-        current = st.session_state.get("global_sheet", "Todas")
-        idx = options.index(current) if current in options else 0
-
-        col_lbl, col_sel = st.sidebar.columns([1, 3], gap="small")
-        with col_lbl:
-            st.markdown("**Curso**")  # etiqueta a la izquierda (misma fila)
-        with col_sel:
-            choice = st.selectbox(
-                "Curso",
-                options,
-                index=idx,
-                key="global_sheet_select",
-                label_visibility="collapsed",   # oculta el label del widget
-            )
-
-        st.session_state["global_sheet"] = choice
-        # Tipo de mapa fijo (por defecto OpenStreetMap)
-        base_map = "OpenStreetMap"
-
-
-        
-
-        # --- ERASMUS ---
-        c1, c2, c3 = st.sidebar.columns([1.2, 1, 1], gap="small")
-
-        with c1:
-            st.markdown(
-            """
-            <div class="label-erasmus">Erasmus:</div>
-            <style>
-            .label-erasmus{
-                height:40px;
-                display:flex; align-items:center; justify-content:flex-start;
-                font-weight:400 !important;
-                font-size:18px;
-                margin:0!important; padding:0!important;
-                background:transparent!important; color:inherit;
-                text-transform:none;
-            }
-            /* por si algún envoltorio aplica bold */
-            .label-erasmus *{ font-weight:400 !important; }
-            </style>
-            """,
-            unsafe_allow_html=True
-        )
-
-        with c2:
-            if st.button("IN", use_container_width=True, key="btn_erasmus_in"):
-                st.session_state.active_program_filter = "Erasmus IN"
-
-        with c3:
-            if st.button("OUT", use_container_width=True, key="btn_erasmus_out"):
-                st.session_state.active_program_filter = "Erasmus OUT"
-
-
-
-        # --- SICUE ---
-        c4, c5, _ = st.sidebar.columns([1.2, 1, 1], gap="small")
-        with c4:
-            st.markdown(
-                """
-                <div class="label-erasmus">SICUE:</div>
-                <style>
-                .label-erasmus{
-                    height:40px;
-                    display:flex; align-items:center; justify-content:flex-start;
-                    font-weight:400 !important;
-                    font-size:16px;
-                    margin:0!important; padding:0!important;
-                    background:transparent!important; color:inherit;
-                    text-transform:none;
-                }
-                /* por si algún envoltorio aplica bold */
-                .label-erasmus *{ font-weight:400 !important; }
-                </style>
-                """,
-                unsafe_allow_html=True
-            )
-        with c5:
-            if st.button("OUT", use_container_width=True, key="btn_sicue_out"):
-                st.session_state.active_program_filter = "SICUE OUT"
-        
-
-        fmap = {
-            "ALL": "Todos",
-            "ERASMUS_IN": "Erasmus IN",
-            "ERASMUS_OUT": "Erasmus OUT",
-            "SICUE_OUT": "SICUE OUT",
-        }
-
-        # Campo de texto (para búsqueda o filtro futuro)
-        st.sidebar.text_input("Buscar o filtrar por palabra clave:")
+        st.sidebar.markdown("---")
+        # Botón para crear estudiante (esto no es filtro, lo dejamos aquí)
         if st.sidebar.button("👤 Crear nuevo estudiante", use_container_width=True):
             st.session_state["view"] = "new_user"
             st.rerun()
 
-        st.sidebar.markdown("---")
 
         # ==========================
         #  GESTIÓN DE RUTAS
@@ -358,5 +263,4 @@ def sidebar_controls():
         else:
             route_editor(st.session_state["config"])
 
-        # Devuelve solo el nivel de zoom (ya no hace falta base_map dinámico)
         return base_map

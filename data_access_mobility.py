@@ -133,6 +133,7 @@ def load_erasmus_out(path: str, sheet_name: str | None = None) -> pd.DataFrame:
     # normalización campos "macro"
     df["universidad"] = df[c_dest] if c_dest else None
     df["pais"]        = df[c_pais] if c_pais else None
+    df["ciudad"]      = df[c_ciudad] if c_ciudad else None
     df["link_LA"]     = df[c_la]   if c_la   else None
     df["link_plan"]   = df[c_plan] if c_plan else None
 
@@ -151,7 +152,7 @@ def load_erasmus_out(path: str, sheet_name: str | None = None) -> pd.DataFrame:
         return out.to_dict(orient="records")
     
     grouped = (
-        df.groupby(["universidad", "pais", "latitud", "longitud"], dropna=False)
+        df.groupby(["universidad", "ciudad", "latitud", "longitud", "pais", "link_LA"], dropna=False)
           .apply(_to_records)
           .reset_index(name="estudiantes")
     )
@@ -209,6 +210,7 @@ def load_erasmus_in(path: str, sheet_name: str | None = None) -> pd.DataFrame:
     # normaliza campos
     df["universidad"]   = df[c_uni]    if c_uni    else None
     df["pais"]          = df[c_pais]   if c_pais   else None
+    df["ciudad"]        = df[c_ciudad] if c_ciudad else None
     df["link_LA"]       = df[c_la]     if c_la     else None
     df["cuatrimestre"]  = df[c_cuatri] if c_cuatri else None
 
@@ -224,7 +226,7 @@ def load_erasmus_in(path: str, sheet_name: str | None = None) -> pd.DataFrame:
         return out.to_dict(orient="records")
 
     grouped = (
-        df.groupby(["universidad", "pais", "latitud", "longitud"], dropna=False)
+        df.groupby(["universidad","ciudad", "latitud", "longitud", "pais"], dropna=False)
           .apply(_to_records)
           .reset_index(name="estudiantes")
     )
@@ -284,7 +286,7 @@ def load_sicue_out(path: str, sheet_name: str | None = None) -> pd.DataFrame:
     # normaliza
     df["universidad"]        = df[c_destino] if c_destino else None
     df["ciudad"]             = df[c_ciudad]  if c_ciudad  else None
-    df["pais"]               = None
+    df["pais"]               = "España"
     # mapeo de columnas específicas a names homogéneos
     mapping = {}
     if c_la:         mapping[c_la] = "link_LA"
@@ -304,7 +306,7 @@ def load_sicue_out(path: str, sheet_name: str | None = None) -> pd.DataFrame:
           .apply(_to_records)
           .reset_index(name="estudiantes")
     )
-    grouped["pais"] = None
+    grouped["pais"] = "España"
     grouped = grouped[["universidad", "pais", "ciudad", "latitud", "longitud", "estudiantes"]]
     return grouped
 

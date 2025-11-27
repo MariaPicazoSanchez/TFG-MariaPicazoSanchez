@@ -80,6 +80,9 @@ def append_user_to_excel(xlsx_path: str, tipo: str, row_data: dict, sheet_name: 
             new.update({"ToR": row_data.get("tor"), "Curso": row_data.get("curso"), "ActaEquivalencias": row_data.get("acta_equivalencias")})
         elif tipo == "Erasmus IN":
             new.update({"LA": row_data.get("la"), "Horario": row_data.get("horario")})
+            c_univ = _pick_col(df, "Destino", "Universidad Destino", "universidad destino", "Universidad")
+            if c_univ:  new_row[c_univ]  = row_data.get("destino_origen") or row_data.get("universidad_origen") or row_data.get("destino")
+
         else:  # SICUE OUT
             new.update({"LA": row_data.get("la"), "EstadoFirmas": row_data.get("estado_firmas"), "PlanEstudios": row_data.get("plan_estudios")})
 

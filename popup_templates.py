@@ -370,6 +370,9 @@ def generate_dynamic_popup(row, programa: str, row_index: int) -> str:
                       <!--  mandamos también la ruta del Excel  y las materias-->
                       <input type="hidden" name="excel_path" value="{html.escape(str(excel_path or ''), quote=True)}">
                       <input type="hidden" name="materias_excel_path" value="{html.escape(str(materias_excel_path or ''), quote=True)}">
+                      <input type="hidden" name="old_email" value="{html.escape(str(email_val or ''), quote=True)}">
+                      <input type="hidden" name="old_nombre" value="{html.escape(str(nombre_raw or ''), quote=True)}">
+
 
                       <div class="edit-panel-inner">
                         <div class="form-grid">
