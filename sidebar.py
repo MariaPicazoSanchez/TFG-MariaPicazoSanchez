@@ -238,9 +238,9 @@ def sidebar_controls():
             st.session_state["view"] = "map"
             st.rerun()
     else:
-        # ==========================
+        # ================================
         #  FILTROS (archivo filters.py)
-        # ==========================
+        # ================================
         cfg = st.session_state.get("config", {})
         unique_sheets = _unique_sheets_from_config_or_files(cfg)
         base_map = render_filters(unique_sheets)
@@ -250,22 +250,6 @@ def sidebar_controls():
         if st.sidebar.button("👤 Crear nuevo estudiante", use_container_width=True):
             st.session_state["view"] = "new_user"
             st.rerun()
-
-        # --------------------------
-        #  EXPORTACIÓN DEL MAPA
-        # --------------------------
-        # with st.sidebar.expander("📤 Exportar mapa"):
-        #     fmt_label = st.radio(
-        #         "Formato",
-        #         ["PNG", "SVG"],
-        #         index=0,
-        #         horizontal=True,
-        #         key="export_format_sidebar",
-        #     )
-
-        #     if st.button("Generar exportación", use_container_width=True, key="do_export_btn"):
-        #         st.session_state["export_map_format"] = fmt_label.lower()  # "png" / "svg"
-        #         st.toast(f"Preparando exportación del mapa en {fmt_label}…")
                 
         # ==========================
         #  GESTIÓN DE RUTAS

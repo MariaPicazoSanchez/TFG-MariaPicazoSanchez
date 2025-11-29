@@ -1,70 +1,8 @@
-from flask import Flask, jsonify, request, send_file
+from flask import Flask, request
 from excel_update import actualizar_excel_materias_para_estudiante, update_student_in_excel
 import json
-import streamlit as st
-import asyncio
-from io import BytesIO
-from playwright.async_api import async_playwright
 
 app = Flask(__name__)
-
-
-
-# =====================
-#  UTILIDAD SCREENSHOT
-# =====================
-
-async def html_to_png(html: str, width: int = 1200, height: int = 800) -> bytes:
-    """
-    Renderiza HTML en un navegador Chromium headless y devuelve un PNG.
-    """
-    async with async_playwright() as p:
-        browser = await p.chromium.launch()
-        page = await browser.new_page(
-            viewport={"width": width, "height": height},
-        )
-
-        # Cargamos el HTML directamente
-        await page.set_content(html, wait_until="networkidle")
-        # Pequeña espera extra para que terminen de cargar tiles/JS
-        await page.wait_for_timeout(2000)
-
-        png_bytes = await page.screenshot(full_page=False)
-        await browser.close()
-        return png_bytes
-
-
-@app.route("/screenshot", methods=["POST"])
-def screenshot():
-    """
-    POST /screenshot
-    JSON: { "html": "<!DOCTYPE html>...", "width": 1200, "height": 800 }
-    Devuelve un PNG del HTML renderizado.
-    """
-    data = request.get_json()
-    if not data or "html" not in data:
-        return jsonify({"error": "Missing 'html' field"}), 400
-
-    html = data["html"]
-    width = int(data.get("width", 1200))
-    height = int(data.get("height", 800))
-
-    try:
-        png_bytes = asyncio.run(html_to_png(html, width, height))
-    except Exception as e:
-        return jsonify({"error": str(e)}), 500
-
-    return send_file(
-        BytesIO(png_bytes),
-        mimetype="image/png",
-        as_attachment=False,
-        download_name="mapa_movilidad.png",
-    )
-
-
-# ==================================
-#  UTILIDAD ACTUALIZAR ESTUDIANTE
-# ==================================
 
 def parse_materias_raw(materias_raw: str):
     """
