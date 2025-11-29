@@ -32,8 +32,6 @@ Ficheros principales:
 - `map_export.py` → Botones de exportación dentro del mapa (PNG / SVG).
 - `api.py` → **Microservicio Flask**:
   - Endpoints para modificar estudiantes en Excel.
-  - Endpoint para capturas HTML → PNG (Playwright).
-
 ---
 
 ## 3. Dependencias
