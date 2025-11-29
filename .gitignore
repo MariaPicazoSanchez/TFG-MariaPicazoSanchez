@@ -3,3 +3,4 @@ __pycache__/
 *.pyc
 .snapshots/
 config.json
+.api_token

@@ -97,8 +97,8 @@ def show_map(dfs: dict, base_map, materias_in_por_estudiante=None):
     """))
 
     js_materias = """
-            <script>
-            if (!window.__materiasJSInit) {
+        <script>
+        if (!window.__materiasJSInit) {
             window.__materiasJSInit = true;
 
             (function () {
@@ -453,7 +453,7 @@ def show_map(dfs: dict, base_map, materias_in_por_estudiante=None):
                 }
                 });
             })();
-            }
+        }
             </script>
             """
     m.get_root().html.add_child(folium.Element(js_materias))

@@ -109,9 +109,9 @@ def main():
         return False
 
 
-    # ==============================================
+    # =======================================================================
     # Filtro de búsqueda (nombre, apellidos, ciudad, país, universidad...)
-    # ==============================================
+    # =======================================================================
     search_text = st.session_state.get("search_text", "").strip()
     search_text_norm = quitar_tildes(search_text.lower())
 
@@ -170,10 +170,6 @@ def main():
         if config.get(k) and os.path.exists(config[k])
     ]
 
-    if st.session_state.get("view", "map") == "new_user":
-        render_new_user_form(available_types, config)
-    else:
-        show_map(dfs, base_map, materias_in_por_est)
     if st.session_state.get("view", "map") == "new_user":
         render_new_user_form(available_types, config)
     else:

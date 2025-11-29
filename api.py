@@ -1,8 +1,36 @@
-from flask import Flask, request
+from flask import Flask, jsonify, request
 from excel_update import actualizar_excel_materias_para_estudiante, update_student_in_excel
 import json
+import os
+from functools import wraps
+from security import get_api_token
+
+
+
 
 app = Flask(__name__)
+API_TOKEN = get_api_token()
+
+def require_token(f):
+    @wraps(f)
+    def wrapper(*args, **kwargs):
+        expected = API_TOKEN
+
+        if expected:
+            token = request.headers.get("X-API-TOKEN")
+            if not token:
+                token = request.form.get("token") or request.args.get("token")
+
+            if token != expected:
+                print("❌ Token inválido. Esperado:", expected, "Recibido:", token)
+                return jsonify({"ok": False, "error": "Unauthorized"}), 401
+            else:
+                print("✅ Token válido recibido.")
+
+        return f(*args, **kwargs)
+    return wrapper
+
+
 
 def parse_materias_raw(materias_raw: str):
     """
@@ -77,6 +105,7 @@ def _build_js_response(ok: bool, messages: list[str]):
 
 
 @app.route("/update_student", methods=["POST"])
+@require_token
 def update_student():
     form = request.form.to_dict()
 
@@ -172,4 +201,5 @@ def update_student():
 
 
 if __name__ == "__main__":
-    app.run(debug=True, port=5000)
+    app.run(host="127.0.0.1", port=5000, debug=False)
+

@@ -1,8 +1,10 @@
+import os
 import unicodedata
 import streamlit as st
 import html
 import re
 from urllib.parse import quote
+from security import get_api_token
 from styles import POPUP_STYLES
 from es_cities import CITIES_ES
 from new_user_view import COUNTRY_OPTIONS
@@ -13,6 +15,10 @@ from popup_helpers import (
     _view_link,
 )
 from popup_materias import build_materias_blocks
+
+# URL del endpoint que guarda en Excel
+API_TOKEN = get_api_token()
+FORM_ACTION = "http://localhost:5000/update_student"
 
 def _normalize_str(s):
     s = str(s or "").strip().lower()
@@ -41,10 +47,6 @@ def generate_dynamic_popup(row, programa: str, row_index: int) -> str:
     config = st.session_state.get("config", {})
     excel_path = config.get(programa)
     materias_excel_path = config.get(f"{programa}_MATERIAS")
-
-    # URL del endpoint que guarda en Excel
-    form_action = "http://localhost:5000/update_student"
-
 
     estudiantes = _normalize_estudiantes(row.get("estudiantes", []))
     n = len(estudiantes)
@@ -357,12 +359,13 @@ def generate_dynamic_popup(row, programa: str, row_index: int) -> str:
                     <form
                       id="edit-form-{row_index_attr}-{idx_attr}"
                       class="edit-form"
-                      action="{form_action}"
+                      action="{FORM_ACTION}"
                       method="POST"
                       target="opener"
                     >
                       <!-- identificadores -->
                       <iframe name="opener" style="display:none;width:0;height:0;border:0;"></iframe>
+                      <input type="hidden" name="token" value="{API_TOKEN}">
                       <input type="hidden" name="row_index" value="{row_index_attr}">
                       <input type="hidden" name="save_student" value="1">
                       <input type="hidden" name="programa" value="{prog_attr}">
