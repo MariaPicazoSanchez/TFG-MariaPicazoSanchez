@@ -55,7 +55,7 @@ pip install \
     flask \
     requests \
     PyMuPDF
-
+```
 ---
 
 ## 4. Ejecución del sistema
@@ -64,8 +64,34 @@ Primero lanzamos el microservicio Flask:
 
 ```bash
 python api.py
-
+```
 Y luego la aplicación:
 
 ```bash
 python -m streamlit run my_app.py
+```
+
+---
+
+## 5. Uso de internet y privacidad
+
+Aunque la aplicación se ejecuta de forma local en el ordenador del usuario, hace un uso limitado de internet:
+
+### 5.1. Dependencias y ejecución
+
+- Las librerías Python (`streamlit`, `flask`, `pandas`, `leafmap`, `folium`, etc.) **no necesitan conexión a internet para ejecutarse**, una vez instaladas.
+- Solo se requiere internet en el momento de instalarlas con `pip install ...`.
+
+### 5.2. Mapas base (tiles)
+
+- Los mapas base (p.ej. OpenStreetMap) se cargan por defecto desde **servidores externos**.
+- Al mover o hacer zoom en el mapa, el navegador descarga las “teselas” (tiles) desde esos servidores.
+- Solo se descargan imágenes de fondo; **los datos de movilidad (estudiantes, universidades, etc.) se cargan desde ficheros locales** y no se envían fuera.
+- Sin conexión, la app puede seguir funcionando, pero el mapa puede aparecer sin fondo (blanco/gris).
+
+### 5.3. Librerías JavaScript desde CDNs
+
+- En `map_export.py` se usa la librería `html2canvas` cargada desde un CDN:
+  ```html
+  <script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
+  ```
