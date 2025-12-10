@@ -191,7 +191,7 @@ def append_user_to_excel(xlsx_path: str, tipo: str, row_data: dict, sheet_name: 
     else:
         if c_la:      new_row[c_la]      = row_data.get("la")
         if c_horario: new_row[c_horario] = row_data.get("horario")
-        c_cuatri = _pick_col(df, "Cuatrimestre", "Cuatirmestre")
+        c_cuatri = _pick_col(df, "Cuatrimestre", "Cuatrimestre")
         c_uo     = _pick_col(df, "Universidad Origen")
         c_pais   = _pick_col(df, "País", "Pais")
 

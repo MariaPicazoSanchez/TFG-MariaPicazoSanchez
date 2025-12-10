@@ -66,7 +66,7 @@ def group_rows_by_location(df, decimals=5):
 
 
 
-def show_map(dfs: dict, base_map, materias_in_por_estudiante=None):
+def show_map(dfs: dict, base_map, materias_in_por_estudiante=None, filtros_activos=None, only_no_la=False):
     """
     Muestra TODOS los programas disponibles en `dfs` sin filtrar.
     dfs: dict con posibles claves "Erasmus OUT", "Erasmus IN", "SICUE OUT" -> DataFrames agrupados
@@ -544,7 +544,7 @@ def show_map(dfs: dict, base_map, materias_in_por_estudiante=None):
             ).add_to(m)
 
 
-    add_export_control(m)
+    add_export_control(m, filtros_activos, only_no_la)
 
     # 3) Render en Streamlit
     html_map = m.get_root().render()

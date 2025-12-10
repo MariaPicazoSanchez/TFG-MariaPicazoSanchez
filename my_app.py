@@ -78,12 +78,6 @@ def main():
                 "No se encontró la columna 'link_LA' en Erasmus OUT para aplicar el filtro de LA vacía. "
                 f"Columnas disponibles: {list(df_out.columns)}"
             )
-    # Filtro de búsqueda (nombre, apellidos, ciudad, país, universidad...)
-    def filtrar_por_nombre(df, texto):
-        texto = texto.lower()
-        def contiene_nombre(estudiantes):
-            return any(texto in e.get("estudiante", "").lower() for e in estudiantes)
-        return df[df["estudiantes"].apply(contiene_nombre)]
     
     def quitar_tildes(s: str) -> str:
         return ''.join(
@@ -172,7 +166,7 @@ def main():
     if st.session_state.get("view", "map") == "new_user":
         render_new_user_form(available_types, config)
     else:
-        show_map(dfs, base_map, materias_in_por_est)
+        show_map(dfs, base_map, materias_in_por_est, activos, only_no_la)
         
 if __name__ == "__main__":
     main()

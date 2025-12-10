@@ -2,6 +2,7 @@ import json
 import pandas as pd
 from geopy.geocoders import Nominatim
 import os
+from domain import FIELD_ALIASES
 
 _geolocator = Nominatim(user_agent="tfg-mapa-erasmus")
 
@@ -96,71 +97,7 @@ def update_student_in_excel(excel_path: str, row_index: str, idx: int, data: dic
         return False
 
     # Mapa: campo del formulario -> posibles nombres de columna en Excel
-    field_to_cols = {
-        "estudiante": [
-            "estudiante", "Estudiante", "NOMBRE COMPLETO", "Nombre completo",
-        ],
-        "email": [
-            "email", "Email", "E-mail", "Correo", "Correo electrónico",
-        ],
-        "curso": [
-            "curso", "Curso",
-        ],
-        "cuatrimestre": [
-            "cuatrimestre", "Cuatrimestre",
-        ],
-        "duracion_meses": [
-            "duracion meses",
-            "duracion_meses",
-            "Duración (meses)",
-            "Duración meses",
-            "Duración",
-        ],
-        "gestion_LA": [
-            "Gestion LA",
-            "gestion_LA",
-            "Gestión LA",
-        ],
-        "coordinador_destino": [
-            "Coordinador en destino",
-            "coordinador_destino",
-            "Coordinador destino",
-            "Coordinador de destino",
-        ],
-        "link_la": [
-            "LA",
-            "link_la",
-            "Learning agreement",
-            "Learning Agreement",
-        ],
-        "ToR": [
-            "ToR", "TOR", "Transcript of Records",
-        ],
-        "acta_equivalencias": [
-            "acta_equivalencias", "Acta de equivalencias",
-        ],
-        "link_plan": [
-            "Plan de estudios",
-            "link_plan",
-            "Plan estudios",
-            "Plan",
-        ],
-        "destino": [
-            "destino", "Destino",
-        ],
-        "origen": [
-            "origen", "Origen",
-        ],
-        "responsable": [
-            "responsable", "Responsable",
-        ],
-        "pais": [
-            "pais", "País", "Pais",
-        ],
-        "ciudad": [
-            "ciudad", "Ciudad",
-        ],
-    }
+    field_to_cols = FIELD_ALIASES
 
 
     def _set_field(field_name: str):

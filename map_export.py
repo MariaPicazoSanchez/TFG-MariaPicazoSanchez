@@ -1,29 +1,69 @@
 from domain import PROGRAM_COLORS
 import folium
-
-from domain import PROGRAM_COLORS
+import json
 import folium
+from domain import PROGRAM_COLORS
 
-def add_program_legend(m: folium.Map):
+def add_program_legend(m: folium.Map, active_programs, only_erasmus_out_no_LA: bool):
     """
-    Configura la leyenda de tipos de movilidad para que se pueda
-    incrustar SOLO en la exportación (PNG/SVG) usando html2canvas.
-    No la muestra en el mapa interactivo.
+    active_programs:
+        - puede ser un dict: {"Erasmus IN": True, "SICUE OUT": False, ...}
+        - o una lista: ["Erasmus IN", "SICUE OUT", ...]
+
+    only_erasmus_out_no_LA:
+        - si es True, la leyenda muestra solo "Erasmus OUT".
+
+    Esta función NO pinta la leyenda en el mapa.
+    Solo define window.__PROGRAM_LEGEND_HTML__ (HTML listo para insertar en el clon).
     """
 
-    legend_rows = "".join(
-        f"""
+    # --- 1. Normalizar a lista de nombres activos ---
+
+    # Caso especial: solo Erasmus OUT sin LA -> fuerza leyenda con solo ese
+    if only_erasmus_out_no_LA:
+        active_names = ["Erasmus OUT"]
+    else:
+        # Si es dict, nos quedamos con las claves "activas"
+        if isinstance(active_programs, dict):
+            active_names = [
+                name for name, is_on in active_programs.items() if is_on
+            ]
+        # Si es lista/tupla/conjunto, usamos directamente los valores
+        elif isinstance(active_programs, (list, tuple, set)):
+            active_names = list(active_programs)
+        else:
+            active_names = []
+
+    # Fallback: si no hay nada activo, usamos todos los programas definidos
+    if not active_names:
+        active_names = list(PROGRAM_COLORS.keys())
+
+    # --- 2. Construir las filas HTML de la leyenda ---
+    legend_rows = ""
+    for name in active_names:
+        color = PROGRAM_COLORS.get(name, "#888")  # por si acaso
+        legend_rows += f"""
         <div class="map-legend-row">
             <span class="map-legend-color" style="background-color: {color};"></span>
             <span>{name}</span>
         </div>
         """
-        for name, color in PROGRAM_COLORS.items()
-    )
 
-    legend_html = """
+    # HTML interior de la leyenda (solo el contenido, sin <style> ni <script>)
+    legend_inner_html = f"""
+    <div class="map-legend">
+        <div class="map-legend-title">Tipos de movilidad</div>
+        {legend_rows}
+    </div>
+    """.strip()
+
+    # Lo convertimos a string JS seguro usando JSON (escapa comillas, saltos de línea, etc.)
+    legend_inner_html_js = json.dumps(legend_inner_html)
+
+    # --- 3. CSS + definición de window.__PROGRAM_LEGEND_HTML__ ---
+    legend_html = f"""
     <style>
-    .map-legend {
+    .map-legend {{
         position: absolute;
         bottom: 18px;
         right: 18px;
@@ -35,47 +75,42 @@ def add_program_legend(m: folium.Map):
         font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
         font-size: 12px;
         color: #222;
-    }
-    .map-legend-title {
+    }}
+    .map-legend-title {{
         margin: 0 0 6px 0;
         font-size: 13px;
         font-weight: 600;
-    }
-    .map-legend-row {
+    }}
+    .map-legend-row {{
         display: flex;
         align-items: center;
         gap: 6px;
         margin-bottom: 4px;
-    }
-    .map-legend-row:last-child {
+    }}
+    .map-legend-row:last-child {{
         margin-bottom: 0;
-    }
-    .map-legend-color {
+    }}
+    .map-legend-color {{
         width: 14px;
         height: 14px;
         border-radius: 3px;
         border: 1px solid rgba(0,0,0,0.4);
-        opacity: 0.75;   /* color algo más suave que el original */
-    }
+        opacity: 0.75;   /* colores más suaves que el original del mapa */
+    }}
     </style>
 
     <script>
-    (function () {
-        // HTML que usaremos SOLO en el clon de html2canvas
-        window.__PROGRAM_LEGEND_HTML__ = `
-            <div class="map-legend">
-                <div class="map-legend-title">Tipos de movilidad</div>
-                __LEGEND_ROWS__
-            </div>
-        `;
-    })();
+    (function () {{
+        // HTML completo de la leyenda que usará html2canvas en el clon
+        window.__PROGRAM_LEGEND_HTML__ = {legend_inner_html_js};
+    }})();
     </script>
     """
 
-    legend_html = legend_html.replace("__LEGEND_ROWS__", legend_rows)
-
     m.get_root().html.add_child(folium.Element(legend_html))
-def add_export_control(m: folium.Map):
+
+
+def add_export_control(m: folium.Map, selected_programs: dict, only_erasmus_out_no_LA: bool ):
     html = """
     <script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
 
@@ -257,4 +292,4 @@ def add_export_control(m: folium.Map):
     """
 
     m.get_root().html.add_child(folium.Element(html))
-    add_program_legend(m)
+    add_program_legend(m, selected_programs, only_erasmus_out_no_LA)
