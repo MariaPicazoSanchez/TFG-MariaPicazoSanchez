@@ -3,7 +3,7 @@ import pandas as pd
 import streamlit as st
 import leafmap.foliumap as leafmap
 from popup_templates import generate_dynamic_popup
-from domain import PROGRAM_COLORS
+from domain import PROGRAM_COLORS, PROGRAM_ICONS
 
 from map_export import add_export_control
 
@@ -95,6 +95,7 @@ def show_map(dfs: dict, base_map, materias_in_por_estudiante=None):
       .leaflet-popup-content-wrapper { padding:0 !important; }
     </style>
     """))
+
 
     js_materias = """
         <script>
@@ -501,21 +502,6 @@ def show_map(dfs: dict, base_map, materias_in_por_estudiante=None):
         </script>
         """))
 
-    # Helpers de tamaño
-    def _estimate_popup_width_px(row):
-        def s(v): return str(v or "")
-        textos = [s(row.get("universidad")), s(row.get("pais")), s(row.get("ciudad"))]
-        for e in (row.get("estudiantes") or []):
-            textos.append(s(e.get("estudiante")))
-        L = max((len(t.strip()) for t in textos if t), default=12)
-        px = int(7.2 * L + 48)
-        return max(240, min(px, 640))
-
-    def _estimate_popup_height_px(n_items):
-        MIN_H, PER_ITEM = 150, 44
-        h = MIN_H + PER_ITEM * max(0, n_items - 1)
-        return min(h, 520)
-
     # 2) Pintar TODOS los programas presentes en dfs
     for program, df in dfs.items():
         if df is None or df.empty:
@@ -537,88 +523,27 @@ def show_map(dfs: dict, base_map, materias_in_por_estudiante=None):
                         nombre = str(e.get("estudiante", "")).strip()
                         e["materias_in"] = materias_in_por_estudiante.get(nombre, [])
 
-                content = generate_dynamic_popup(row, program, row_index)
-                n = max(1, len(row.get("estudiantes", [])) if isinstance(row.get("estudiantes"), list) else 1)
-                w = _estimate_popup_width_px(row)
-                h = _estimate_popup_height_px(n)
-
-                html_doc = f"""<!doctype html>
-                                <html>
-                                <head>
-                                <meta charset="utf-8">
-                                <style>
-                                    html, body {{
-                                    margin:0; padding:0; background:transparent; width:100%; height:100%;
-                                    }}
-                                    .al-wrap {{
-                                    width:100%; height:100%; box-sizing:border-box; padding:8px;
-                                    background:transparent; overflow-x:hidden; overflow-y:auto;
-                                    -webkit-overflow-scrolling: touch;
-                                    }}
-                                    .al-popup {{ width:100% !important; max-width:100% !important; min-width:100% !important; }}
-                                </style>
-                                </head>
-                                <body>
-                                <div class="al-wrap">{content}</div>
-                                </body>
-                                </html>"""
-
-                popup = folium.Popup(content, max_width=480)
-
-                folium.Marker(
-                    location=[lat, lon],
-                    popup=popup,
-                    tooltip=f"{row.get('universidad','')} ({row.get('pais','') or row.get('ciudad','')}) · {n} alumno(s)",
-                    icon=folium.Icon(color=color, icon="globe", prefix="fa"),
-                ).add_to(m)
-
-            #  Fin de asignaturas IN
-
             content = generate_dynamic_popup(row, program, row_index)
             n = max(1, len(row.get("estudiantes", [])) if isinstance(row.get("estudiantes"), list) else 1)
-            w = _estimate_popup_width_px(row)
-            h = _estimate_popup_height_px(n)
 
-            html_doc = f"""<!doctype html>
-                                <html>
-                                <head>
-                                <meta charset="utf-8">
-                                <style>
-                                    html, body {{
-                                    margin:0; padding:0; background:transparent; width:100%; height:100%;
-                                    }}
-                                    .al-wrap {{
-                                    width:100%; height:100%; box-sizing:border-box; padding:8px;
-                                    background:transparent; overflow-x:hidden; overflow-y:auto;
-                                    -webkit-overflow-scrolling: touch;
-                                    }}
-                                    .al-popup {{ width:100% !important; max-width:100% !important; min-width:100% !important; }}
-                                </style>
-                                </head>
-                                <body>
-                                <div class="al-wrap">{content}</div>
-                                </body>
-                                </html>"""
+            popup = folium.Popup(content, max_width=480)
+            marker_icon = PROGRAM_ICONS.get(program, "map-marker")
 
-            popup = folium.Popup(content, max_width=480) 
+            icon = folium.Icon(
+                color=color,
+                icon_color='black',
+                icon=marker_icon,
+                prefix="fa",
+            )
 
             folium.Marker(
                 location=[lat, lon],
                 popup=popup,
                 tooltip=f"{row.get('universidad','')} ({row.get('pais','') or row.get('ciudad','')}) · {n} alumno(s)",
-                icon=folium.Icon(color=color, icon="globe", prefix="fa"),
+                icon=icon,
             ).add_to(m)
 
-    # --- Exportación: leer lo que ha pedido el sidebar ---
-    # export_format = None
-    # if "export_map_format" in st.session_state:
-    #     export_format = st.session_state.get("export_map_format")
-    #     # limpiar el trigger para que no se repita en cada rerun
-    #     del st.session_state["export_map_format"]
 
-    # # Inyectar el JS de exportación (si export_format es "png"/"svg" → auto-export)
-    # inject_export_js(m, export_format)
-    # Añadimos los botones PNG / SVG al mapa
     add_export_control(m)
 
     # 3) Render en Streamlit

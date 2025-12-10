@@ -3,8 +3,7 @@ import os
 import streamlit as st
 from sheets import sheets_for
 from pdf import open_in_system
-from domain import ESTADOS_FIRMA,ICON_BY_TIPO
-from es_cities import CITIES_ES
+from domain import ESTADOS_FIRMA, ICON_BY_TIPO, CITIES_ES
 from data_insert import append_user_to_excel, first_sheet_name
 import pycountry
 import pandas as pd

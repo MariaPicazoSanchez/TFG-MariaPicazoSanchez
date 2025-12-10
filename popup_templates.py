@@ -2,11 +2,10 @@ import os
 import unicodedata
 import streamlit as st
 import html
-import re
 from urllib.parse import quote
 from security import get_api_token
 from styles import POPUP_STYLES
-from es_cities import CITIES_ES
+from domain import CITIES_ES
 from new_user_view import COUNTRY_OPTIONS
 from popup_helpers import (
     _normalize_estudiantes,

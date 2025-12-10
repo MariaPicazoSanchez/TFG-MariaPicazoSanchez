@@ -1,16 +1,82 @@
+from domain import PROGRAM_COLORS
 import folium
 
+from domain import PROGRAM_COLORS
+import folium
 
+def add_program_legend(m: folium.Map):
+    """
+    Configura la leyenda de tipos de movilidad para que se pueda
+    incrustar SOLO en la exportación (PNG/SVG) usando html2canvas.
+    No la muestra en el mapa interactivo.
+    """
+
+    legend_rows = "".join(
+        f"""
+        <div class="map-legend-row">
+            <span class="map-legend-color" style="background-color: {color};"></span>
+            <span>{name}</span>
+        </div>
+        """
+        for name, color in PROGRAM_COLORS.items()
+    )
+
+    legend_html = """
+    <style>
+    .map-legend {
+        position: absolute;
+        bottom: 18px;
+        right: 18px;
+        z-index: 9999;
+        background: rgba(255, 255, 255, 0.85); /* fondo blanco semitransparente */
+        padding: 10px 14px;
+        border-radius: 8px;
+        box-shadow: 0 2px 6px rgba(0,0,0,0.25);
+        font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+        font-size: 12px;
+        color: #222;
+    }
+    .map-legend-title {
+        margin: 0 0 6px 0;
+        font-size: 13px;
+        font-weight: 600;
+    }
+    .map-legend-row {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        margin-bottom: 4px;
+    }
+    .map-legend-row:last-child {
+        margin-bottom: 0;
+    }
+    .map-legend-color {
+        width: 14px;
+        height: 14px;
+        border-radius: 3px;
+        border: 1px solid rgba(0,0,0,0.4);
+        opacity: 0.75;   /* color algo más suave que el original */
+    }
+    </style>
+
+    <script>
+    (function () {
+        // HTML que usaremos SOLO en el clon de html2canvas
+        window.__PROGRAM_LEGEND_HTML__ = `
+            <div class="map-legend">
+                <div class="map-legend-title">Tipos de movilidad</div>
+                __LEGEND_ROWS__
+            </div>
+        `;
+    })();
+    </script>
+    """
+
+    legend_html = legend_html.replace("__LEGEND_ROWS__", legend_rows)
+
+    m.get_root().html.add_child(folium.Element(legend_html))
 def add_export_control(m: folium.Map):
-    """
-    Añade 2 botones al mapa:
-      - PNG: captura la vista actual del mapa y la descarga como PNG
-      - SVG: captura la vista actual del mapa y la envuelve en un SVG (imagen incrustada)
-    La captura se hace sin mostrar los controles de Leaflet (zoom, etc.).
-    """
-
     html = """
-    <!-- Librería para capturar el DOM a canvas -->
     <script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
 
     <script>
@@ -37,7 +103,7 @@ def add_export_control(m: folium.Map):
             return mapContainer;
         }
 
-        // Captura el mapa con html2canvas ignorando los controles de Leaflet
+        // NUEVA versión: añade la leyenda SOLO al clon de html2canvas
         function captureCanvas(callback) {
             var mapContainer = getMapContainer();
             if (!mapContainer) return;
@@ -45,9 +111,27 @@ def add_export_control(m: folium.Map):
             html2canvas(mapContainer, {
                 useCORS: true,
                 logging: false,
-                // No dibujar nada que esté dentro de .leaflet-control-container
                 ignoreElements: function(element) {
                     return element.closest && element.closest(".leaflet-control-container") !== null;
+                },
+                onclone: function(clonedDoc) {
+                    try {
+                        // Si no se ha configurado la leyenda, no hacemos nada
+                        if (!window.__PROGRAM_LEGEND_HTML__) {
+                            return;
+                        }
+                        var clonedMapContainer = clonedDoc.querySelector(".leaflet-container");
+                        if (!clonedMapContainer) return;
+
+                        var wrapper = clonedDoc.createElement("div");
+                        wrapper.innerHTML = window.__PROGRAM_LEGEND_HTML__.trim();
+                        var legend = wrapper.firstElementChild;
+                        if (legend) {
+                            clonedMapContainer.appendChild(legend);
+                        }
+                    } catch (e) {
+                        console.warn("[MapExport] No se pudo añadir la leyenda al clon:", e);
+                    }
                 }
             }).then(function (canvas) {
                 callback(canvas);
@@ -56,6 +140,10 @@ def add_export_control(m: folium.Map):
                 alert("Error capturando el mapa. Mira la consola para más detalles.");
             });
         }
+
+        // TODO: aquí dejas TODO lo demás igual: exportMapAsPNG, exportMapAsSVG,
+        //       addExportButtons, initWhenReady, etc...
+        //       (no necesitas tocarlos)
 
         function exportMapAsPNG() {
             try {
@@ -81,7 +169,6 @@ def add_export_control(m: folium.Map):
                     var width = canvas.width;
                     var height = canvas.height;
 
-                    // SVG sencillo con la imagen PNG incrustada
                     var svgContent =
                         '<?xml version="1.0" encoding="UTF-8"?>\\n' +
                         '<svg xmlns="http://www.w3.org/2000/svg" ' +
@@ -101,7 +188,6 @@ def add_export_control(m: folium.Map):
         }
 
         function addExportButtons() {
-            // Folium crea una variable global tipo window.map_xxxxx
             var mapVarName = Object.keys(window).find(function (k) {
                 return k.startsWith("map_");
             });
@@ -111,7 +197,6 @@ def add_export_control(m: folium.Map):
             }
             var map = window[mapVarName];
 
-            // Control PNG
             var PngControl = L.Control.extend({
                 options: { position: "topleft" },
                 onAdd: function (map) {
@@ -130,7 +215,6 @@ def add_export_control(m: folium.Map):
                 }
             });
 
-            // Control SVG
             var SvgControl = L.Control.extend({
                 options: { position: "topleft" },
                 onAdd: function (map) {
@@ -173,3 +257,4 @@ def add_export_control(m: folium.Map):
     """
 
     m.get_root().html.add_child(folium.Element(html))
+    add_program_legend(m)

@@ -3,7 +3,7 @@ import json
 import xlrd
 import pandas as pd
 import streamlit as st
-from filters import render_filters
+from domain import render_filters
 
 CONFIG_FILE = "config.json"
 

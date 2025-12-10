@@ -1,7 +1,6 @@
 import os
 import unicodedata
 import streamlit as st
-import requests
 from map_view import show_map
 from sidebar import setup_session, sidebar_controls
 from new_user_view import render_new_user_form
