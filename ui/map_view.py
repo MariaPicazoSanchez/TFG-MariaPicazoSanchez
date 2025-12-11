@@ -1,16 +1,10 @@
-
-
 import folium
 import pandas as pd
 import streamlit as st
 import leafmap.foliumap as leafmap
 from .popup_templates import generate_dynamic_popup
 from domain import PROGRAM_COLORS, PROGRAM_ICONS
-
-from map_export import add_export_control, add_program_legend
-
-
-
+from export import add_export_control, add_program_legend
 
 def add_points_to_map(m, df, nombre_capa, color):
     """Añade puntos de un DataFrame al mapa."""

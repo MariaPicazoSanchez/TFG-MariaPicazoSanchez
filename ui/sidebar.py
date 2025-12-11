@@ -32,7 +32,6 @@ def _list_sheets_in_file(path: str) -> list[str]:
     # fallback para .xls (si tienes xlrd 1.2.0)
     try:
         if ext == ".xls":
-            
             wb = xlrd.open_workbook(path, on_demand=True)
             return wb.sheet_names()
     except Exception:
@@ -242,7 +241,9 @@ def sidebar_controls():
         if st.sidebar.button("⬅️ Volver al mapa", use_container_width=True):
             st.session_state["view"] = "map"
             st.rerun()
-        render_filters_stats(_unique_sheets_from_config(st.session_state.get("config", {})))
+        cfg = st.session_state.get("config", {})
+        available_courses = _unique_sheets_from_config_or_files(cfg)
+        render_filters_stats(available_courses)
     else:
         # ================================
         #  FILTROS (archivo filters.py)

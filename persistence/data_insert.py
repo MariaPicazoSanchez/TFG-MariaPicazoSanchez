@@ -4,7 +4,6 @@ import pandas as pd
 import streamlit as st
 from domain import COMMON_COLS, SPEC_COLS
 from openpyxl import load_workbook
-from ui.popup_helpers import _normalize_estudiantes
 
 def first_sheet_name(xlsx_path: str) -> str:
     try:
@@ -229,6 +228,7 @@ def export_materias_in_excel(dfs, config):
     dfs: dict de DataFrames como el que usas en show_map.
     config: dict cargado de config.json con la clave 'Materias IN'.
     """
+    from ui.popup_helpers import _normalize_estudiantes  # import local para evitar ciclos
     erasmus_in_df = dfs.get("Erasmus IN")
     if erasmus_in_df is None:
         return

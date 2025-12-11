@@ -1,10 +1,9 @@
 import os
 import unicodedata
 import streamlit as st
-from ui import setup_session, sidebar_controls, render_new_user_form, show_map
-from pdf import handle_open_pdf_query, handle_open_excel_query
-from data_access_mobility import load_all_dataframes
-from materias_in_loader import get_materias_in_por_estudiante
+from ui import setup_session, sidebar_controls, render_new_user_form, show_map, render_stats_view
+from utils import handle_open_pdf_query, handle_open_excel_query
+from persistence import load_all_dataframes, get_materias_in_por_estudiante
 
 def main():
     st.set_page_config(page_title="Movilidad UCLM", layout="wide", initial_sidebar_state="expanded" )
@@ -163,6 +162,8 @@ def main():
 
     if st.session_state.get("view", "map") == "new_user":
         render_new_user_form(available_types, config)
+    elif st.session_state.get("view", "map") == "stats":
+        render_stats_view()
     else:
         show_map(dfs, base_map, materias_in_por_est, activos, only_no_la)
         

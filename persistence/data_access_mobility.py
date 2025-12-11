@@ -3,7 +3,7 @@ import re
 from typing import Iterable, Tuple, Optional
 import pandas as pd
 import streamlit as st
-from sheets import sheets_for, resolve_sheet
+from .sheets_helpers import sheets_for, resolve_sheet
 
 
 # ==============================

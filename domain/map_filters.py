@@ -200,16 +200,3 @@ def render_filters_map(unique_sheets: list[str]) -> str:
     # Mapa base (igual que antes)
     base_map = "OpenStreetMap"
     return base_map
-
-def render_filters_stats(unique_sheets: list[str]) -> str:
-    """
-    Pinta los filtros de la barra lateral para la vista de estadísticas.
-    - unique_sheets: lista de hojas disponibles (cursos)
-    Devuelve el tipo de mapa base (por compatibilidad con tu sidebar_controls).
-    """
-    # Aquí puedes añadir filtros específicos para la vista de estadísticas si lo deseas.
-    st.sidebar.header("Filtros de Estadísticas")
-
-    # Mapa base (igual que antes)
-    base_map = "OpenStreetMap"
-    return base_map
