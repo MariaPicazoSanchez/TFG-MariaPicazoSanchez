@@ -176,7 +176,7 @@ def render_stats_details(df_filtered: pd.DataFrame, mobility_filter: str, config
     desde stats_view.py o borrar este archivo.
     """
     # 1) Universidades con más alumnos
-    with st.expander("🏛️ Universidades con más alumnos"):
+    with st.expander("Universidades con más alumnos"):
         tabla_uni = _stats_by_university(df_filtered)
         if tabla_uni.empty:
             st.info(
@@ -193,7 +193,7 @@ def render_stats_details(df_filtered: pd.DataFrame, mobility_filter: str, config
 
     # 2) Materias más frecuentes (solo tiene sentido para Erasmus IN / Todos)
     if mobility_filter in ("Erasmus IN", "Todos"):
-        with st.expander("📚 Asignaturas más frecuentes (Erasmus IN)"):
+        with st.expander("Asignaturas más frecuentes (Erasmus IN)"):
             df_mat = _load_materias_in(config)
             tabla_mat = _stats_materias_mas_frecuentes(df_mat)
             if tabla_mat.empty:

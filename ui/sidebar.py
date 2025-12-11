@@ -241,6 +241,12 @@ def sidebar_controls():
         if st.sidebar.button("⬅️ Volver al mapa", use_container_width=True):
             st.session_state["view"] = "map"
             st.rerun()
+        st.sidebar.markdown(
+            "<p style='font-size: 0.9rem; color: #6c757d;'>"
+            "Selecciona un curso académico y un tipo de movilidad para ver los datos agregados."
+            "</p>",
+            unsafe_allow_html=True,
+        )
         cfg = st.session_state.get("config", {})
         available_courses = _unique_sheets_from_config_or_files(cfg)
         render_filters_stats(available_courses)
@@ -248,6 +254,12 @@ def sidebar_controls():
         # ================================
         #  FILTROS (archivo filters.py)
         # ================================
+        st.sidebar.markdown(
+            "<p style='font-size: 0.9rem; color: #6c757d;'>"
+            "Utiliza los filtros para buscar estudiantes específicos en el mapa."
+            "</p>",
+            unsafe_allow_html=True,
+        )
         cfg = st.session_state.get("config", {})
         unique_sheets = _unique_sheets_from_config_or_files(cfg)
         base_map = render_filters_map(unique_sheets)
@@ -257,11 +269,23 @@ def sidebar_controls():
         if st.sidebar.button("👤 Crear nuevo estudiante", use_container_width=True):
             st.session_state["view"] = "new_user"
             st.rerun()
+        st.sidebar.markdown(
+            "<p style='font-size: 0.9rem; color: #6c757d;'>"
+            "Registra un nuevo estudiante en el sistema."
+            "</p>",
+            unsafe_allow_html=True,
+        )
                 
         # Botón para estadísticas
         if st.sidebar.button("📊 Ver estadísticas", use_container_width=True):
             st.session_state["view"] = "stats"
             st.rerun()
+        st.sidebar.markdown(
+            "<p style='font-size: 0.9rem; color: #6c757d;'>"
+            "Visualiza estadísticas agregadas de movilidad."
+            "</p>",
+            unsafe_allow_html=True,
+        )
         # ==========================
         #  GESTIÓN DE RUTAS
         # ==========================
@@ -269,9 +293,17 @@ def sidebar_controls():
         if not os.path.exists(CONFIG_FILE) and not st.session_state.get("show_routes", False):
             st.session_state["show_routes"] = True
 
+        st.sidebar.markdown("---")
         if st.session_state["show_routes"]:
             route_editor(st.session_state["config"])
         else:
-            st.sidebar.button("✏️ Fuentes de datos", on_click=open_routes_editor)
+            if st.sidebar.button("✏️ Fuentes de datos", use_container_width=True):
+                open_routes_editor()
+            st.sidebar.markdown(
+                "<p style='font-size: 0.9rem; color: #6c757d;'>"
+                "Configura las rutas de los archivos de datos (Excel/CSV)."
+                "</p>",
+                unsafe_allow_html=True,
+            )
 
         return base_map
