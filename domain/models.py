@@ -21,7 +21,7 @@ PROGRAM_COLORS = {
 PROGRAM_ICONS = {
     "Erasmus OUT": "sign-out",
     "Erasmus IN": "sign-in",
-    "SICUE OUT": "exchange",
+    "SICUE OUT": "sign-out",
 }
 
 

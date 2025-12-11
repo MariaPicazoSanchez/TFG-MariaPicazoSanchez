@@ -42,7 +42,7 @@ def _latest_sheet_name(names: list[str]) -> str | None:
     return max(names, key=key)
 
 
-def render_filters(unique_sheets: list[str]) -> str:
+def render_filters_map(unique_sheets: list[str]) -> str:
     """
     Pinta los filtros de la barra lateral.
     - unique_sheets: lista de hojas disponibles (cursos)
@@ -121,24 +121,7 @@ def render_filters(unique_sheets: list[str]) -> str:
     # --- ERASMUS ---
     c1, c2, c3 = st.sidebar.columns([1.2, 1, 1], gap="small")
     with c1:
-        st.markdown(
-            """
-            <div class="label-erasmus">Erasmus:</div>
-            <style>
-            .label-erasmus{
-                height:40px;
-                display:flex; align-items:center; justify-content:flex-start;
-                font-weight:400 !important;
-                font-size:18px;
-                margin:0!important; padding:0!important;
-                background:transparent!important; color:inherit;
-                text-transform:none;
-            }
-            .label-erasmus *{ font-weight:400 !important; }
-            </style>
-            """,
-            unsafe_allow_html=True
-        )
+        st.markdown("**Erasmus:**")
     # Erasmus IN
     with c2:
         is_active_in = st.session_state["selected_programs"]["Erasmus IN"]
@@ -185,24 +168,7 @@ def render_filters(unique_sheets: list[str]) -> str:
     # --- SICUE ---
     c4, c5, _ = st.sidebar.columns([1.2, 1, 1], gap="small")
     with c4:
-        st.markdown(
-            """
-            <div class="label-erasmus">SICUE:</div>
-            <style>
-            .label-erasmus{
-                height:40px;
-                display:flex; align-items:center; justify-content:flex-start;
-                font-weight:400 !important;
-                font-size:16px;
-                margin:0!important; padding:0!important;
-                background:transparent!important; color:inherit;
-                text-transform:none;
-            }
-            .label-erasmus *{ font-weight:400 !important; }
-            </style>
-            """,
-            unsafe_allow_html=True
-        )
+        st.markdown("**SICUE:**")
     with c5:
         is_active_sicue = st.session_state["selected_programs"]["SICUE OUT"]
         if st.button(
@@ -231,6 +197,19 @@ def render_filters(unique_sheets: list[str]) -> str:
             label_visibility="collapsed",
             placeholder="Buscar ...",
         )
+    # Mapa base (igual que antes)
+    base_map = "OpenStreetMap"
+    return base_map
+
+def render_filters_stats(unique_sheets: list[str]) -> str:
+    """
+    Pinta los filtros de la barra lateral para la vista de estadísticas.
+    - unique_sheets: lista de hojas disponibles (cursos)
+    Devuelve el tipo de mapa base (por compatibilidad con tu sidebar_controls).
+    """
+    # Aquí puedes añadir filtros específicos para la vista de estadísticas si lo deseas.
+    st.sidebar.header("Filtros de Estadísticas")
+
     # Mapa base (igual que antes)
     base_map = "OpenStreetMap"
     return base_map

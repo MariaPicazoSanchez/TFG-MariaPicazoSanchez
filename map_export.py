@@ -1,34 +1,97 @@
 from domain import PROGRAM_COLORS
 import folium
 import json
-import folium
-from domain import PROGRAM_COLORS
 
-def add_program_legend(m: folium.Map, active_programs, only_erasmus_out_no_LA: bool):
+
+def count_students_by_type(dfs, active_names):
     """
+    Cuenta alumnos por tipo de movilidad a partir del dict de DataFrames `dfs`.
+
+    dfs: dict[str, DataFrame]  (lo que se usa para pintar el mapa)
+    active_names: lista de tipos de movilidad a mostrar en la leyenda.
+
+    Para cada tipo:
+      - Si la columna 'estudiantes' existe y contiene listas de dicts, se cuenta
+        el número total de dicts (estudiantes reales).
+      - En caso contrario, se usa simplemente len(df) como aproximación.
+    """
+    if not active_names or not isinstance(dfs, dict):
+        return {}
+
+    counts = {name: 0 for name in active_names}
+
+    for name in active_names:
+        df = dfs.get(name)
+        if df is None:
+            continue
+
+        # Si el DataFrame está vacío, dejamos el 0
+        try:
+            if hasattr(df, "empty") and df.empty:
+                continue
+        except Exception:
+            pass
+
+        total = 0
+
+        try:
+            # Caso 1: columna 'estudiantes' con listas de dicts
+            if hasattr(df, "columns") and "estudiantes" in list(df.columns):
+                serie = df["estudiantes"]
+                for valor in serie:
+                    if isinstance(valor, list):
+                        for e in valor:
+                            if isinstance(e, dict):
+                                total += 1
+
+                # Si no hemos contado nada pero hay filas, usamos len(df)
+                if total == 0:
+                    try:
+                        total = len(df)
+                    except TypeError:
+                        total = 0
+            else:
+                # Caso 2: no hay columna 'estudiantes' → usamos len(df)
+                try:
+                    total = len(df)
+                except TypeError:
+                    total = 0
+        except Exception:
+            total = 0
+
+        counts[name] = int(total)
+
+    return counts
+
+
+def add_program_legend(
+    m: folium.Map,
+    active_programs,
+    only_erasmus_out_no_LA: bool,
+    student_list=None,
+):
+    """
+    Inserta en el mapa una leyenda con los tipos de movilidad y, opcionalmente,
+    el número de alumnos por tipo.
+
     active_programs:
         - puede ser un dict: {"Erasmus IN": True, "SICUE OUT": False, ...}
         - o una lista: ["Erasmus IN", "SICUE OUT", ...]
-
     only_erasmus_out_no_LA:
         - si es True, la leyenda muestra solo "Erasmus OUT".
-
-    Esta función NO pinta la leyenda en el mapa.
-    Solo define window.__PROGRAM_LEGEND_HTML__ (HTML listo para insertar en el clon).
+    student_list:
+        - normalmente es el dict `dfs` ya filtrado que se usa para pintar el mapa.
+          Si se pasa y es un dict, se usa count_students_by_type(...) para obtener
+          un dict {tipo: total}.
     """
 
     # --- 1. Normalizar a lista de nombres activos ---
 
-    # Caso especial: solo Erasmus OUT sin LA -> fuerza leyenda con solo ese
     if only_erasmus_out_no_LA:
         active_names = ["Erasmus OUT"]
     else:
-        # Si es dict, nos quedamos con las claves "activas"
         if isinstance(active_programs, dict):
-            active_names = [
-                name for name, is_on in active_programs.items() if is_on
-            ]
-        # Si es lista/tupla/conjunto, usamos directamente los valores
+            active_names = [name for name, is_on in active_programs.items() if is_on]
         elif isinstance(active_programs, (list, tuple, set)):
             active_names = list(active_programs)
         else:
@@ -38,21 +101,29 @@ def add_program_legend(m: folium.Map, active_programs, only_erasmus_out_no_LA: b
     if not active_names:
         active_names = list(PROGRAM_COLORS.keys())
 
-    # --- 2. Construir las filas HTML de la leyenda ---
+    # --- 2. Calcular conteos, si tenemos dfs ---
+    alumnos_por_tipo = None
+    if isinstance(student_list, dict):
+        alumnos_por_tipo = count_students_by_type(student_list, active_names)
+
+    # --- 3. Construir las filas HTML de la leyenda ---
     legend_rows = ""
     for name in active_names:
         color = PROGRAM_COLORS.get(name, "#888")  # por si acaso
+        n_alumnos = 0
+        if alumnos_por_tipo and name in alumnos_por_tipo:
+            n_alumnos = alumnos_por_tipo[name]
         legend_rows += f"""
-        <div class="map-legend-row">
-            <span class="map-legend-color" style="background-color: {color};"></span>
-            <span>{name}</span>
+        <div class=\"map-legend-row\">
+            <span class=\"map-legend-color\" style=\"background-color: {color};\"></span>
+            <span>{name} ( {n_alumnos} )</span>
         </div>
         """
 
     # HTML interior de la leyenda (solo el contenido, sin <style> ni <script>)
     legend_inner_html = f"""
-    <div class="map-legend">
-        <div class="map-legend-title">Tipos de movilidad</div>
+    <div class=\"map-legend\">
+        <div class=\"map-legend-title\">Tipos de movilidad</div>
         {legend_rows}
     </div>
     """.strip()
@@ -60,7 +131,7 @@ def add_program_legend(m: folium.Map, active_programs, only_erasmus_out_no_LA: b
     # Lo convertimos a string JS seguro usando JSON (escapa comillas, saltos de línea, etc.)
     legend_inner_html_js = json.dumps(legend_inner_html)
 
-    # --- 3. CSS + definición de window.__PROGRAM_LEGEND_HTML__ ---
+    # --- 4. CSS + definición de window.__PROGRAM_LEGEND_HTML__ ---
     legend_html = f"""
     <style>
     .map-legend {{
@@ -110,7 +181,8 @@ def add_program_legend(m: folium.Map, active_programs, only_erasmus_out_no_LA: b
     m.get_root().html.add_child(folium.Element(legend_html))
 
 
-def add_export_control(m: folium.Map, selected_programs: dict, only_erasmus_out_no_LA: bool ):
+
+def add_export_control(m: folium.Map):
     html = """
     <script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
 
@@ -138,7 +210,6 @@ def add_export_control(m: folium.Map, selected_programs: dict, only_erasmus_out_
             return mapContainer;
         }
 
-        // NUEVA versión: añade la leyenda SOLO al clon de html2canvas
         function captureCanvas(callback) {
             var mapContainer = getMapContainer();
             if (!mapContainer) return;
@@ -151,7 +222,6 @@ def add_export_control(m: folium.Map, selected_programs: dict, only_erasmus_out_
                 },
                 onclone: function(clonedDoc) {
                     try {
-                        // Si no se ha configurado la leyenda, no hacemos nada
                         if (!window.__PROGRAM_LEGEND_HTML__) {
                             return;
                         }
@@ -175,10 +245,6 @@ def add_export_control(m: folium.Map, selected_programs: dict, only_erasmus_out_
                 alert("Error capturando el mapa. Mira la consola para más detalles.");
             });
         }
-
-        // TODO: aquí dejas TODO lo demás igual: exportMapAsPNG, exportMapAsSVG,
-        //       addExportButtons, initWhenReady, etc...
-        //       (no necesitas tocarlos)
 
         function exportMapAsPNG() {
             try {
@@ -292,4 +358,3 @@ def add_export_control(m: folium.Map, selected_programs: dict, only_erasmus_out_
     """
 
     m.get_root().html.add_child(folium.Element(html))
-    add_program_legend(m, selected_programs, only_erasmus_out_no_LA)

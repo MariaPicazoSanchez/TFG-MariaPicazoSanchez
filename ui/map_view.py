@@ -1,11 +1,14 @@
+
+
 import folium
 import pandas as pd
 import streamlit as st
 import leafmap.foliumap as leafmap
-from popup_templates import generate_dynamic_popup
+from .popup_templates import generate_dynamic_popup
 from domain import PROGRAM_COLORS, PROGRAM_ICONS
 
-from map_export import add_export_control
+from map_export import add_export_control, add_program_legend
+
 
 
 
@@ -71,6 +74,7 @@ def show_map(dfs: dict, base_map, materias_in_por_estudiante=None, filtros_activ
     Muestra TODOS los programas disponibles en `dfs` sin filtrar.
     dfs: dict con posibles claves "Erasmus OUT", "Erasmus IN", "SICUE OUT" -> DataFrames agrupados
     """
+
     if materias_in_por_estudiante is None:
         materias_in_por_estudiante = {}
 
@@ -86,7 +90,6 @@ def show_map(dfs: dict, base_map, materias_in_por_estudiante=None, filtros_activ
             m.add_basemap(base_map if isinstance(base_map, str) else "CartoDB.Positron")
         except Exception:
             m.add_basemap("CartoDB.Positron")
-
 
     # Quitar padding del popup de Leaflet (global)
     m.get_root().html.add_child(folium.Element("""
@@ -528,12 +531,16 @@ def show_map(dfs: dict, base_map, materias_in_por_estudiante=None, filtros_activ
 
             popup = folium.Popup(content, max_width=480)
             marker_icon = PROGRAM_ICONS.get(program, "map-marker")
+            angle = 0
+            if program == "Erasmus IN":
+                angle = 180
 
             icon = folium.Icon(
                 color=color,
                 icon_color='black',
                 icon=marker_icon,
                 prefix="fa",
+                angle=angle
             )
 
             folium.Marker(
@@ -544,7 +551,9 @@ def show_map(dfs: dict, base_map, materias_in_por_estudiante=None, filtros_activ
             ).add_to(m)
 
 
-    add_export_control(m, filtros_activos, only_no_la)
+    # Pasar el número de alumnos por tipo a la leyenda
+    add_program_legend(m, filtros_activos, only_no_la, student_list=dfs)
+    add_export_control(m)
 
     # 3) Render en Streamlit
     html_map = m.get_root().render()

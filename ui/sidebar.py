@@ -3,7 +3,7 @@ import json
 import xlrd
 import pandas as pd
 import streamlit as st
-from domain import render_filters
+from domain import render_filters_map, render_filters_stats
 
 CONFIG_FILE = "config.json"
 
@@ -237,13 +237,19 @@ def sidebar_controls():
         if st.sidebar.button("⬅️ Volver al mapa", use_container_width=True):
             st.session_state["view"] = "map"
             st.rerun()
+
+    elif st.session_state["view"] == "stats":
+        if st.sidebar.button("⬅️ Volver al mapa", use_container_width=True):
+            st.session_state["view"] = "map"
+            st.rerun()
+        render_filters_stats(_unique_sheets_from_config(st.session_state.get("config", {})))
     else:
         # ================================
         #  FILTROS (archivo filters.py)
         # ================================
         cfg = st.session_state.get("config", {})
         unique_sheets = _unique_sheets_from_config_or_files(cfg)
-        base_map = render_filters(unique_sheets)
+        base_map = render_filters_map(unique_sheets)
 
         st.sidebar.markdown("---")
         # Botón para crear estudiante (esto no es filtro, lo dejamos aquí)
@@ -251,6 +257,10 @@ def sidebar_controls():
             st.session_state["view"] = "new_user"
             st.rerun()
                 
+        # Botón para estadísticas
+        if st.sidebar.button("📊 Ver estadísticas", use_container_width=True):
+            st.session_state["view"] = "stats"
+            st.rerun()
         # ==========================
         #  GESTIÓN DE RUTAS
         # ==========================

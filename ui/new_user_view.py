@@ -9,7 +9,7 @@ import pycountry
 import pandas as pd
 from babel import Locale
 
-from sidebar import pick_local_file
+from .sidebar import pick_local_file
 USE_LOCAL_PICKER = True
 
 

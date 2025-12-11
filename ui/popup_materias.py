@@ -1,6 +1,5 @@
 import html
-
-from popup_helpers import _clean
+from .popup_helpers import _clean
 
 def build_materias_blocks(e, programa: str, row_index_attr: str, idx_attr: str):
     """

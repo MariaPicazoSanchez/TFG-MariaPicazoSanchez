@@ -4,7 +4,7 @@ import pandas as pd
 import streamlit as st
 from domain import COMMON_COLS, SPEC_COLS
 from openpyxl import load_workbook
-from popup_helpers import _normalize_estudiantes
+from ui.popup_helpers import _normalize_estudiantes
 
 def first_sheet_name(xlsx_path: str) -> str:
     try:
