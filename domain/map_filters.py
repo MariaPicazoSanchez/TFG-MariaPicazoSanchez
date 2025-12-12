@@ -1,5 +1,6 @@
 import streamlit as st
 import re
+
 def rerun():
     st.rerun()
 
@@ -179,24 +180,11 @@ def render_filters_map(unique_sheets: list[str]) -> str:
         ):
             toggle("SICUE OUT")
             st.rerun()
+            
+    # --- BÚSQUEDA ---
+    from ui import render_search_box  # para evitar ciclo
+    render_search_box()
 
-
-    # --- BUSCADOR  ---
-    st.sidebar.markdown("**Buscar o filtrar por palabra clave:**")
-    search_col, btn_col = st.sidebar.columns([4, 1], gap="small")
-    with btn_col:
-        clear_search = st.button("❌", key="btn_clear_search", use_container_width=True)
-    if clear_search:
-        st.session_state["search_text"] = ""
-        rerun()
-
-    with search_col:
-        st.text_input(
-            "Buscar o filtrar por palabra clave:",
-            key="search_text",
-            label_visibility="collapsed",
-            placeholder="Buscar ...",
-        )
     # Mapa base (igual que antes)
     base_map = "OpenStreetMap"
     return base_map

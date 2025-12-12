@@ -4,6 +4,7 @@ from .new_user_view import render_new_user_form
 from .stats_view import render_stats_view
 from .popup_helpers import _normalize_estudiantes, _clean
 from .popup_templates import generate_dynamic_popup
+from .search_helpers import build_search_index, render_search_box
 from .styles import POPUP_STYLES
 
 __all__ = [
@@ -16,4 +17,6 @@ __all__ = [
     "generate_dynamic_popup",
     "POPUP_STYLES",
     "render_stats_view",
+    "build_search_index",
+    "render_search_box",
 ]

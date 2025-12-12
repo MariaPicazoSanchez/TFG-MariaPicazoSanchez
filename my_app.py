@@ -1,15 +1,36 @@
 import os
 import unicodedata
 import streamlit as st
-from ui import setup_session, sidebar_controls, render_new_user_form, show_map, render_stats_view
+from ui import setup_session, sidebar_controls, render_new_user_form, show_map, render_stats_view, build_search_index
 from utils import handle_open_pdf_query, handle_open_excel_query
 from persistence import load_all_dataframes, get_materias_in_por_estudiante
 
+
+def quitar_tildes(s: str) -> str:
+    return ''.join(
+        c for c in unicodedata.normalize('NFD', s)
+        if unicodedata.category(c) != 'Mn'
+    )
+
+def coincide_en_estudiantes(valor, texto_busqueda_normalizado: str) -> bool:
+    """
+    valor: lista de dicts (columna 'estudiantes')
+    texto_busqueda_normalizado: ya en minúsculas y sin tildes.
+    """
+    if not isinstance(valor, list):
+        return False
+
+    for e in valor:
+        # Nombres, email y ciudad del estudiante
+        for campo in ("estudiante", "email", "ciudad"):
+            val = quitar_tildes(str(e.get(campo, "")).lower())
+            if texto_busqueda_normalizado in val:
+                return True
+    return False
+
 def main():
     st.set_page_config(page_title="Movilidad UCLM", layout="wide", initial_sidebar_state="expanded" )
-
-    setup_session()
-
+    # Manejo de query params al inicio
     try:
         params = st.query_params
         clear_cache_flag = params.get("clear_cache", None)
@@ -28,122 +49,49 @@ def main():
         st.rerun()
     elif saved_flag == "0":
         st.error("❌ No se pudieron guardar los cambios.")
+    
+
+    setup_session()
+    config = st.session_state["config"]
+
+    # Asegura defaults (porque ahora los vas a leer ANTES de map_filters)
+    if "selected_programs" not in st.session_state:
+        st.session_state["selected_programs"] = {
+            "Erasmus IN": False,
+            "Erasmus OUT": False,
+            "SICUE OUT": False,
+        }
+    if "only_erasmus_out_no_LA" not in st.session_state:
+        st.session_state["only_erasmus_out_no_LA"] = False
+    if "global_sheet" not in st.session_state:
+        st.session_state["global_sheet"] = "Todas"
+
+    global_sheet = st.session_state.get("global_sheet", None)
+    dfs = load_all_dataframes(config, global_sheet)
+
+    # Aplica filtros de programas y OUT sin LA (para que el índice sea coherente)
+    selected = st.session_state.get("selected_programs", {})
+    activos = [k for k, v in selected.items() if v]
+    if isinstance(dfs, dict) and activos:
+        dfs = {k: v for k, v in dfs.items() if k in activos}
+
+    only_no_la = st.session_state.get("only_erasmus_out_no_LA", False)
+    if only_no_la and isinstance(dfs, dict) and "Erasmus OUT" in dfs:
+        df_out = dfs["Erasmus OUT"]
+        if "link_LA" in df_out.columns:
+            mask = df_out["link_LA"].isna() | (df_out["link_LA"].astype(str).str.strip() == "")
+            dfs["Erasmus OUT"] = df_out[mask]
+
+    # Índice listo ANTES de pintar el sidebar
+    build_search_index(dfs)
 
     # A partir de aquí tu flujo normal:
     base_map = sidebar_controls()
-    config = st.session_state["config"]
 
     handle_open_pdf_query()
     handle_open_excel_query()
 
     st.title("Visualizador de Movilidad ESII")
-
-    global_sheet = st.session_state.get("global_sheet", None)
-
-    dfs = load_all_dataframes(config, global_sheet)
-
-    # ==============================================
-    # FILTRO POR PROGRAMAS SELECCIONADOS
-    # ==============================================
-
-    # selected_programs es el dict de booleans que rellenamos en render_filters
-    selected = st.session_state.get("selected_programs", {})
-
-    # Programas realmente activos (marcados)
-    activos = [k for k, v in selected.items() if v]
-
-    if isinstance(dfs, dict) and activos:
-        # Si hay alguno activo → solo esos
-        dfs = {k: v for k, v in dfs.items() if k in activos}
-    # Si 'activos' está vacío → NO tocamos dfs → se ve todo (todos los programas)
-
-    # ==============================================
-    # Filtro: Erasmus OUT sin LA
-    # ==============================================
-    only_no_la = st.session_state.get("only_erasmus_out_no_LA", False)
-
-    if only_no_la and isinstance(dfs, dict) and "Erasmus OUT" in dfs:
-        df_out = dfs["Erasmus OUT"]
-
-        # Usamos la columna REAL: link_LA
-        if "link_LA" in df_out.columns:
-            # Sin LA = NaN o cadena vacía (con solo espacios)
-            mask = df_out["link_LA"].isna() | (df_out["link_LA"].astype(str).str.strip() == "")
-            dfs["Erasmus OUT"] = df_out[mask]
-        else:
-            st.warning(
-                "No se encontró la columna 'link_LA' en Erasmus OUT para aplicar el filtro de LA vacía. "
-                f"Columnas disponibles: {list(df_out.columns)}"
-            )
-    
-    def quitar_tildes(s: str) -> str:
-        return ''.join(
-            c for c in unicodedata.normalize('NFD', s)
-            if unicodedata.category(c) != 'Mn'
-        )
-
-    def coincide_en_estudiantes(valor, texto_busqueda_normalizado: str) -> bool:
-        """
-        valor: lista de dicts (columna 'estudiantes')
-        texto_busqueda_normalizado: ya en minúsculas y sin tildes.
-        """
-        if not isinstance(valor, list):
-            return False
-
-        for e in valor:
-            # Nombres, email y ciudad del estudiante
-            for campo in ("estudiante", "email", "ciudad"):
-                val = quitar_tildes(str(e.get(campo, "")).lower())
-                if texto_busqueda_normalizado in val:
-                    return True
-        return False
-
-
-    # =======================================================================
-    # Filtro de búsqueda (nombre, apellidos, ciudad, país, universidad...)
-    # =======================================================================
-    search_text = st.session_state.get("search_text", "").strip()
-    search_text_norm = quitar_tildes(search_text.lower())
-
-    if search_text_norm and isinstance(dfs, dict):
-        filtered_dfs = {}
-        columnas_objetivo = {
-            "nombre", "apellido", "apellido1", "apellido2", "apellidos",
-            "estudiante", "full_name", "ciudad", "city", "pais", "país",
-            "country", "universidad", "destino",
-        }
-
-        for key, df in dfs.items():
-            if df is None or df.empty:
-                filtered_dfs[key] = df
-                continue
-
-            mask = None
-
-            # 1) Buscar dentro de la lista de estudiantes (nombres, emails, ciudad)
-            if "estudiantes" in df.columns:
-                m_est = df["estudiantes"].apply(
-                    lambda v: coincide_en_estudiantes(v, search_text_norm)
-                )
-                mask = m_est
-
-            # 2) Buscar también en las columnas “planas” (pais, ciudad, universidad, etc.)
-            for col in df.columns:
-                col_norm = str(col).strip().lower()
-                if col_norm in columnas_objetivo:
-                    serie = df[col].astype(str).str.lower().map(quitar_tildes)
-                    m2 = serie.str.contains(search_text_norm, na=False)
-                    mask = m2 if mask is None else (mask | m2)
-
-            # 3) Aplicar máscara si existe
-            if mask is not None:
-                filtered_dfs[key] = df[mask]
-            else:
-                filtered_dfs[key] = df
-
-        dfs = filtered_dfs
-
-
 
     # ==============================================
     # MUESTRA DE MATERIAS IN POR ESTUDIANTE
