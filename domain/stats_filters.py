@@ -2,6 +2,9 @@ from __future__ import annotations
 
 import streamlit as st
 
+from ui import stats_helpers as sh
+
+
 MOBILITY_OPTIONS = ["Todos", "Erasmus OUT", "Erasmus IN", "SICUE OUT"]
 
 MOBILITY_LABELS = {
@@ -48,7 +51,7 @@ def render_filters_stats(available_courses: list[str]) -> None:
                 default_course = available_courses[0]
 
             curso = st.selectbox(
-                "",
+                " ",
                 options=available_courses,
                 index=available_courses.index(default_course),
                 key="stats_course",
@@ -67,7 +70,7 @@ def render_filters_stats(available_courses: list[str]) -> None:
     # ===========================
     # TIPO DE MOVILIDAD (BOTONES)
     # ===========================
-    st.sidebar.markdown("#### 🚀 Tipo de movilidad")
+    st.sidebar.markdown("#### Tipo de movilidad")
     st.sidebar.markdown(
         """
         <p style="font-size: 0.85rem; color: #6c757d; margin-bottom: 0.2rem;">
@@ -106,6 +109,81 @@ def render_filters_stats(available_courses: list[str]) -> None:
             if clicked:
                 st.session_state["stats_mobility"] = opt
                 st.session_state["view"] = "stats"  # para no perder la vista
+
+    st.sidebar.markdown("---")
+    st.session_state.setdefault("export_panel_open", False)
+    # Estado por defecto de opciones de exportación
+    st.session_state.setdefault("export_panel_open", False)
+
+    st.session_state.setdefault("exp_mobility", True)
+    st.session_state.setdefault("exp_country_all", True)
+    st.session_state.setdefault("exp_country_by_type", False)
+    st.session_state.setdefault("exp_country_by_type_types", ["Erasmus OUT", "Erasmus IN", "SICUE OUT"])
+
+    st.session_state.setdefault("exp_subject_in", False)
+
+    st.session_state.setdefault("exp_university", False)
+    st.session_state.setdefault("exp_university_types", ["Todos"])
+    # Botón de abrir/cerrar panel de exportación
+    export_clicked = st.sidebar.button(
+        "📥 Exportar tablas",
+        use_container_width=True,
+        key="export_tables_btn",
+        type="secondary",
+    )
+
+    if export_clicked:
+        st.session_state["export_panel_open"] = not st.session_state["export_panel_open"]
+        # al abrir: limpia export anterior
+        if st.session_state["export_panel_open"]:
+            st.session_state.pop("export_xlsx_bytes", None)
+            st.session_state.pop("export_xlsx_name", None)
+
+    # SOLO mostramos opciones si está abierto
+    if st.session_state["export_panel_open"]:
+        with st.sidebar.expander("📦 Opciones de exportación", expanded=True):
+            st.checkbox("Num de alumnos por tipo de movilidad", key="exp_mobility")
+            st.checkbox("Num de alumnos por país (todos los tipos)", key="exp_country_all")
+
+            st.checkbox("Num de alumnos por país/ciudad por tipo de movilidad", key="exp_country_by_type")
+            if st.session_state["exp_country_by_type"]:
+                st.multiselect(
+                    "Tipos a incluir",
+                    ["Erasmus OUT", "Erasmus IN", "SICUE OUT"],
+                    key="exp_country_by_type_types",
+                )
+
+            st.checkbox("Num de alumnos por asignatura (solo Erasmus IN)", key="exp_subject_in")
+
+            st.checkbox("Num de alumnos por universidad", key="exp_university")
+            if st.session_state["exp_university"]:
+                st.multiselect(
+                    "Tipos a incluir",
+                    ["Todos", "Erasmus OUT", "Erasmus IN", "SICUE OUT"],
+                    key="exp_university_types",
+                )
+
+            course = st.session_state.get("stats_course") or st.session_state.get("global_sheet")
+            config_fp = sh.config_fp_from_state()
+            selections = sh.selections_from_state()
+
+            if not course:
+                st.info("Selecciona un curso para poder generar el Excel.")
+            else:
+                xlsx_bytes, xlsx_name = sh.build_export_xlsx(course, selections, config_fp)
+
+                st.download_button(
+                    "Generar Excel",
+                    data=xlsx_bytes,
+                    file_name=xlsx_name,
+                    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                    use_container_width=True,
+                    type="secondary",
+                    on_click=lambda: st.session_state.__setitem__("export_panel_open", False),
+                )
+           
+                st.session_state["export_generate"] = True
+                st.session_state["view"] = "stats"
 
     # Resumen de filtros activos
     st.sidebar.markdown("---")

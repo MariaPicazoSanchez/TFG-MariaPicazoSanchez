@@ -4,7 +4,8 @@ import os
 from typing import Iterable
 import pandas as pd
 import streamlit as st
-from .stats_details import render_stats_details
+from . import stats_details as details
+from export import build_stats_excel
 
 MOBILITY_TYPES: tuple[str, ...] = ("Erasmus OUT", "Erasmus IN", "SICUE OUT")
 
@@ -460,12 +461,64 @@ def render_stats_view() -> None:
             use_container_width=True,
             hide_index=True,
         )
+    # ===========================
+    # BOTÓN DE EXPORTAR EXCEL
+    # ===========================
+    if st.session_state.get("export_generate"):
+        tables: list[tuple[str, object]] = []
+        warnings: list[str] = []
+
+        col_tipo = "tipo_movilidad" if "tipo_movilidad" in df.columns else "tipo"
+
+        # Movilidad (si la quieres aparte)
+        if st.session_state.get("exp_mobility", False):
+            tables.append(("Movilidad", _stats_by_mobility(df)))
+
+        # HOJA ÚNICA: País y ciudades
+        if st.session_state.get("exp_country_all", False) or st.session_state.get("exp_country_by_type", False):
+            blocks_pais = [
+                ("País - Total (todos los tipos)", _stats_by_country(df)),
+                ("País - Erasmus IN", _stats_by_country(df[df[col_tipo] == "Erasmus IN"].copy())),
+                ("País - Erasmus OUT", _stats_by_country(df[df[col_tipo] == "Erasmus OUT"].copy())),
+                ("Ciudades (España) - SICUE OUT", _stats_by_city(df[df[col_tipo] == "SICUE OUT"].copy())),
+            ]
+            tables.append(("País y ciudades", blocks_pais))
+
+        # Asignaturas (si la quieres aparte)
+        if st.session_state.get("exp_subject_in", False):
+            df_mat = details._load_materias_in(config)
+            tabla_mat = details._stats_materias_mas_frecuentes(df_mat, top_n=1000000)
+            tables.append(("Asignaturas - IN", tabla_mat))
+
+        # HOJA ÚNICA: Universidades
+        if st.session_state.get("exp_university", False):
+            blocks_uni = [
+                ("Universidades - Total (todos los tipos)", details._stats_by_university(df, top_n=1000000)),
+                ("Universidades - Erasmus IN", details._stats_by_university(df[df[col_tipo] == "Erasmus IN"].copy(), top_n=1000000)),
+                ("Universidades - Erasmus OUT", details._stats_by_university(df[df[col_tipo] == "Erasmus OUT"].copy(), top_n=1000000)),
+                ("Universidades - SICUE OUT", details._stats_by_university(df[df[col_tipo] == "SICUE OUT"].copy(), top_n=1000000)),
+            ]
+            tables.append(("Universidades", blocks_uni))
+
+        course = _get_selected_course() or "curso"
+        filename = f"estadisticas_{course}.xlsx".replace("/", "-")
+
+        xlsx_bytes = build_stats_excel(
+            tables=tables,
+            meta={"Curso": str(course)},
+            warnings=warnings,
+        )
+
+        st.session_state["export_xlsx_bytes"] = xlsx_bytes
+        st.session_state["export_xlsx_name"] = filename
+        st.session_state["export_generate"] = False
+        st.rerun()
 
 
     # ===========================
     # DETALLES
     # ===========================
-    render_stats_details(df_filtered, mobility_filter, config)
+    details.render_stats_details(df_filtered, mobility_filter, config)
     # ===========================
     # RESUMEN
     # ===========================
@@ -475,3 +528,4 @@ def render_stats_view() -> None:
         f"📌 **Resumen**: {total_alumnos} alumnos en el curso `{course}` "
         f"para el filtro de tipo de movilidad `{mobility_filter}`."
     )
+

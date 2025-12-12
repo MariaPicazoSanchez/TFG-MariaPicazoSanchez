@@ -150,7 +150,7 @@ def render_search_box(parent=None) -> str:
             break
 
     selected = parent.selectbox(
-        label="",
+        label=" ",
         options=options,
         index=default_index,
         key="search_select",

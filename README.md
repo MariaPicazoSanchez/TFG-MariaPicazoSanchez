@@ -52,7 +52,8 @@ pip install \
     Babel \
     flask \
     requests \
-    PyMuPDF
+    PyMuPDF \
+    reportlab
 ```
 ---
 

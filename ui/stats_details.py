@@ -33,78 +33,84 @@ def _normalize_col_name(name: str) -> str:
     return s
 
 def _find_university_column(df: pd.DataFrame) -> str | None:
-    """
-    Intenta localizar la columna que guarda la universidad / centro
-    (destino u origen según el tipo).
-    Intenta ser muy flexible con nombres y acentos.
-    """
     if df.empty:
         return None
 
-    # Nombres típicos que pueden aparecer en tus Excels
     candidates = [
-        "destino_origen",
-        "destino / origen",
-        "destino/origen",
-        "origen (universidad)",
-        "destino (universidad)",
-        "universidad",
-        "universidad destino",
-        "universidad origen",
-        "universidad de destino",
-        "universidad de origen",
-        "uni destino",
-        "uni origen",
-        "centro",
-        "centro destino",
-        "centro origen",
-        "centro de destino",
-        "centro de origen",
+        "destino_origen", "destino / origen", "destino/origen",
+        "origen (universidad)", "destino (universidad)",
+        "universidad", "universidad destino", "universidad origen",
+        "universidad de destino", "universidad de origen",
+        "uni destino", "uni origen",
+        "centro", "centro destino", "centro origen",
+        "centro de destino", "centro de origen",
+        # extras típicos en excels
+        "institucion", "institución", "institution", "host institution",
+        "partner", "partner institution",
     ]
 
     norm_to_real = {_normalize_col_name(c): c for c in df.columns}
 
-    # 1) Coincidencia exacta normalizada con la lista de candidatos
+    # 1) columnas que matchean por nombre candidato
+    name_hits: list[str] = []
     for cand in candidates:
-        norm_cand = _normalize_col_name(cand)
-        if norm_cand in norm_to_real:
-            return norm_to_real[norm_cand]
+        nc = _normalize_col_name(cand)
+        if nc in norm_to_real:
+            name_hits.append(norm_to_real[nc])
 
-    # 2) Heurística: cualquier columna que contenga 'universidad', 'destino' u 'origen'
+    # 2) columnas que matchean por keywords
+    keyword_hits: list[str] = []
     for col in df.columns:
-        norm_col = _normalize_col_name(col)
-        if any(k in norm_col for k in ("universidad", "destino", "origen", "centro")):
-            return col
+        ncol = _normalize_col_name(col)
+        if any(k in ncol for k in ("universidad", "uni", "centro", "institucion", "institution", "partner", "destino", "origen")):
+            keyword_hits.append(col)
 
-    return None
+    # Unimos manteniendo orden y sin duplicados
+    pool: list[str] = []
+    for col in name_hits + keyword_hits:
+        if col not in pool:
+            pool.append(col)
+
+    if not pool:
+        return None
+
+    # Elegimos la que tenga más valores "reales" (no vacíos) en ESTE df
+    best_col = None
+    best_score = 0
+    for col in pool:
+        s = df[col].fillna("").astype(str).str.strip()
+        score = int((s != "").sum())
+        if score > best_score:
+            best_score = score
+            best_col = col
+
+    return best_col if best_score > 0 else None
 
 
-
-def _stats_by_university(df: pd.DataFrame, top_n: int = 15) -> pd.DataFrame:
-    """
-    Tabla: universidades con más alumnos (top N).
-    """
+def _stats_by_university(df: pd.DataFrame, top_n: int | None = 15) -> pd.DataFrame:
     if df.empty:
         return pd.DataFrame(columns=["Universidad", "Nº de alumnos"])
 
-    col_uni = _find_university_column(df)
-    if not col_uni:
+    # Priorizar columna normalizada si existe
+    if "universidad" in df.columns:
+        col_uni = "universidad"
+    else:
+        col_uni = _find_university_column(df)
+        if not col_uni:
+            return pd.DataFrame(columns=["Universidad", "Nº de alumnos"])
+
+    s = df[col_uni].fillna("").astype(str).str.strip()
+    s = s[s != ""]  # <- si está todo vacío, devolvemos vacío (no "Desconocido")
+
+    if s.empty:
         return pd.DataFrame(columns=["Universidad", "Nº de alumnos"])
 
-    serie_uni = (
-        df[col_uni]
-        .fillna("")
-        .astype(str)
-        .str.strip()
-    ).replace({"": "Desconocido"})
-
-    tabla = (
-        serie_uni.groupby(serie_uni)
-        .size()
-        .reset_index(name="Nº de alumnos")
-    )
+    tabla = s.groupby(s).size().reset_index(name="Nº de alumnos")
     tabla.columns = ["Universidad", "Nº de alumnos"]
-    tabla = tabla.sort_values("Nº de alumnos", ascending=False).head(top_n)
+    tabla = tabla.sort_values("Nº de alumnos", ascending=False)
+
+    if top_n is not None:
+        tabla = tabla.head(top_n)
 
     return tabla
 
@@ -127,7 +133,7 @@ def _load_materias_in(config: dict) -> pd.DataFrame:
         return pd.DataFrame()
 
 
-def _stats_materias_mas_frecuentes(df_mat: pd.DataFrame, top_n: int = 20) -> pd.DataFrame:
+def _stats_materias_mas_frecuentes(df_mat: pd.DataFrame, top_n: int | None= 20) -> pd.DataFrame:
     """
     Tabla: asignaturas Erasmus IN más frecuentes (usa el Excel 'Materias IN').
     """
@@ -156,8 +162,11 @@ def _stats_materias_mas_frecuentes(df_mat: pd.DataFrame, top_n: int = 20) -> pd.
         .reset_index(name="Nº de alumnos")
     )
     tabla.columns = ["Asignatura", "Nº de alumnos"]
-    tabla = tabla.sort_values("Nº de alumnos", ascending=False).head(top_n)
+    # tabla = tabla.sort_values("Nº de alumnos", ascending=False).head(top_n)
 
+    tabla = tabla.sort_values("Nº de alumnos", ascending=False)
+    if top_n is not None:
+        tabla = tabla.head(top_n)
     return tabla
 
 

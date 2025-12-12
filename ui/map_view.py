@@ -547,6 +547,11 @@ def show_map(dfs: dict, base_map, materias_in_por_estudiante=None, filtros_activ
 
     # Pasar el número de alumnos por tipo a la leyenda
     add_program_legend(m, filtros_activos, only_no_la, student_list=dfs)
+    overlay_html = ""
+    if st.session_state.get("export_include_country_stats", False):
+        top_n = int(st.session_state.get("export_country_top_n", 10))
+
+
     add_export_control(m)
 
     # 3) Render en Streamlit

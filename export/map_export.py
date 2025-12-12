@@ -1,7 +1,5 @@
-from domain import PROGRAM_COLORS
 import folium
 import json
-
 
 def count_students_by_type(dfs, active_names):
     """
@@ -96,7 +94,7 @@ def add_program_legend(
             active_names = list(active_programs)
         else:
             active_names = []
-
+    from domain import PROGRAM_COLORS
     # Fallback: si no hay nada activo, usamos todos los programas definidos
     if not active_names:
         active_names = list(PROGRAM_COLORS.keys())
@@ -233,6 +231,19 @@ def add_export_control(m: folium.Map):
                         var legend = wrapper.firstElementChild;
                         if (legend) {
                             clonedMapContainer.appendChild(legend);
+                        }
+                        // --- overlay extra (tabla, etc.) ---
+                        try {
+                            if (window.__EXPORT_OVERLAY_HTML__) {
+                                var wrapper2 = clonedDoc.createElement("div");
+                                wrapper2.innerHTML = window.__EXPORT_OVERLAY_HTML__.trim();
+                                var overlay = wrapper2.firstElementChild;
+                                if (overlay) {
+                                    clonedMapContainer.appendChild(overlay);
+                                }
+                            }
+                        } catch (e) {
+                            console.warn("[MapExport] No se pudo añadir overlay al clon:", e);
                         }
                     } catch (e) {
                         console.warn("[MapExport] No se pudo añadir la leyenda al clon:", e);

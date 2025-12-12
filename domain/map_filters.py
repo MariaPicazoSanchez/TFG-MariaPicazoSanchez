@@ -185,6 +185,6 @@ def render_filters_map(unique_sheets: list[str]) -> str:
     from ui import render_search_box  # para evitar ciclo
     render_search_box()
 
-    # Mapa base (igual que antes)
+    # Mapa base
     base_map = "OpenStreetMap"
     return base_map
