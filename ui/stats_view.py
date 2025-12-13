@@ -484,7 +484,7 @@ def render_stats_view() -> None:
             ]
             tables.append(("País y ciudades", blocks_pais))
 
-        # Asignaturas (si la quieres aparte)
+        # Asignaturas Erasmus IN
         if st.session_state.get("exp_subject_in", False):
             df_mat = details._load_materias_in(config)
             tabla_mat = details._stats_materias_mas_frecuentes(df_mat, top_n=1000000)

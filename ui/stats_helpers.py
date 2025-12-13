@@ -199,15 +199,23 @@ def build_export_xlsx(
         # Agrupar todos los tipos de universidad en una sola hoja con bloques
         blocks = []
         
+        # Si selecciona "Todos", incluye total + todas las específicas
         if "Todos" in selected:
             tab = details._stats_by_university(df, top_n=1000000)
             blocks.append(("Universidad - total", tab))
-
-        for t in ["Erasmus OUT", "Erasmus IN", "SICUE OUT"]:
-            if t in selected:
+            
+            # Agregar también por tipo
+            for t in ["Erasmus OUT", "Erasmus IN", "SICUE OUT"]:
                 df_filtrado = df[df[col_tipo] == t].copy()
                 tab = details._stats_by_university(df_filtrado, top_n=1000000)
                 blocks.append((f"Universidad - {t}", tab))
+        else:
+            # Si selecciona tipos específicos, solo esos
+            for t in ["Erasmus OUT", "Erasmus IN", "SICUE OUT"]:
+                if t in selected:
+                    df_filtrado = df[df[col_tipo] == t].copy()
+                    tab = details._stats_by_university(df_filtrado, top_n=1000000)
+                    blocks.append((f"Universidad - {t}", tab))
         
         if blocks:
             tables.append(("Universidad por tipo", blocks))

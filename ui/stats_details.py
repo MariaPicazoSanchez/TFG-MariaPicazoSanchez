@@ -51,33 +51,66 @@ def _find_university_column(df: pd.DataFrame) -> str | None:
 
     norm_to_real = {_normalize_col_name(c): c for c in df.columns}
 
-    # 1) columnas que matchean por nombre candidato
+    # 1) columnas que matchean por nombre candidato (máxima prioridad)
     name_hits: list[str] = []
     for cand in candidates:
         nc = _normalize_col_name(cand)
         if nc in norm_to_real:
             name_hits.append(norm_to_real[nc])
 
-    # 2) columnas que matchean por keywords
-    keyword_hits: list[str] = []
-    for col in df.columns:
-        ncol = _normalize_col_name(col)
-        if any(k in ncol for k in ("universidad", "uni", "centro", "institucion", "institution", "partner", "destino", "origen")):
-            keyword_hits.append(col)
+    if not name_hits:
+        # 2) Si no hay coincidencias exactas, buscar por keywords con priorización
+        # Palabras que EXCLUYEN una columna (no es universidad/centro)
+        exclude_keywords = ["coordinador", "correo", "email", "mail", "telefono", "teléfono", "persona", "nombre"]
+        
+        # Palabras clave en orden de importancia
+        priority_keywords = [
+            ("universidad", 3),
+            ("centro", 3),
+            ("institucion", 3),
+            ("institution", 3),
+            ("uni", 2),
+            ("partner", 2),
+            ("destino", 1),
+            ("origen", 1),
+        ]
+        
+        col_scores: dict[str, int] = {}
+        for col in df.columns:
+            ncol = _normalize_col_name(col)
+            
+            # Rechazar si contiene palabras de exclusión
+            if any(excl in ncol for excl in exclude_keywords):
+                continue
+            
+            score = 0
+            for keyword, weight in priority_keywords:
+                if keyword in ncol:
+                    score = max(score, weight)
+            if score > 0:
+                col_scores[col] = score
+        
+        # Ordenar por puntuación y luego por número de valores no vacíos
+        if col_scores:
+            scored_cols = []
+            for col, score in col_scores.items():
+                s = df[col].fillna("").astype(str).str.strip()
+                n_values = int((s != "").sum())
+                scored_cols.append((col, score, n_values))
+            
+            # Ordenar por: puntuación DESC, luego por número de valores DESC
+            scored_cols.sort(key=lambda x: (-x[1], -x[2]))
+            keyword_hits = [col for col, _, _ in scored_cols]
 
-    # Unimos manteniendo orden y sin duplicados
-    pool: list[str] = []
-    for col in name_hits + keyword_hits:
-        if col not in pool:
-            pool.append(col)
+        name_hits = keyword_hits
 
-    if not pool:
+    if not name_hits:
         return None
 
     # Elegimos la que tenga más valores "reales" (no vacíos) en ESTE df
     best_col = None
     best_score = 0
-    for col in pool:
+    for col in name_hits:
         s = df[col].fillna("").astype(str).str.strip()
         score = int((s != "").sum())
         if score > best_score:
