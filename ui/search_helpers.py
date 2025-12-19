@@ -75,11 +75,57 @@ def build_search_index(dfs: Dict[str, pd.DataFrame]) -> None:
 
                     if nombre:
                         add(nombre, "alumno")
-                        # tokens para sugerir apellidos/nombres sueltos (evita "de", "del", etc.)
-                        for tok in nombre.replace(",", " ").split():
-                            t = tok.strip()
-                            if len(t) > 2 and _norm(t) not in STOPWORDS:
-                                add(t, "apellido")
+
+                        # --- NUEVO: separar apellidos de nombres (para no meter "María" como apellido) ---
+                        s = " ".join(nombre.replace("\u00A0", " ").split())  # normaliza espacios
+
+                        particles = {"de", "del", "la", "las", "los", "da", "do", "dos", "das"}
+
+                        if "," in s:
+                            # Formato: "APELLIDOS, NOMBRES"
+                            apellidos_part, nombres_part = [p.strip() for p in s.split(",", 1)]
+
+                            # apellidos: tokens no-particle
+                            for tok in apellidos_part.split():
+                                t = tok.strip()
+                                if len(t) > 2 and _norm(t) not in STOPWORDS:
+                                    add(t, "apellido")
+
+                            # nombres: van a "alumno" (así sigues sugiriendo "María", pero NO en apellidos)
+                            for tok in nombres_part.split():
+                                t = tok.strip()
+                                if len(t) > 2 and _norm(t) not in STOPWORDS:
+                                    add(t, "alumno")
+
+                        else:
+                            parts = s.split()
+                            if len(parts) >= 2:
+                                # Heurística: apellidos = los 2 últimos "núcleos" (ignorando partículas)
+                                surname_idx = len(parts)  # inicio del segmento de apellidos
+                                core = 0
+                                i = len(parts) - 1
+
+                                # avanza desde el final hasta contar 2 tokens "no partícula"
+                                while i >= 0 and core < 2:
+                                    if _norm(parts[i]) not in particles:
+                                        core += 1
+                                    i -= 1
+
+                                surname_idx = i + 1  # desde aquí hasta el final son apellidos (incluye partículas si están dentro)
+
+                                nombres_tokens = parts[:surname_idx]
+                                apellidos_tokens = parts[surname_idx:]
+
+                                for tok in apellidos_tokens:
+                                    t = tok.strip()
+                                    if len(t) > 2 and _norm(t) not in STOPWORDS:
+                                        add(t, "apellido")
+
+                                for tok in nombres_tokens:
+                                    t = tok.strip()
+                                    if len(t) > 2 and _norm(t) not in STOPWORDS:
+                                        add(t, "alumno")
+
 
                     if email and "@" in email:
                         add(email, "email")
@@ -98,12 +144,12 @@ def build_search_index(dfs: Dict[str, pd.DataFrame]) -> None:
 
     # Orden y emojis para UI
     cat_order = [
-        ("alumno", "👤 Alu."),
-        ("apellido", "🧾 Ape."),
-        ("ciudad", "🏙️ Ciudad"),
-        ("pais", "🌍 País"),
-        ("universidad", "🎓 Uni."),
-        ("email", "✉️ Email"),
+        ("alumno", "Alumno"),
+        ("apellido", "Apellido"),
+        ("ciudad", "Ciudad"),
+        ("pais", "País"),
+        ("universidad", "Universidad"),
+        ("email", "Email"),
     ]
 
     by_cat: Dict[str, List[str]] = {k: [] for k, _ in cat_order}
@@ -126,33 +172,13 @@ def render_search_box(parent=None) -> str:
     parent = parent or st.sidebar
     parent.markdown("**Buscar alumno, ciudad, universidad...**")
 
-    # (tu CSS igual)
-    st.markdown(
-        """
-        <style>
-        section[data-testid="stSidebar"] div[data-baseweb="select"] { font-size: 0.88rem; }
-        div[role="listbox"] { font-size: 0.88rem; }
-        </style>
-        """,
-        unsafe_allow_html=True,
-    )
-
     all_opts = st.session_state.get("search_index_options", [("", "")])
     options = [(v, lbl) for (v, lbl) in all_opts if v]
-
-    current_text = st.session_state.get("search_text", "")
-    cur_n = _norm(current_text)
-
-    default_index = None
-    for i, (val, _) in enumerate(options):
-        if _norm(val) == cur_n:
-            default_index = i
-            break
 
     selected = parent.selectbox(
         label=" ",
         options=options,
-        index=default_index,
+        index=None,                 # <-- permite placeholder y clear (X)
         key="search_select",
         label_visibility="collapsed",
         format_func=lambda o: o[1],
@@ -161,3 +187,4 @@ def render_search_box(parent=None) -> str:
 
     st.session_state["search_text"] = selected[0] if selected else ""
     return st.session_state["search_text"].strip()
+

@@ -22,6 +22,8 @@ def render_filters_stats(available_courses: list[str]) -> None:
     - Botonera para tipo de movilidad (chips).
     Todo se guarda en st.session_state.
     """
+    if "export_open" not in st.session_state:
+        st.session_state["export_open"] = False
     # ===========================
     # CABECERA DE SECCIÓN
     # ===========================
@@ -126,79 +128,86 @@ def render_filters_stats(available_courses: list[str]) -> None:
     st.session_state.setdefault("exp_university", False)
     st.session_state.setdefault("exp_university_types", ["Todos"])
     # Botón SIEMPRE visible; la apertura del expander depende solo de este click
-    export_clicked = st.sidebar.button(
-        "📥 Exportar a Excel",
-        use_container_width=True,
-        key="export_tables_btn",
-        type="secondary",
-    )
+    # --- init estado ---
+    if "export_open" not in st.session_state:
+        st.session_state["export_open"] = False
 
-    # SOLO mostramos opciones si está abierto
-    # Expander abierto SOLO en el mismo ciclo en el que pulsas el botón
-    if export_clicked:
-        # Opciones de exportación
+    # Defaults para tus multiselect (evita KeyError si no existen)
+    st.session_state.setdefault("exp_country_by_type_types", ["Erasmus OUT", "Erasmus IN", "SICUE OUT"])
+    st.session_state.setdefault("exp_university_types", ["Todos"])
+
+    # ===========================
+    # BOTÓN DE EXPORTAR EXCEL
+    # ===========================
+    if not st.session_state["export_open"]:
+        export_clicked = st.sidebar.button(
+            "📥 Exportar a Excel",
+            use_container_width=True,
+            key="export_tables_btn",
+            type="secondary",
+        )
+        if export_clicked:
+            st.session_state["export_open"] = True
+            st.rerun()  # para que desaparezca el botón y aparezca el expander ya en el siguiente render
+    else:
         with st.sidebar.expander("📦 Opciones de exportación", expanded=True):
-            
+
             st.markdown("**Selecciona las tablas a incluir en el Excel:**")
-            
+
             # Sección: Movilidad
-            st.markdown("##### 📊 Por tipo de movilidad")
+            st.markdown("##### Por tipo de movilidad")
             st.checkbox(
                 "Total de alumnos por tipo",
                 key="exp_mobility",
-                help="Incluye una tabla con el total de alumnos para cada tipo de movilidad"
+                help="Incluye una tabla con el total de alumnos para cada tipo de movilidad",
             )
-            
-            
+
             # Sección: País/Ciudad
-            st.markdown("##### 🌍 Por país y ciudad")
+            st.markdown("##### Por país y ciudad")
             st.checkbox(
                 "Total de alumnos por país",
                 key="exp_country_all",
-                help="Incluye tabla con todos los países combinados"
+                help="Incluye tabla con todos los países combinados",
             )
-            
+
             st.checkbox(
                 "Alumnos por país/ciudad (por tipo)",
                 key="exp_country_by_type",
-                help="Incluye tablas separadas por cada tipo de movilidad en una hoja"
+                help="Incluye tablas separadas por cada tipo de movilidad en una hoja",
             )
-            
+
             st.multiselect(
                 "Selecciona tipos:",
                 ["Erasmus OUT", "Erasmus IN", "SICUE OUT"],
                 default=st.session_state["exp_country_by_type_types"],
                 key="exp_country_by_type_types",
-                help="Elige qué tipos incluir en la exportación"
+                help="Elige qué tipos incluir en la exportación",
             )
 
-            
             # Sección: Asignaturas
-            st.markdown("##### 📚 Por asignatura")
+            st.markdown("##### Por asignatura")
             st.checkbox(
                 "Asignaturas más frecuentes (Erasmus IN)",
                 key="exp_subject_in",
-                help="Incluye tabla con las asignaturas cursadas en Erasmus IN"
+                help="Incluye tabla con las asignaturas cursadas en Erasmus IN",
             )
 
-            
             # Sección: Universidades
-            st.markdown("##### 🏛️ Por universidad")
+            st.markdown("##### Por universidad")
             st.checkbox(
                 "Alumnos por universidad",
                 key="exp_university",
-                help="Incluye tabla con el número de alumnos por universidad destino/origen"
+                help="Incluye tabla con el número de alumnos por universidad destino/origen",
             )
-            
+
             st.multiselect(
                 "Selecciona tipos:",
                 ["Todos", "Erasmus OUT", "Erasmus IN", "SICUE OUT"],
                 default=st.session_state["exp_university_types"],
                 key="exp_university_types",
-                help="Elige qué tipos incluir. 'Todos' incluye datos agregados de todos los tipos"
+                help="Elige qué tipos incluir. 'Todos' incluye datos agregados de todos los tipos",
             )
 
-            
             course = st.session_state.get("stats_course") or st.session_state.get("global_sheet")
             config_fp = sh.config_fp_from_state()
             selections = sh.selections_from_state()
@@ -206,23 +215,20 @@ def render_filters_stats(available_courses: list[str]) -> None:
             if not course:
                 st.warning("⚠️ Selecciona un curso académico para poder generar el Excel.")
             else:
-                # Verificar que al menos una opción esté seleccionada
                 any_selected = (
-                    st.session_state.get("exp_mobility", False) or
-                    st.session_state.get("exp_country_all", False) or
-                    st.session_state.get("exp_country_by_type", False) or
-                    st.session_state.get("exp_subject_in", False) or
-                    st.session_state.get("exp_university", False)
+                    st.session_state.get("exp_mobility", False)
+                    or st.session_state.get("exp_country_all", False)
+                    or st.session_state.get("exp_country_by_type", False)
+                    or st.session_state.get("exp_subject_in", False)
+                    or st.session_state.get("exp_university", False)
                 )
-                
+
                 if not any_selected:
                     st.info("💡 Selecciona al menos una tabla para exportar.")
                 else:
-                    # Generar el Excel
                     xlsx_bytes, xlsx_name = sh.build_export_xlsx(course, selections, config_fp)
 
-                    # Botón de descarga
-                    st.download_button(
+                    downloaded = st.download_button(
                         "⬇️ Descargar Excel",
                         data=xlsx_bytes,
                         file_name=xlsx_name,
@@ -231,8 +237,13 @@ def render_filters_stats(available_courses: list[str]) -> None:
                         type="secondary",
                     )
 
+                    # Si quieres que tras descargar se cierre y vuelva el botón:
+                    if downloaded:
+                        st.session_state["export_open"] = False
+                        st.rerun()
+
+
     # Resumen de filtros activos
-    st.sidebar.markdown("---")
     st.sidebar.markdown(
         f"""
         <div style="font-size: 0.8rem; color: #6c757d;">

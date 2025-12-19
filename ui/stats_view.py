@@ -512,7 +512,6 @@ def render_stats_view() -> None:
         st.session_state["export_xlsx_bytes"] = xlsx_bytes
         st.session_state["export_xlsx_name"] = filename
         st.session_state["export_generate"] = False
-        st.rerun()
 
 
     # ===========================

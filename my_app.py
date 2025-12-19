@@ -1,7 +1,8 @@
 import os
 import unicodedata
 import streamlit as st
-from ui import setup_session, sidebar_controls, render_new_user_form, show_map, render_stats_view, build_search_index
+import pandas as pd
+from ui import setup_session, sidebar_controls, render_new_user_form, show_map, render_stats_view, build_search_index, render_search_box
 from utils import handle_open_pdf_query, handle_open_excel_query
 from persistence import load_all_dataframes, get_materias_in_por_estudiante
 
@@ -82,11 +83,51 @@ def main():
             mask = df_out["link_LA"].isna() | (df_out["link_LA"].astype(str).str.strip() == "")
             dfs["Erasmus OUT"] = df_out[mask]
 
-    # Índice listo ANTES de pintar el sidebar
+  
     build_search_index(dfs)
 
     # A partir de aquí tu flujo normal:
     base_map = sidebar_controls()
+
+    # =========================
+    # FILTRO POR BÚSQUEDA (SIN MÉTODOS EXTERNOS)
+    # =========================
+    search_text = st.session_state.get("search_text", "").strip()
+    needle = quitar_tildes(search_text.lower()).strip()
+
+    if isinstance(dfs, dict) and len(needle) >= 2:
+        row_fields = [
+            "universidad", "pais", "país", "ciudad", "destino",
+            "nombre", "apellidos", "apellido", "apellido1", "apellido2",
+            "estudiante", "email", "full_name",
+        ]
+
+        dfs_filtrado = {}
+        for program, df in dfs.items():
+            if df is None or df.empty:
+                continue
+
+            # 1) Match en columnas planas (vectorizado)
+            cols = [c for c in row_fields if c in df.columns]
+            mask_flat = pd.Series(False, index=df.index)
+            if cols:
+                blob = df[cols].fillna("").astype(str).agg(" ".join, axis=1)
+                blob_norm = blob.map(lambda x: quitar_tildes(x.lower()))
+                mask_flat = blob_norm.str.contains(needle, na=False)
+
+            # 2) Match en estudiantes
+            mask_est = pd.Series(False, index=df.index)
+            if "estudiantes" in df.columns:
+                mask_est = df["estudiantes"].apply(lambda v: coincide_en_estudiantes(v, needle))
+
+            mask = mask_flat | mask_est
+            df2 = df.loc[mask].copy()
+
+            if not df2.empty:
+                dfs_filtrado[program] = df2
+
+        dfs = dfs_filtrado
+
 
     handle_open_pdf_query()
     handle_open_excel_query()
@@ -107,6 +148,9 @@ def main():
         k for k in ("Erasmus OUT", "Erasmus IN", "SICUE OUT")
         if config.get(k) and os.path.exists(config[k])
     ]
+    # ==============================================
+    # RENDERIZA VISTAS SEGÚN SELECCIÓN
+    # ==============================================
 
     if st.session_state.get("view", "map") == "new_user":
         render_new_user_form(available_types, config)
