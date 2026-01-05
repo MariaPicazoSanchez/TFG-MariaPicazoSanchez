@@ -1,7 +1,22 @@
-.venv
-__pycache__/
 *.pyc
 .snapshots/
 config.json
 .api_token
+
+# Runtime artifacts
+.pids
+.deps.sha256
+logs/
+*.log
+
+# Python caches / env
+__pycache__/
+*.py[cod]
+.venv/
+.venv*/
+venv/
 .env
+
+# OS
+.DS_Store
+Thumbs.db

@@ -1,0 +1,11 @@
+
+  You can now view your Streamlit app in your browser.
+
+  URL: http://127.0.0.1:58399
+
+C:\Users\maria\Documents\GitHub\TFG-MariaPicazoSanchez\persistence\data_access_mobility.py:156: FutureWarning: DataFrameGroupBy.apply operated on the grouping columns. This behavior is deprecated, and in a future version of pandas the grouping columns will be excluded from the operation. Either pass `include_groups=False` to exclude the groupings or explicitly select the grouping columns after groupby to silence this warning.
+  .apply(_to_records)
+C:\Users\maria\Documents\GitHub\TFG-MariaPicazoSanchez\persistence\data_access_mobility.py:230: FutureWarning: DataFrameGroupBy.apply operated on the grouping columns. This behavior is deprecated, and in a future version of pandas the grouping columns will be excluded from the operation. Either pass `include_groups=False` to exclude the groupings or explicitly select the grouping columns after groupby to silence this warning.
+  .apply(_to_records)
+C:\Users\maria\Documents\GitHub\TFG-MariaPicazoSanchez\persistence\data_access_mobility.py:306: FutureWarning: DataFrameGroupBy.apply operated on the grouping columns. This behavior is deprecated, and in a future version of pandas the grouping columns will be excluded from the operation. Either pass `include_groups=False` to exclude the groupings or explicitly select the grouping columns after groupby to silence this warning.
+  .apply(_to_records)
