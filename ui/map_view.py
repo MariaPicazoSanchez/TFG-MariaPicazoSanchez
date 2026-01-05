@@ -1,13 +1,15 @@
 import folium
 import pandas as pd
 import streamlit as st
-import leafmap.foliumap as leafmap
+from streamlit_folium import st_folium
 from .popup_templates import generate_dynamic_popup
-from domain import PROGRAM_COLORS, PROGRAM_ICONS
 from export import add_export_control, add_program_legend
+
 
 def add_points_to_map(m, df, nombre_capa, color):
     """Añade puntos de un DataFrame al mapa."""
+    import folium
+    import pandas as pd
     if {"latitud", "longitud"}.issubset(df.columns):
         for _, row in df.iterrows():
             nombre = row.get("nombre", "Sin nombre")
@@ -61,13 +63,37 @@ def group_rows_by_location(df, decimals=5):
         grouped.append({"universidad": u, "pais": p, "latitud": lat, "longitud": lon, "estudiantes": estudiantes})
     return grouped
 
+def render_map(m: folium.Map):
+    # Asegura tiles base
+    # (si ya lo pones al crear el mapa, esto sobra)
+    # folium.TileLayer("OpenStreetMap", control=False).add_to(m)
 
+    map_id = m.get_name()
+
+    # Fuerza a Leaflet a recalcular tamaño y repintar tiles
+    m.get_root().html.add_child(folium.Element(f"""
+    <script>
+      setTimeout(function() {{
+        try {{
+          var map = {map_id};
+          if (map) {{
+            map.invalidateSize(true);
+          }}
+        }} catch(e) {{}}
+      }}, 350);
+    </script>
+    """))
+
+    st_folium(m, height=650, use_container_width=True, key="main_map")
 
 def show_map(dfs: dict, base_map, materias_in_por_estudiante=None, filtros_activos=None, only_no_la=False):
     """
     Muestra TODOS los programas disponibles en `dfs` sin filtrar.
     dfs: dict con posibles claves "Erasmus OUT", "Erasmus IN", "SICUE OUT" -> DataFrames agrupados
     """
+    import folium
+    import pandas as pd
+    import leafmap.foliumap as leafmap
 
     if materias_in_por_estudiante is None:
         materias_in_por_estudiante = {}
@@ -499,6 +525,7 @@ def show_map(dfs: dict, base_map, materias_in_por_estudiante=None, filtros_activ
         </script>
         """))
 
+    from domain import PROGRAM_COLORS, PROGRAM_ICONS
     # 2) Pintar TODOS los programas presentes en dfs
     for program, df in dfs.items():
         if df is None or df.empty:

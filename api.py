@@ -1,15 +1,32 @@
 from flask import Flask, jsonify, request
-from persistence import actualizar_excel_materias_para_estudiante, update_student_in_excel
+# from persistence import actualizar_excel_materias_para_estudiante, update_student_in_excel
 import json
 import os
 from functools import wraps
 from security import get_api_token
-
-
+import logging
+import warnings
+import time
+LAST_PING = time.time()
+API_TOKEN = get_api_token()
 
 
 app = Flask(__name__)
-API_TOKEN = get_api_token()
+logging.getLogger("werkzeug").setLevel(logging.WARNING)
+
+@app.get("/health")
+def health():
+    return {"ok": True}
+
+@app.get("/ping")
+def ping():
+    global LAST_PING
+    LAST_PING = time.time()
+    return {"ok": True}
+
+@app.get("/last_ping")
+def last_ping():
+    return {"ok": True, "ts": LAST_PING}
 
 def require_token(f):
     @wraps(f)
@@ -107,6 +124,8 @@ def _build_js_response(ok: bool, messages: list[str]):
 @app.route("/update_student", methods=["POST"])
 @require_token
 def update_student():
+    from persistence import actualizar_excel_materias_para_estudiante, update_student_in_excel
+
     form = request.form.to_dict()
 
     # Índices y ruta del Excel principal que vienen del popup
@@ -201,5 +220,7 @@ def update_student():
 
 
 if __name__ == "__main__":
-    app.run(host="127.0.0.1", port=5000, debug=False)
+    host = os.getenv("API_HOST", "127.0.0.1")
+    port = int(os.getenv("API_PORT", "5000"))
+    app.run(host=host, port=port, debug=False)
 

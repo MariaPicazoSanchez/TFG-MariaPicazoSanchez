@@ -1,7 +1,7 @@
-import streamlit as st
 import re
 
 def rerun():
+    import streamlit as st
     st.rerun()
 
 def filter_button(label: str, program_key: str, key: str, container):
@@ -44,6 +44,7 @@ def _latest_sheet_name(names: list[str]) -> str | None:
 
 
 def render_filters_map(unique_sheets: list[str]) -> str:
+    import streamlit as st
     """
     Pinta los filtros de la barra lateral.
     - unique_sheets: lista de hojas disponibles (cursos)

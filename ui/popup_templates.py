@@ -6,7 +6,6 @@ from urllib.parse import quote
 from security import get_api_token
 from .styles import POPUP_STYLES
 from domain import CITIES_ES
-from .new_user_view import COUNTRY_OPTIONS
 from .popup_helpers import (
     _normalize_estudiantes,
     _clean,
@@ -216,6 +215,7 @@ def generate_dynamic_popup(row, programa: str, row_index: int) -> str:
                                 <input name="responsable" value="{html.escape(_clean(responsable_val), quote=True)}">
                               </div>'''
 
+            from .new_user_view import COUNTRY_OPTIONS
             pais_options = "\n".join(
                 f'<option value="{html.escape(p, quote=True)}"{" selected" if _normalize_str(pais_val) == _normalize_str(p) else ""}>{html.escape(p)}</option>'
                 for p in COUNTRY_OPTIONS if p

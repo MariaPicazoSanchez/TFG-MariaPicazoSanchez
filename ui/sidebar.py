@@ -3,7 +3,6 @@ import json
 import xlrd
 import pandas as pd
 import streamlit as st
-from domain import render_filters_map, render_filters_stats
 
 CONFIG_FILE = "config.json"
 
@@ -249,6 +248,7 @@ def sidebar_controls():
         )
         cfg = st.session_state.get("config", {})
         available_courses = _unique_sheets_from_config_or_files(cfg)
+        from domain import render_filters_stats
         render_filters_stats(available_courses)
     else:
         # ================================
@@ -262,6 +262,7 @@ def sidebar_controls():
         )
         cfg = st.session_state.get("config", {})
         unique_sheets = _unique_sheets_from_config_or_files(cfg)
+        from domain import render_filters_map
         base_map = render_filters_map(unique_sheets)
 
         st.sidebar.markdown("---")

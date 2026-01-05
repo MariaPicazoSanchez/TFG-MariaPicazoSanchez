@@ -2,6 +2,7 @@ import os
 import unicodedata
 import streamlit as st
 import pandas as pd
+import streamlit.components.v1 as components
 from ui import setup_session, sidebar_controls, render_new_user_form, show_map, render_stats_view, build_search_index, render_search_box
 from utils import handle_open_pdf_query, handle_open_excel_query
 from persistence import load_all_dataframes, get_materias_in_por_estudiante
@@ -31,6 +32,7 @@ def coincide_en_estudiantes(valor, texto_busqueda_normalizado: str) -> bool:
 
 def main():
     st.set_page_config(page_title="Movilidad UCLM", layout="wide", initial_sidebar_state="expanded" )
+    inject_js_ping(8000)
     # Manejo de query params al inicio
     try:
         params = st.query_params
@@ -157,7 +159,31 @@ def main():
     elif st.session_state.get("view", "map") == "stats":
         render_stats_view()
     else:
+        if not (isinstance(dfs, dict) and any(df is not None and not df.empty for df in dfs.values())):
+            st.info("Cargando datos y mapa…")
+            st.stop()
         show_map(dfs, base_map, materias_in_por_est, activos, only_no_la)
         
+
+def inject_js_ping(interval_ms: int = 8000):
+    api_url = os.getenv("API_URL", "http://127.0.0.1:5000").rstrip("/")
+    components.html(
+        f"""
+        <script>
+        (function() {{
+          const url = "{api_url}/ping";
+          function ping() {{
+            try {{
+              fetch(url, {{ method: "GET", cache: "no-store" }}).catch(() => {{}});
+            }} catch (e) {{}}
+          }}
+          ping();
+          setInterval(ping, {interval_ms});
+        }})();
+        </script>
+        """,
+        height=0, width=0
+    )
+
 if __name__ == "__main__":
     main()

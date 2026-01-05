@@ -2,8 +2,6 @@ from __future__ import annotations
 import os
 import streamlit as st
 from utils import open_in_system
-from domain import ESTADOS_FIRMA, ICON_BY_TIPO, CITIES_ES
-from persistence import append_user_to_excel, first_sheet_name, sheets_for
 import pycountry
 import pandas as pd
 from babel import Locale
@@ -94,6 +92,7 @@ def _geocode_cached(q: str) -> tuple[float | None, float | None, str | None]:
 # UI: formulario
 # ────────────────────────────────────────────────────────────────────────────────
 def _sheet_options_for(cfg: dict, tipo: str) -> list[str]:
+    from persistence import sheets_for
     sheets_map = (cfg or {}).get("sheets", {}) or {}
     known = sheets_map.get(tipo) or []
     if known:
@@ -137,6 +136,8 @@ def file_picker_button(label: str, text_input_key: str, button_id: str, help: st
 
 
 def render_new_user_form(available_types: list[str], config: dict) -> dict | None:
+    from domain import ESTADOS_FIRMA, ICON_BY_TIPO, CITIES_ES
+    from persistence import append_user_to_excel, first_sheet_name
     # Si venimos de un guardado correcto:
     if st.session_state.pop("_user_saved", False):
         _clear_new_user_form_state()

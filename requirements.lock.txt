@@ -1,0 +1,15 @@
+streamlit
+leafmap[maplibre]
+folium
+pandas
+openpyxl
+geopy
+pycountry
+Babel
+flask
+requests
+PyMuPDF
+reportlab
+flask
+xlrd
+streamlit-folium

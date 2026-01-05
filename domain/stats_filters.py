@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-import streamlit as st
-
 from ui import stats_helpers as sh
 
 
@@ -16,6 +14,7 @@ MOBILITY_LABELS = {
 
 
 def render_filters_stats(available_courses: list[str]) -> None:
+    import streamlit as st
     """
     Filtros para la vista de estadísticas.
     - Desplegable de curso académico (hoja).
