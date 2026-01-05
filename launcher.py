@@ -1,4 +1,5 @@
 import os
+import shutil
 import sys
 import socket
 import subprocess
@@ -32,7 +33,11 @@ if os.name == "nt":
 
 
 
-ROOT = Path(__file__).resolve().parent
+if getattr(sys, "frozen", False):
+    ROOT = Path(sys.executable).resolve().parent  # carpeta del .exe
+else:
+    ROOT = Path(__file__).resolve().parent        # carpeta del .py
+
 VENV_DIR = Path(r"C:\tfg_venv")
 PYTHON = VENV_DIR / "Scripts" / "python.exe"
 
@@ -103,16 +108,25 @@ def file_sha256(path: Path) -> str:
             h.update(chunk)
     return h.hexdigest()
 
+def get_system_python() -> str:
+    # usa el python del sistema (el que te sale con "where python")
+    p = shutil.which("python")
+    if p:
+        return p
+    # fallback: py launcher
+    py = shutil.which("py")
+    if py:
+        return py
+    raise RuntimeError("No se encuentra Python en el sistema. Instala Python 3.12 y asegúrate de tenerlo en PATH.")
+
 
 def ensure_venv():
     stamp = ROOT / ".deps.sha256"
     req_hash = file_sha256(REQ)
 
     if not PYTHON.exists():
-        subprocess.check_call(
-            [sys.executable, "-m", "venv", str(VENV_DIR)],
-            creationflags=NO_WINDOW
-        )
+        system_python = get_system_python()
+        subprocess.check_call([system_python, "-m", "venv", str(VENV_DIR)], creationflags=NO_WINDOW)
 
     # Si ya hay sello y coincide, NO reinstalar
     if stamp.exists() and stamp.read_text(encoding="utf-8").strip() == req_hash:
