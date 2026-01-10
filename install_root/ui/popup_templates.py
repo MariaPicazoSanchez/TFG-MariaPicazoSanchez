@@ -16,7 +16,9 @@ from .popup_materias import build_materias_blocks
 
 # URL del endpoint que guarda en Excel
 API_TOKEN = get_api_token()
-FORM_ACTION = "http://localhost:5000/update_student"
+# Obtener la URL del API desde la variable de entorno (con puerto dinámico)
+API_URL = os.getenv("API_URL", "http://127.0.0.1:5000").rstrip("/")
+FORM_ACTION = f"{API_URL}/update_student"
 
 def _normalize_str(s):
     s = str(s or "").strip().lower()
