@@ -144,16 +144,24 @@ def load_erasmus_out(path: str, sheet_name: str | None = None) -> pd.DataFrame:
         if c_duracion: mapping[c_duracion] = "duracion_meses"
         if c_resp:     mapping[c_resp]     = "responsable"
         if c_tor:      mapping[c_tor]      = "ToR"
-        keep = ["estudiante", "link_LA", "link_plan"] + list(mapping.keys())
+        keep = ["estudiante"]
+        if "link_LA" in g.columns:
+            keep.append("link_LA")
+        if "link_plan" in g.columns:
+            keep.append("link_plan")
+        keep = keep + list(mapping.keys())
         out = g[keep].copy() if keep else g.copy()
         out = out.rename(columns=mapping)
         if c_ciudad and c_ciudad in g.columns:
             out["ciudad"] = g[c_ciudad]
         return out.to_dict(orient="records")
     
+    groupby_cols = ["universidad", "ciudad", "latitud", "longitud", "pais"]
+    if "link_LA" in df.columns:
+        groupby_cols.append("link_LA")
     grouped = (
-        df.groupby(["universidad", "ciudad", "latitud", "longitud", "pais", "link_LA"], dropna=False)
-          .apply(_to_records)
+        df.groupby(groupby_cols, dropna=False)
+          .apply(_to_records, include_groups=False)
           .reset_index(name="estudiantes")
     )
     return grouped
@@ -227,7 +235,7 @@ def load_erasmus_in(path: str, sheet_name: str | None = None) -> pd.DataFrame:
 
     grouped = (
         df.groupby(["universidad","ciudad", "latitud", "longitud", "pais"], dropna=False)
-          .apply(_to_records)
+          .apply(_to_records, include_groups=False)
           .reset_index(name="estudiantes")
     )
     return grouped
@@ -303,7 +311,7 @@ def load_sicue_out(path: str, sheet_name: str | None = None) -> pd.DataFrame:
 
     grouped = (
         df.groupby(["universidad", "ciudad", "latitud", "longitud"], dropna=False)
-          .apply(_to_records)
+          .apply(_to_records, include_groups=False)
           .reset_index(name="estudiantes")
     )
     grouped["pais"] = "España"

@@ -228,6 +228,19 @@ def _unique_sheets_from_config(cfg: dict) -> list[str]:
 
 def sidebar_controls():
     """Crea la barra lateral con filtros y gestión de rutas."""
+    # Establecer ancho del sidebar a 400px
+    st.markdown(
+        """
+        <style>
+        [data-testid="stSidebar"][aria-expanded="true"] {
+            min-width: 300px;
+            max-width: 400px;
+        }
+        </style>
+        """,
+        unsafe_allow_html=True
+    )
+    
     if "view" not in st.session_state:
         st.session_state["view"] = "map"
 

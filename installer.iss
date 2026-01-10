@@ -24,12 +24,18 @@ Source: "install_root\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs 
 ; Copia el instalador de Python al TEMP para ejecutarlo durante la instalación
 Source: "install_root\thirdparty\{#PyExe}"; DestDir: "{tmp}"; Flags: deleteafterinstall
 
+; Asegurarse de que el icono se copie correctamente
+Source: "install_root\MovilidadUCLM.ico"; DestDir: "{app}"; Flags: ignoreversion
+
+; Incluir el archivo config.toml en la instalación
+Source: "install_root\.streamlit\config.toml"; DestDir: "{app}\.streamlit"; Flags: ignoreversion
+
 [Tasks]
 Name: "desktopicon"; Description: "Crear icono en el escritorio"; GroupDescription: "Accesos directos:"; Flags: unchecked
 
 [Icons]
-Name: "{group}\{#AppName}"; Filename: "{app}\{#AppExe}"
-Name: "{commondesktop}\{#AppName}"; Filename: "{app}\{#AppExe}"; Tasks: desktopicon
+Name: "{group}\{#AppName}"; Filename: "{app}\{#AppExe}"; IconFilename: "{app}\MovilidadUCLM.ico"
+Name: "{commondesktop}\{#AppName}"; Filename: "{app}\{#AppExe}"; IconFilename: "{app}\MovilidadUCLM.ico"; Tasks: desktopicon
 
 [Run]
 ; Instala Python 3.12 SOLO si no se detecta en el sistema
