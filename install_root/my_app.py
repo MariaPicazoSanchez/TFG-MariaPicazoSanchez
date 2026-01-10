@@ -1,6 +1,7 @@
 import os
 import unicodedata
 import streamlit as st
+import urllib.request
 import pandas as pd
 import streamlit.components.v1 as components
 from ui import setup_session, sidebar_controls, render_new_user_form, show_map, render_stats_view, build_search_index, render_search_box
@@ -33,6 +34,15 @@ def coincide_en_estudiantes(valor, texto_busqueda_normalizado: str) -> bool:
 def main():
     st.set_page_config(page_title="Movilidad UCLM", layout="wide", initial_sidebar_state="expanded" )
     inject_js_ping(8000)
+    # Aviso temprano si la API aún no está lista (no bloqueante)
+    try:
+        api_url = os.getenv("API_URL", "http://127.0.0.1:5000").rstrip("/")
+        with urllib.request.urlopen(f"{api_url}/health", timeout=1) as r:
+            api_ok = (r.status == 200)
+    except Exception:
+        api_ok = False
+    if not api_ok:
+        st.info("La API está iniciándose…", icon="🕒")
     # Manejo de query params al inicio
     try:
         params = st.query_params

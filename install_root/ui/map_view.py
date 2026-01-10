@@ -126,7 +126,6 @@ def show_map(dfs: dict, base_map, materias_in_por_estudiante=None, filtros_activ
             window.__materiasJSInit = true;
 
             (function () {
-                console.log("[MateriasJS] init");
 
                 function escapeHtml(str) {
                 str = String(str || "");
@@ -295,7 +294,6 @@ def show_map(dfs: dict, base_map, materias_in_por_estudiante=None, filtros_activ
 
                     // DEBUG + listener de mensajes del iframe
                     window.addEventListener("message", function (event) {
-                    console.log("[MateriasJS] message recibido:", event.data);
                     var data = event.data;
 
                     // Puede venir como string o como objeto
@@ -303,7 +301,6 @@ def show_map(dfs: dict, base_map, materias_in_por_estudiante=None, filtros_activ
                         try {
                         data = JSON.parse(data);
                         } catch (e) {
-                        console.log("[MateriasJS] no es JSON, se ignora");
                         return;
                         }
                     }
@@ -412,7 +409,6 @@ def show_map(dfs: dict, base_map, materias_in_por_estudiante=None, filtros_activ
                 if (editBtn) {
                     var rowE = editBtn.closest(".materia-row");
                     var idxE = parseInt(rowE.getAttribute("data-mindex") || "-1", 10);
-                    console.log("[MateriasJS] editar", idxE);
                     openEditor(block, idxE, materias);
                     return;
                 }
@@ -421,7 +417,6 @@ def show_map(dfs: dict, base_map, materias_in_por_estudiante=None, filtros_activ
                 if (delBtn) {
                     var rowD = delBtn.closest(".materia-row");
                     var idxD = parseInt(rowD.getAttribute("data-mindex") || "-1", 10);
-                    console.log("[MateriasJS] borrar", idxD);
                     if (idxD >= 0 && idxD < materias.length) {
                     materias.splice(idxD, 1);
                     textarea.value = stringifyMaterias(materias);
@@ -432,7 +427,6 @@ def show_map(dfs: dict, base_map, materias_in_por_estudiante=None, filtros_activ
 
                 // AÑADIR
                 if (addBtn) {
-                    console.log("[MateriasJS] nueva materia");
                     openEditor(block, -1, materias);
                     return;
                 }
@@ -457,10 +451,8 @@ def show_map(dfs: dict, base_map, materias_in_por_estudiante=None, filtros_activ
 
                     if (idxS >= 0 && idxS < materias.length) {
                     materias[idxS] = nueva;
-                    console.log("[MateriasJS] actualizada", idxS, nueva);
                     } else {
                     materias.push(nueva);
-                    console.log("[MateriasJS] añadida", nueva);
                     }
 
                     textarea.value = stringifyMaterias(materias);
@@ -471,7 +463,6 @@ def show_map(dfs: dict, base_map, materias_in_por_estudiante=None, filtros_activ
 
                 // CANCELAR
                 if (cancelBtn) {
-                    console.log("[MateriasJS] cancelar edición");
                     closeEditor(block);
                     return;
                 }
@@ -505,7 +496,6 @@ def show_map(dfs: dict, base_map, materias_in_por_estudiante=None, filtros_activ
 
             if (!data || data.type !== "saveStatus") return;
 
-            console.log("[Mapa] saveStatus recibido:", data);
 
             // Solo actuamos si todo ha ido bien
             if (!data.ok) return;

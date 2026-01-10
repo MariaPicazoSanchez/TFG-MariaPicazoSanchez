@@ -9,7 +9,10 @@ import urllib.request
 import json
 import hashlib
 import traceback
-import socket
+import threading
+
+LAUNCHER_VERSION = "envfix-2026-01-05-1.0"
+
 
 def single_instance_lock(port: int = 49231):
     """
@@ -30,24 +33,34 @@ NO_WINDOW = 0
 if os.name == "nt":
     NO_WINDOW = subprocess.CREATE_NO_WINDOW
 
-
-
-
 if getattr(sys, "frozen", False):
     ROOT = Path(sys.executable).resolve().parent  # carpeta del .exe
 else:
     ROOT = Path(__file__).resolve().parent        # carpeta del .py
 
-VENV_DIR = Path(r"C:\tfg_venv")
+
+
+def get_appdata_dir() -> Path:
+    base = os.getenv("LOCALAPPDATA") or os.getenv("APPDATA") or str(Path.home())
+    return Path(base) / "MovilidadUCLM"
+
+APPDATA_DIR = get_appdata_dir()
+APPDATA_DIR.mkdir(parents=True, exist_ok=True)
+
+LOG_DIR = APPDATA_DIR / "logs"
+LOG_DIR.mkdir(parents=True, exist_ok=True)
+
+# Venv dentro de AppData (escribible sin admin)
+VENV_DIR = APPDATA_DIR / "venv"
 PYTHON = VENV_DIR / "Scripts" / "python.exe"
 
+# runtime files en AppData
+PID_FILE = APPDATA_DIR / ".pids"
+STAMP_FILE = APPDATA_DIR / ".deps.sha256"
+
+# requirements y wheelhouse siguen junto al exe (Program Files)
 REQ = ROOT / "requirements.lock.txt"
 WHEELHOUSE = ROOT / "wheelhouse"
-
-PID_FILE = ROOT / ".pids"
-
-LOG_DIR = ROOT / "logs"
-LOG_DIR.mkdir(exist_ok=True)
 
 
 def find_free_port() -> int:
@@ -121,7 +134,7 @@ def get_system_python() -> str:
 
 
 def ensure_venv():
-    stamp = ROOT / ".deps.sha256"
+    stamp = STAMP_FILE
     req_hash = file_sha256(REQ)
 
     if not PYTHON.exists():
@@ -168,56 +181,77 @@ def ensure_venv():
 
 def write_demo_config():
     demo = ROOT / "config.demo.json"
-    cfg = ROOT / "config.json"
-    if demo.exists():
+    cfg = APPDATA_DIR / "config.json"
+    if demo.exists() and not cfg.exists():
         cfg.write_text(demo.read_text(encoding="utf-8"), encoding="utf-8")
 
 
 def start_processes():
-    api_port = 5000
+    api_port = find_free_port()
     app_port = find_free_port()
 
     env = os.environ.copy()
     env["PYTHONUTF8"] = "1"
+    env["APP_CONFIG_PATH"] = str(APPDATA_DIR / "config.json")
+    env["API_HOST"] = "127.0.0.1"
+    env["API_PORT"] = str(api_port)
+    env["FLASK_SKIP_DOTENV"] = "1"
 
     env_app = env.copy()
     env_app["API_URL"] = f"http://127.0.0.1:{api_port}"
+    env_app["APP_CONFIG_PATH"] = str(APPDATA_DIR / "config.json")
+    env_app["STREAMLIT_SERVER_HEADLESS"] = "true"
+    env_app["STREAMLIT_BROWSER_GATHER_USAGE_STATS"] = "false"
+
+    env_app["STREAMLIT_SERVER_FILE_WATCHER_TYPE"] = "none"
+    env_app["STREAMLIT_SERVER_RUN_ON_SAVE"] = "false"
+    env_app["STREAMLIT_BROWSER_GATHER_USAGE_STATS"] = "false"
+
 
     api_log = open(LOG_DIR / "api.log", "w", encoding="utf-8")
     app_log = open(LOG_DIR / "app.log", "w", encoding="utf-8")
 
-    print("[launcher] Starting API...", flush=True)
-    api_proc = subprocess.Popen(
-        [str(PYTHON), "api.py"],
-        cwd=str(ROOT),
-        env=env,
-        stdout=api_log,
-        stderr=api_log,
-        creationflags=NO_WINDOW
-    )
-
-    health_url = f"http://127.0.0.1:{api_port}/health"
-    print("[launcher] Waiting API health...", flush=True)
-    if not wait_for_health(health_url, timeout=20.0):
-        print("[launcher] ERROR: API /health no responde. Mira logs/api.log", flush=True)
-        try: api_proc.terminate()
-        except: pass
-        return
-
-    print("[launcher] Starting Streamlit...", flush=True)
+    # Lanzar primero Streamlit
+    print(f"[launcher] Starting Streamlit on 127.0.0.1:{app_port} ...", flush=True)
     app_proc = subprocess.Popen(
         [
             str(PYTHON), "-m", "streamlit", "run", "my_app.py",
             "--server.address=127.0.0.1",
             f"--server.port={app_port}",
             "--server.headless=true",
+            "--server.fileWatcherType=none",
+            "--server.runOnSave=false",
+            "--browser.gatherUsageStats=false",
+
         ],
         cwd=str(ROOT),
         env=env_app,
         stdout=app_log,
         stderr=app_log,
-        creationflags=NO_WINDOW
+        creationflags=NO_WINDOW,
     )
+
+    # Mientras Streamlit arranca, lanzar el API
+    print(f"[launcher] Starting API on {env['API_HOST']}:{api_port} ...", flush=True)
+    api_proc = subprocess.Popen(
+        [str(PYTHON), "api.py"],
+        cwd=str(ROOT),
+        env=env,
+        stdout=api_log,
+        stderr=api_log,
+        creationflags=NO_WINDOW,
+    )
+
+    # Comprobación de salud del API en segundo plano (no bloqueante)
+    def _api_health_worker():
+        health_url = f"http://127.0.0.1:{api_port}/health"
+        ok = wait_for_health(health_url, timeout=20.0)
+        if ok:
+            print("[launcher] API healthy.", flush=True)
+        else:
+            print("[launcher] WARNING: API not healthy after 20s.", flush=True)
+
+    threading.Thread(target=_api_health_worker, daemon=True).start()
 
     PID_FILE.write_text(f"{api_proc.pid}\n{app_proc.pid}\n", encoding="utf-8")
 
@@ -228,29 +262,26 @@ def start_processes():
     if not wait_for_http(url, timeout=30.0):
         print("[launcher] ERROR: Streamlit no responde. Mira logs/app.log", flush=True)
         try: app_proc.terminate()
-        except: pass
+        except Exception: pass
         try: api_proc.terminate()
-        except: pass
+        except Exception: pass
         return
 
+    print(f"[launcher] Opening browser {url}", flush=True)
     subprocess.Popen(
-        ["cmd", "/c", "start", "", url],
-        creationflags=NO_WINDOW
+        ["rundll32", "url.dll,FileProtocolHandler", url],
+        creationflags=NO_WINDOW,
     )
 
-
-
     # ---- Auto-cierre por inactividad ----
-    # Da margen para que el navegador empiece a pinguear
     GRACE_STARTUP = 20
-    IDLE_TIMEOUT = 60
+    IDLE_TIMEOUT = 30
 
     print("[launcher] Entering idle monitor...", flush=True)
     start_time = time.time()
     last_seen = time.time()
 
     while True:
-        # si Streamlit muere, salimos
         if app_proc.poll() is not None:
             print("[launcher] Streamlit ended.", flush=True)
             break
@@ -260,7 +291,6 @@ def start_processes():
         if ts is not None:
             last_seen = ts
 
-        # no aplicar idle durante el arranque
         if now - start_time > GRACE_STARTUP:
             if now - last_seen > IDLE_TIMEOUT:
                 print("[launcher] No pings detected. Shutting down...", flush=True)
@@ -268,28 +298,20 @@ def start_processes():
 
         time.sleep(2)
 
-    # matar procesos
     for p in (app_proc, api_proc):
         try: p.terminate()
-        except: pass
+        except Exception: pass
     time.sleep(1)
     for p in (app_proc, api_proc):
         try:
             if p.poll() is None:
                 p.kill()
-        except: pass
+        except Exception:
+            pass
 
     print("[launcher] Shutdown complete.", flush=True)
 
 
-
-# def main():
-#     os.chdir(ROOT)
-#     ensure_venv()
-#     write_demo_config()
-#     start_processes()
-
-import traceback
 
 def main():
     _lock = single_instance_lock()

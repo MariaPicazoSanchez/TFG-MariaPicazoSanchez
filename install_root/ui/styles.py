@@ -264,6 +264,80 @@ POPUP_STYLES = """
   filter: brightness(0.95);
 }
 
+.save-btn:disabled,
+.save-btn.loading {
+  opacity: 0.8;
+  cursor: not-allowed;
+  background: #059669;
+}
+
+.save-btn.success {
+  background: #10b981;
+  animation: pulse 0.6s ease-in-out;
+}
+
+.save-btn.error {
+  background: #ef4444;
+}
+
+@keyframes pulse {
+  0% { transform: scale(1); }
+  50% { transform: scale(1.05); }
+  100% { transform: scale(1); }
+}
+
+.save-toast {
+  position: fixed;
+  top: 20px;
+  right: 20px;
+  padding: 16px 24px;
+  border-radius: 8px;
+  font-weight: 600;
+  font-size: 14px;
+  z-index: 999999;
+  animation: slideIn 0.3s ease-out;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+
+.save-toast-loading {
+  background: #3b82f6;
+  color: white;
+}
+
+.save-toast-success {
+  background: #10b981;
+  color: white;
+  animation: slideIn 0.3s ease-out, slideOut 0.3s ease-out 2.7s forwards;
+}
+
+.save-toast-error {
+  background: #ef4444;
+  color: white;
+  animation: slideIn 0.3s ease-out, slideOut 0.3s ease-out 2.7s forwards;
+}
+
+@keyframes slideIn {
+  from {
+    transform: translateX(400px);
+    opacity: 0;
+  }
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+
+@keyframes slideOut {
+  from {
+    transform: translateX(0);
+    opacity: 1;
+  }
+  to {
+    transform: translateX(400px);
+    opacity: 0;
+  }
+}
+
 .al-popup .materias-list {
   list-style: none;
   margin: 4px 0 0 0;

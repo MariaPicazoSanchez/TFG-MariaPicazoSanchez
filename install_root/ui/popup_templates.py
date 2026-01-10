@@ -385,7 +385,7 @@ def generate_dynamic_popup(row, programa: str, row_index: int) -> str:
 
                         <div class="edit-actions">
                           <label for="{toggle_id}" class="btn-icon cancel-btn" title="Cancelar">✖</label>
-                          <button type="submit" class="btn save-btn" title="Guardar">Guardar</button>
+                          <button type="submit" class="btn save-btn" title="Guardar" onclick="this.textContent='⏳ Guardando...';">Guardar</button>
                         </div>
                         <div class="recarga-toast">
                           ⚠️ Recarga la página para ver los cambios actualizados.
@@ -427,8 +427,6 @@ def generate_dynamic_popup(row, programa: str, row_index: int) -> str:
     </div>
     """
     return html_out
-
-
 def build_link_file_field(label, input_name, current_value,
                           row_index_attr, idx_attr, slug):
     safe_val = html.escape(current_value or "", quote=True)

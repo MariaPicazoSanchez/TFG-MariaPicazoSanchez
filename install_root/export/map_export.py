@@ -186,8 +186,6 @@ def add_export_control(m: folium.Map):
 
     <script>
     (function () {
-        console.log("[MapExport] init");
-
         function downloadBlob(blob, filename) {
             var url = URL.createObjectURL(blob);
             var a = document.createElement("a");
@@ -348,7 +346,6 @@ def add_export_control(m: folium.Map):
             map.addControl(new PngControl());
             map.addControl(new SvgControl());
 
-            console.log("[MapExport] Controles PNG y SVG añadidos");
         }
 
         function initWhenReady() {

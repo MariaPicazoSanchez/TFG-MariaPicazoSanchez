@@ -2,6 +2,11 @@
 .snapshots/
 config.json
 .api_token
+build/
+dist/
+output/
+MovilidadUCLM.spec
+icono.png
 
 # Runtime artifacts
 .pids
@@ -16,7 +21,15 @@ __pycache__/
 .venv*/
 venv/
 .env
+node_modules/
 
 # OS
 .DS_Store
 Thumbs.db
+install_root/data_demo/
+install_root/_internal/
+install_root/thirdparty/
+install_root/wheelhouse/
+install_root/node_modules/
+install_root/MovilidadUCLM.exe
+install_root/output/

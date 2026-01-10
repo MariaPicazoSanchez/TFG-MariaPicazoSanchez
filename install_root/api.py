@@ -1,4 +1,5 @@
 from flask import Flask, jsonify, request
+from flask_cors import CORS
 # from persistence import actualizar_excel_materias_para_estudiante, update_student_in_excel
 import json
 import os
@@ -12,6 +13,7 @@ API_TOKEN = get_api_token()
 
 
 app = Flask(__name__)
+CORS(app)
 logging.getLogger("werkzeug").setLevel(logging.WARNING)
 
 @app.get("/health")
@@ -180,7 +182,8 @@ def update_student():
             # 3) Obtener la ruta del Excel de materias SIEMPRE desde config.json ("Materias IN")
             materias_path = ""
             try:
-                with open("config.json", "r", encoding="utf-8") as f:
+                cfg_path = os.getenv("APP_CONFIG_PATH", "config.json")
+                with open(cfg_path, "r", encoding="utf-8") as f:
                     config = json.load(f)
                 materias_path = (config.get("Materias IN", "") or "").strip()
                 print("[update_student] materias_path (Materias IN) =", materias_path)

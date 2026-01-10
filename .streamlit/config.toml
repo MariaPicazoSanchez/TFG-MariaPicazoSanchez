@@ -1,0 +1,5 @@
+[client]
+sidebarWidth = 400
+
+[logger]
+level = "info"

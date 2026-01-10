@@ -69,6 +69,10 @@ Y luego la aplicación:
 ```bash
 python -m streamlit run my_app.py
 ```
+Compilar el sistema
+```bash
+py -3.12 -m PyInstaller --onedir --noconsole --clean --noconfirm --name MovilidadUCLM launcher.py
+```
 
 ---
 
