@@ -134,20 +134,28 @@ def get_system_python() -> str:
 
 
 def ensure_venv():
+    print("[launcher] ensure_venv: inicio", flush=True)
     stamp = STAMP_FILE
     req_hash = file_sha256(REQ)
+    print(f"[launcher] ensure_venv: req_hash={req_hash}", flush=True)
 
     if not PYTHON.exists():
+        print(f"[launcher] ensure_venv: creando venv en {VENV_DIR}", flush=True)
         system_python = get_system_python()
+        print(f"[launcher] ensure_venv: usando system_python={system_python}", flush=True)
         subprocess.check_call([system_python, "-m", "venv", str(VENV_DIR)], creationflags=NO_WINDOW)
+        print("[launcher] ensure_venv: venv creado", flush=True)
 
     # Si ya hay sello y coincide, NO reinstalar
     if stamp.exists() and stamp.read_text(encoding="utf-8").strip() == req_hash:
+        print("[launcher] ensure_venv: deps ya instaladas (sello coincide)", flush=True)
         return
 
+    print("[launcher] ensure_venv: instalando/actualizando dependencias...", flush=True)
     # Log de instalación (por si algo falla)
     pip_log_path = LOG_DIR / "pip.log"
     with open(pip_log_path, "w", encoding="utf-8") as pip_log:
+        print("[launcher] ensure_venv: upgrade pip...", flush=True)
         subprocess.check_call(
             [str(PYTHON), "-m", "pip", "install", "--upgrade", "pip"],
             creationflags=NO_WINDOW,
@@ -156,6 +164,7 @@ def ensure_venv():
         )
 
         if WHEELHOUSE.exists():
+            print(f"[launcher] ensure_venv: instalando desde wheelhouse {WHEELHOUSE}", flush=True)
             subprocess.check_call(
                 [
                     str(PYTHON), "-m", "pip", "install",
@@ -167,6 +176,7 @@ def ensure_venv():
                 stderr=pip_log
             )
         else:
+            print("[launcher] ensure_venv: instalando desde PyPI", flush=True)
             subprocess.check_call(
                 [str(PYTHON), "-m", "pip", "install", "-r", str(REQ)],
                 creationflags=NO_WINDOW,
@@ -175,15 +185,78 @@ def ensure_venv():
             )
 
     stamp.write_text(req_hash, encoding="utf-8")
+    print("[launcher] ensure_venv: completado", flush=True)
 
 
 
 
 def write_demo_config():
-    demo = ROOT / "config.demo.json"
-    cfg = APPDATA_DIR / "config.json"
-    if demo.exists() and not cfg.exists():
-        cfg.write_text(demo.read_text(encoding="utf-8"), encoding="utf-8")
+    """
+    Copia data_demo de Program Files a AppData (escribible) y genera config.json
+    con rutas absolutas apuntando a AppData.
+    """
+    demo_json = ROOT / "config.demo.json"
+    cfg_path = APPDATA_DIR / "config.json"
+    
+    print(f"[launcher] write_demo_config: demo_json={demo_json}", flush=True)
+    print(f"[launcher] write_demo_config: cfg_path={cfg_path}", flush=True)
+    
+    # Copiar data_demo a AppData si no existe
+    data_demo_src = ROOT / "data_demo"
+    data_demo_dst = APPDATA_DIR / "data_demo"
+    
+    print(f"[launcher] write_demo_config: data_demo_src={data_demo_src} (existe: {data_demo_src.exists()})", flush=True)
+    print(f"[launcher] write_demo_config: data_demo_dst={data_demo_dst} (existe: {data_demo_dst.exists()})", flush=True)
+    
+    if data_demo_src.exists() and not data_demo_dst.exists():
+        print(f"[launcher] Copiando data_demo a AppData...", flush=True)
+        try:
+            shutil.copytree(data_demo_src, data_demo_dst)
+            print(f"[launcher] data_demo copiado exitosamente", flush=True)
+        except Exception as e:
+            print(f"[launcher] Error copiando data_demo: {e}", flush=True)
+    
+    # Verificar si el config.json existe y si tiene rutas relativas
+    need_regenerate = False
+    if cfg_path.exists():
+        try:
+            with open(cfg_path, "r", encoding="utf-8") as f:
+                existing = json.load(f)
+            # Verificar si tiene rutas relativas
+            for value in existing.values():
+                if isinstance(value, str) and value.startswith("./"):
+                    print(f"[launcher] config.json tiene rutas relativas, regenerando...", flush=True)
+                    need_regenerate = True
+                    break
+        except Exception as e:
+            print(f"[launcher] Error leyendo config.json existente: {e}", flush=True)
+            need_regenerate = True
+    
+    # Generar config.json si no existe o tiene rutas relativas
+    if (not cfg_path.exists() or need_regenerate) and demo_json.exists():
+        try:
+            with open(demo_json, "r", encoding="utf-8") as f:
+                demo_config = json.load(f)
+            
+            print(f"[launcher] config.demo.json leído: {demo_config}", flush=True)
+            
+            # Convertir rutas relativas a absolutas en AppData
+            new_config = {}
+            for key, value in demo_config.items():
+                if value.startswith("./data_demo/"):
+                    filename = value.replace("./data_demo/", "")
+                    new_config[key] = str(data_demo_dst / filename)
+                else:
+                    new_config[key] = value
+            
+            print(f"[launcher] Nuevo config.json: {new_config}", flush=True)
+            
+            with open(cfg_path, "w", encoding="utf-8") as f:
+                json.dump(new_config, f, indent=4, ensure_ascii=False)
+            
+            print(f"[launcher] config.json generado en {cfg_path}", flush=True)
+        except Exception as e:
+            print(f"[launcher] Error generando config: {e}", flush=True)
 
 
 def start_processes():

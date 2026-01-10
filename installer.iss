@@ -27,9 +27,6 @@ Source: "install_root\thirdparty\{#PyExe}"; DestDir: "{tmp}"; Flags: deleteafter
 ; Asegurarse de que el icono se copie correctamente
 Source: "install_root\MovilidadUCLM.ico"; DestDir: "{app}"; Flags: ignoreversion
 
-; Incluir el archivo config.toml en la instalación
-Source: "install_root\.streamlit\config.toml"; DestDir: "{app}\.streamlit"; Flags: ignoreversion
-
 [Tasks]
 Name: "desktopicon"; Description: "Crear icono en el escritorio"; GroupDescription: "Accesos directos:"; Flags: unchecked
 
@@ -44,6 +41,27 @@ Filename: "{tmp}\{#PyExe}"; \
   StatusMsg: "Instalando Python 3.12..."; \
   Flags: waituntilterminated; \
   Check: not (IsPython312Installed() or IsPython312OnPath())
+
+; Preparar entorno virtual y dependencias
+Filename: "{cmd}"; \
+  Parameters: "/C python -m venv ""{localappdata}\MovilidadUCLM\venv"""; \
+  StatusMsg: "Preparando entorno virtual..."; \
+  Flags: waituntilterminated runhidden; \
+  Check: not DirExists(ExpandConstant('{localappdata}\MovilidadUCLM\venv'))
+
+; Instalar dependencias desde wheelhouse (con script temporal)
+Filename: "{cmd}"; \
+  Parameters: "/C ""{localappdata}\MovilidadUCLM\venv\Scripts\python.exe"" -m pip install --upgrade pip && ""{localappdata}\MovilidadUCLM\venv\Scripts\python.exe"" -m pip install --no-index --find-links ""{app}\wheelhouse"" -r ""{app}\requirements.lock.txt"""; \
+  StatusMsg: "Instalando dependencias..."; \
+  Flags: waituntilterminated runhidden; \
+  Check: DirExists(ExpandConstant('{localappdata}\MovilidadUCLM\venv'))
+
+; Copiar data_demo a AppData
+Filename: "xcopy"; \
+  Parameters: """{app}\data_demo"" ""{localappdata}\MovilidadUCLM\data_demo\"" /E /I /Y /Q"; \
+  StatusMsg: "Copiando datos de demostración..."; \
+  Flags: waituntilterminated runhidden; \
+  Check: not DirExists(ExpandConstant('{localappdata}\MovilidadUCLM\data_demo'))
 
 ; Lanza tu app al final
 Filename: "{app}\{#AppExe}"; Description: "Abrir {#AppName}"; Flags: nowait postinstall skipifsilent
