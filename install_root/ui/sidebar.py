@@ -233,8 +233,8 @@ def sidebar_controls():
         """
         <style>
         [data-testid="stSidebar"][aria-expanded="true"] {
-            min-width: 300px;
-            max-width: 400px;
+            min-width: 325px;
+            max-width: 450px;
         }
         </style>
         """,
