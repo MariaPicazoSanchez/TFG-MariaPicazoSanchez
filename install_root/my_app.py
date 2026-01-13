@@ -3,6 +3,7 @@ import unicodedata
 import streamlit as st
 import urllib.request
 import pandas as pd
+import time
 import streamlit.components.v1 as components
 from ui import setup_session, sidebar_controls, render_new_user_form, show_map, render_stats_view, build_search_index, render_search_box
 from utils import handle_open_pdf_query, handle_open_excel_query
@@ -80,7 +81,17 @@ def main():
         st.session_state["global_sheet"] = "Todas"
 
     global_sheet = st.session_state.get("global_sheet", None)
-    dfs = load_all_dataframes(config, global_sheet)
+    @st.cache_data(show_spinner=False)
+    def cached_load_all_dataframes(cfg, sheet):
+        return load_all_dataframes(cfg, sheet)
+
+    t0 = time.perf_counter()
+    dfs = cached_load_all_dataframes(config, global_sheet)
+    t1 = time.perf_counter()
+    try:
+        print(f"[perf] load_all_dataframes: {(t1 - t0)*1000:.1f} ms")
+    except Exception:
+        pass
 
     # Aplica filtros de programas y OUT sin LA (para que el índice sea coherente)
     selected = st.session_state.get("selected_programs", {})
@@ -96,7 +107,13 @@ def main():
             dfs["Erasmus OUT"] = df_out[mask]
 
   
+    t2 = time.perf_counter()
     build_search_index(dfs)
+    t3 = time.perf_counter()
+    try:
+        print(f"[perf] build_search_index: {(t3 - t2)*1000:.1f} ms")
+    except Exception:
+        pass
 
     # A partir de aquí tu flujo normal:
     base_map = sidebar_controls()
@@ -150,7 +167,17 @@ def main():
     # MUESTRA DE MATERIAS IN POR ESTUDIANTE
     # ==============================================
     if dfs and isinstance(dfs, dict) and any(not df.empty for df in dfs.values()):
-        materias_in_por_est = get_materias_in_por_estudiante(config)
+        @st.cache_data(show_spinner=False)
+        def cached_materias_in_por_estudiante(cfg):
+            return get_materias_in_por_estudiante(cfg)
+
+        t4 = time.perf_counter()
+        materias_in_por_est = cached_materias_in_por_estudiante(config)
+        t5 = time.perf_counter()
+        try:
+            print(f"[perf] materias_in_loader: {(t5 - t4)*1000:.1f} ms")
+        except Exception:
+            pass
     else:
         materias_in_por_est = {}
         st.info("No hay datos disponibles para mostrar. Por favor, revisa la configuración o selecciona otra hoja.")

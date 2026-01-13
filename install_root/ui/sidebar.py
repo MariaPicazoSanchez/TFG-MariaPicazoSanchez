@@ -4,7 +4,9 @@ import xlrd
 import pandas as pd
 import streamlit as st
 
-CONFIG_FILE = "config.json"
+# Usa la variable de entorno APP_CONFIG_PATH si está disponible (instalación)
+# Si no, usa config.json en el directorio actual (desarrollo local)
+CONFIG_FILE = os.getenv("APP_CONFIG_PATH", "config.json")
 
 USE_LOCAL_PICKER = True
 

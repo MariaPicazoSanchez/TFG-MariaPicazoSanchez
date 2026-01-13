@@ -135,6 +135,34 @@ def get_system_python() -> str:
 
 def ensure_venv():
     print("[launcher] ensure_venv: inicio", flush=True)
+    
+    # Verificar si la instalación ya se completó
+    installer_marker = APPDATA_DIR / ".installer_complete"
+    if installer_marker.exists():
+        print("[launcher] ensure_venv: instalación completada por installer, saltando setup", flush=True)
+        if PYTHON.exists():
+            print(f"[launcher] ensure_venv: venv existe en {VENV_DIR}", flush=True)
+            return
+    
+    # Si el venv ya existe y tiene pip, asumir que está completo
+    if PYTHON.exists():
+        print(f"[launcher] ensure_venv: venv ya existe en {VENV_DIR}", flush=True)
+        # Verificar que streamlit está instalado (indica que las dependencias están)
+        try:
+            result = subprocess.run(
+                [str(PYTHON), "-c", "import streamlit"],
+                capture_output=True,
+                timeout=5
+            )
+            if result.returncode == 0:
+                print("[launcher] ensure_venv: streamlit disponible, dependencias OK", flush=True)
+                return
+            else:
+                print("[launcher] ensure_venv: streamlit NO disponible, instalando...", flush=True)
+        except Exception as e:
+            print(f"[launcher] ensure_venv: error verificando streamlit: {e}", flush=True)
+    
+    # Si llegamos aquí, necesitamos instalar
     stamp = STAMP_FILE
     req_hash = file_sha256(REQ)
     print(f"[launcher] ensure_venv: req_hash={req_hash}", flush=True)
@@ -243,9 +271,12 @@ def write_demo_config():
             # Convertir rutas relativas a absolutas en AppData
             new_config = {}
             for key, value in demo_config.items():
-                if value.startswith("./data_demo/"):
+                if isinstance(value, str) and value.startswith("./data_demo/"):
                     filename = value.replace("./data_demo/", "")
-                    new_config[key] = str(data_demo_dst / filename)
+                    # Usar ruta absoluta normalizada para Windows
+                    abs_path = os.path.join(str(data_demo_dst), filename)
+                    new_config[key] = abs_path
+                    print(f"[launcher] {key}: {value} -> {abs_path}", flush=True)
                 else:
                     new_config[key] = value
             
@@ -257,6 +288,7 @@ def write_demo_config():
             print(f"[launcher] config.json generado en {cfg_path}", flush=True)
         except Exception as e:
             print(f"[launcher] Error generando config: {e}", flush=True)
+            traceback.print_exc()
 
 
 def start_processes():

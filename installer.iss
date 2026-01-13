@@ -34,6 +34,10 @@ Name: "desktopicon"; Description: "Crear icono en el escritorio"; GroupDescripti
 Name: "{group}\{#AppName}"; Filename: "{app}\{#AppExe}"; IconFilename: "{app}\MovilidadUCLM.ico"
 Name: "{commondesktop}\{#AppName}"; Filename: "{app}\{#AppExe}"; IconFilename: "{app}\MovilidadUCLM.ico"; Tasks: desktopicon
 
+[UninstallDelete]
+; Elimina la carpeta de AppData al desinstalar
+Type: filesandordirs; Name: "{localappdata}\MovilidadUCLM"
+
 [Run]
 ; Instala Python 3.12 SOLO si no se detecta en el sistema
 Filename: "{tmp}\{#PyExe}"; \
@@ -49,12 +53,18 @@ Filename: "{cmd}"; \
   Flags: waituntilterminated runhidden; \
   Check: not DirExists(ExpandConstant('{localappdata}\MovilidadUCLM\venv'))
 
-; Instalar dependencias desde wheelhouse (con script temporal)
+; Instalar dependencias desde wheelhouse (sin reintentos innecesarios)
 Filename: "{cmd}"; \
-  Parameters: "/C ""{localappdata}\MovilidadUCLM\venv\Scripts\python.exe"" -m pip install --upgrade pip && ""{localappdata}\MovilidadUCLM\venv\Scripts\python.exe"" -m pip install --no-index --find-links ""{app}\wheelhouse"" -r ""{app}\requirements.lock.txt"""; \
-  StatusMsg: "Instalando dependencias..."; \
+  Parameters: "/C ""{localappdata}\MovilidadUCLM\venv\Scripts\python.exe"" -m pip install --upgrade pip --quiet && ""{localappdata}\MovilidadUCLM\venv\Scripts\python.exe"" -m pip install --no-index --find-links ""{app}\wheelhouse"" -r ""{app}\requirements.lock.txt"" --quiet"; \
+  StatusMsg: "Instalando dependencias (esto puede tardar varios minutos)..."; \
   Flags: waituntilterminated runhidden; \
   Check: DirExists(ExpandConstant('{localappdata}\MovilidadUCLM\venv'))
+
+; Crear marcador de instalación completada
+Filename: "{cmd}"; \
+  Parameters: "/C echo installed > ""{localappdata}\MovilidadUCLM\.installer_complete"""; \
+  StatusMsg: "Finalizando instalación..."; \
+  Flags: waituntilterminated runhidden
 
 ; Copiar data_demo a AppData
 Filename: "xcopy"; \

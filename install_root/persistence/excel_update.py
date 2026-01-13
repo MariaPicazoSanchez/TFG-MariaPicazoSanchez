@@ -108,11 +108,30 @@ def update_student_in_excel(excel_path: str, row_index: str, idx: int, data: dic
         posibles = field_to_cols.get(field_name, [field_name])
         for col in posibles:
             if col in df.columns:
-                # Forzar la columna a object si el valor es string y la columna es float
-                if pd.api.types.is_float_dtype(df[col]) and isinstance(value, str):
-                    df[col] = df[col].astype(object)
-                df.at[row_i, col] = value
-                print(f"[update_student_in_excel] {field_name} -> columna '{col}' = {value}")
+                # Manejo de tipos: si la columna es numérica e intentamos poner string
+                if isinstance(value, str):
+                    # Caso int: si es dígito, castear
+                    if pd.api.types.is_integer_dtype(df[col]):
+                        v_str = value.strip()
+                        if v_str.isdigit():
+                            value_to_set = int(v_str)
+                        else:
+                            # No convertible de forma segura → pasar columna a object
+                            df[col] = df[col].astype(object)
+                            value_to_set = value
+                    elif pd.api.types.is_float_dtype(df[col]):
+                        try:
+                            value_to_set = float(value)
+                        except Exception:
+                            df[col] = df[col].astype(object)
+                            value_to_set = value
+                    else:
+                        value_to_set = value
+                else:
+                    value_to_set = value
+
+                df.at[row_i, col] = value_to_set
+                print(f"[update_student_in_excel] {field_name} -> columna '{col}' = {value_to_set}")
                 return  # solo actualizamos la primera que exista
 
     def _actualizar_nombre_apellidos():
