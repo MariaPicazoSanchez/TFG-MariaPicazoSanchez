@@ -4,6 +4,29 @@ import xlrd
 import pandas as pd
 import streamlit as st
 
+def repair_windows_path(path_str: str) -> str:
+    """
+    Repara rutas de Windows mal formadas.
+    Ejemplo: 'C:UsersmariaAppDataLocalMovilidadUCLM' -> 'C:\\Users\\maria\\AppData\\Local\\MovilidadUCLM'
+    """
+    if not path_str:
+        return ""
+    
+    # Si ya tiene barras invertidas, normalizarla
+    if "\\" in path_str:
+        return os.path.normpath(path_str)
+    
+    # Si tiene barras diagonales, reemplazarlas
+    if "/" in path_str:
+        return os.path.normpath(path_str.replace("/", "\\"))
+    
+    # Si NO tiene barras (ej: C:UsersmariaAppData...), insertar después de C:
+    # Patrón: C:Users... -> C:\Users...
+    if len(path_str) > 2 and path_str[1] == ":" and path_str[2] != "\\":
+        path_str = path_str[0:2] + "\\" + path_str[2:]
+    
+    return os.path.normpath(path_str)
+
 # Usa la variable de entorno APP_CONFIG_PATH si está disponible (instalación)
 # Si no, usa config.json en el directorio actual (desarrollo local)
 CONFIG_FILE = os.getenv("APP_CONFIG_PATH", "config.json")
@@ -101,7 +124,16 @@ def load_config():
     """Carga las rutas guardadas desde config.json, si existe."""
     if os.path.exists(CONFIG_FILE):
         with open(CONFIG_FILE, "r", encoding="utf-8") as f:
-            return json.load(f)
+            config = json.load(f)
+        # REPARAR rutas mal formadas
+        repaired = {}
+        for key, value in config.items():
+            if isinstance(value, str) and (value.startswith("C:") or value.startswith("D:") or value.startswith("/")):
+                # Es una ruta: repararla y normalizarla
+                repaired[key] = repair_windows_path(value)
+            else:
+                repaired[key] = value
+        return repaired
     return {}
 
 

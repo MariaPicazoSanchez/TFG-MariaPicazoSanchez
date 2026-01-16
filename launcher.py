@@ -1,72 +1,242 @@
+import ctypes
+import json
+import logging
 import os
-import shutil
-import sys
 import socket
 import subprocess
+import sys
+import threading
 import time
 from pathlib import Path
 import urllib.request
-import json
-import hashlib
-import traceback
-import threading
 
 LAUNCHER_VERSION = "envfix-2026-01-05-1.0"
-
-
-def single_instance_lock(port: int = 49231):
-    """
-    Evita que el launcher se ejecute dos veces.
-    Si ya hay una instancia, sale silenciosamente.
-    """
-    s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    try:
-        s.bind(("127.0.0.1", port))
-        s.listen(1)
-        return s  # mantenemos el socket abierto
-    except OSError:
-        # ya hay otra instancia
-        os._exit(0)
-
-
-NO_WINDOW = 0
-if os.name == "nt":
-    NO_WINDOW = subprocess.CREATE_NO_WINDOW
-
-if getattr(sys, "frozen", False):
-    ROOT = Path(sys.executable).resolve().parent  # carpeta del .exe
-else:
-    ROOT = Path(__file__).resolve().parent        # carpeta del .py
-
 
 
 def get_appdata_dir() -> Path:
     base = os.getenv("LOCALAPPDATA") or os.getenv("APPDATA") or str(Path.home())
     return Path(base) / "MovilidadUCLM"
 
+
 APPDATA_DIR = get_appdata_dir()
-APPDATA_DIR.mkdir(parents=True, exist_ok=True)
-
 LOG_DIR = APPDATA_DIR / "logs"
-LOG_DIR.mkdir(parents=True, exist_ok=True)
-
-# Venv dentro de AppData (escribible sin admin)
+DATA_DEMO_DIR = APPDATA_DIR / "data_demo"
 VENV_DIR = APPDATA_DIR / "venv"
 PYTHON = VENV_DIR / "Scripts" / "python.exe"
-
-# runtime files en AppData
+CONFIG_PATH = APPDATA_DIR / "config.json"
+API_STATUS_PATH = APPDATA_DIR / "api_status.json"
 PID_FILE = APPDATA_DIR / ".pids"
-STAMP_FILE = APPDATA_DIR / ".deps.sha256"
+LAUNCHER_LOG_PATH = LOG_DIR / "launcher.log"
+APP_LOG_PATH = LOG_DIR / "app.log"
+API_LOG_PATH = LOG_DIR / "api.log"
+PIP_LOG_PATH = LOG_DIR / "pip_install.log"
+LOCK_NAME = "Global\\MovilidadUCLM_Launcher"
 
-# requirements y wheelhouse siguen junto al exe (Program Files)
-REQ = ROOT / "requirements.lock.txt"
-WHEELHOUSE = ROOT / "wheelhouse"
+NO_WINDOW = 0
+if os.name == "nt":
+    NO_WINDOW = subprocess.CREATE_NO_WINDOW
+
+if getattr(sys, "frozen", False):
+    ROOT = Path(sys.executable).resolve().parent
+else:
+    ROOT = Path(__file__).resolve().parent
+
+LOGGER = logging.getLogger("movilidad_launcher")
+LOGGER.addHandler(logging.NullHandler())
+
+
+def prepare_appdata_dirs() -> None:
+    for folder in (APPDATA_DIR, LOG_DIR, APPDATA_DIR / "cache", DATA_DEMO_DIR):
+        folder.mkdir(parents=True, exist_ok=True)
+
+
+def touch_initial_logs() -> None:
+    for path in (LAUNCHER_LOG_PATH, APP_LOG_PATH, API_LOG_PATH, PIP_LOG_PATH):
+        try:
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.touch(exist_ok=True)
+        except OSError:
+            # Logging is not configured yet; failure will be captured later.
+            pass
+
+
+def setup_launcher_logging() -> None:
+    handler = logging.FileHandler(LAUNCHER_LOG_PATH, encoding="utf-8", mode="a")
+    handler.setFormatter(logging.Formatter("%(asctime)s %(levelname)s %(message)s"))
+    LOGGER.handlers = []
+    LOGGER.addHandler(handler)
+    console = logging.StreamHandler(sys.stdout)
+    console.setFormatter(logging.Formatter("%(asctime)s %(levelname)s %(message)s"))
+    console.setLevel(logging.INFO)
+    LOGGER.addHandler(console)
+    LOGGER.setLevel(logging.DEBUG)
+
+
+def single_instance_lock():
+    if os.name != "nt":
+        LOGGER.debug("Mutex no requerido en esta plataforma.")
+        return None
+    ERROR_ALREADY_EXISTS = 183
+    handle = ctypes.windll.kernel32.CreateMutexW(None, True, LOCK_NAME)
+    if ctypes.windll.kernel32.GetLastError() == ERROR_ALREADY_EXISTS:
+        LOGGER.warning("Ya hay otra instancia en ejecución, saliendo.")
+        return None
+    LOGGER.debug("Mutex de instancia adquirido.")
+    return handle
+
+
+def release_instance_lock(handle) -> None:
+    if handle and os.name == "nt":
+        ctypes.windll.kernel32.ReleaseMutex(handle)
+        ctypes.windll.kernel32.CloseHandle(handle)
+
+
+def ensure_data_demo() -> None:
+    if DATA_DEMO_DIR.exists() and any(DATA_DEMO_DIR.iterdir()):
+        LOGGER.debug("data_demo disponible en AppData (%s)", DATA_DEMO_DIR)
+        return
+    LOGGER.warning(
+        "data_demo no está presente en %s. La instalación debería copiarlo desde AppData.",
+        DATA_DEMO_DIR
+    )
+
+
+def write_demo_config() -> None:
+    """Escribe config.json desde config.demo.json reemplazando rutas de data_demo."""
+    demo_path = ROOT / "config.demo.json"
+    if not demo_path.exists():
+        LOGGER.warning("config.demo.json no existe en %s", ROOT)
+        return
+    
+    try:
+        demo_config = json.loads(demo_path.read_text(encoding="utf-8"))
+    except Exception as exc:
+        LOGGER.error("No se pudo leer config.demo.json: %s", exc)
+        return
+    
+    # Si config.json ya existe y está mal, eliminarlo primero
+    if CONFIG_PATH.exists():
+        try:
+            CONFIG_PATH.unlink()
+            LOGGER.info("config.json anterior eliminado para regenerarlo")
+        except Exception as exc:
+            LOGGER.warning("No se pudo eliminar config.json anterior: %s", exc)
+    
+    new_config = {}
+    for key, value in demo_config.items():
+        if isinstance(value, str) and value.startswith("./data_demo/"):
+            rel = value.split("./data_demo/", 1)[1]
+            full_path = DATA_DEMO_DIR / rel
+            # Normalizar: Windows usa \ en rutas. Asegurar que es Path y convertir a str con \
+            normalized_path = str(full_path.resolve()).replace("/", "\\")
+            new_config[key] = normalized_path
+            LOGGER.info("Config %s: %s", key, normalized_path)
+        else:
+            new_config[key] = value
+    
+    try:
+        # Asegurar que el directorio de config existe
+        CONFIG_PATH.parent.mkdir(parents=True, exist_ok=True)
+        CONFIG_PATH.write_text(
+            json.dumps(new_config, ensure_ascii=False, indent=4),
+            encoding="utf-8"
+        )
+        LOGGER.info("config.json regenerado correctamente en %s", CONFIG_PATH)
+    except Exception as exc:
+        LOGGER.error("No se pudo escribir config.json en %s: %s", CONFIG_PATH, exc)
+
+
+def ensure_installation() -> tuple[bool, str | None]:
+    if not VENV_DIR.exists():
+        raise RuntimeError(f"El entorno virtual no existe en {VENV_DIR}. Reinstala la aplicación.")
+    if not PYTHON.exists():
+        raise RuntimeError("No se encuentra python.exe dentro del entorno virtual.")
+    installer_marker = APPDATA_DIR / ".installer_complete"
+    LOGGER.debug("Verificando dependencias en %s", PYTHON)
+    def _run_import(code: str) -> subprocess.CompletedProcess:
+        return subprocess.run(
+            [str(PYTHON), "-c", code],
+            capture_output=True,
+            text=True,
+            timeout=12
+        )
+    try:
+        if installer_marker.exists():
+            result = _run_import("import streamlit, flask")
+            if result.returncode != 0:
+                details = (result.stderr or result.stdout or "Sin detalles").strip()
+                raise RuntimeError(
+                    f"Faltan dependencias: {details}. "
+                    f"Consulta {PIP_LOG_PATH}."
+                )
+            LOGGER.debug("Dependencias garantizadas por el instalador.")
+            return True, None
+        LOGGER.warning(".installer_complete ausente; asegurar dependencias mínimas.")
+        result = _run_import("import streamlit")
+    except Exception as exc:
+        raise RuntimeError(f"No se pudo ejecutar python del entorno virtual: {exc}") from exc
+    if result.returncode != 0:
+        details = (result.stderr or result.stdout or "Sin detalles").strip()
+        raise RuntimeError(
+            f"Faltan dependencias críticas: {details}. "
+            f"Consulta {PIP_LOG_PATH}."
+        )
+    reason = (
+        "Instalación incompleta: falta .installer_complete; "
+        f"consulta {PIP_LOG_PATH} para revisar pip_install.log. API deshabilitada."
+    )
+    LOGGER.warning(reason)
+    return False, reason
+
+
+def notify_user(title: str, msg: str) -> None:
+    LOGGER.debug("notify_user: %s", msg.replace("\n", " "))
+    try:
+        if os.name == "nt":
+            ctypes.windll.user32.MessageBoxW(0, msg, title, 0x10)
+    except Exception:
+        pass
+
+
+def write_api_status(ok: bool, api_url: str, reason: str = "") -> None:
+    try:
+        status = {"ok": ok, "api_url": api_url, "reason": reason, "ts": time.time()}
+        API_STATUS_PATH.write_text(json.dumps(status, ensure_ascii=False, indent=2), encoding="utf-8")
+        LOGGER.debug("api_status.json actualizado: %s", status)
+    except Exception as exc:
+        LOGGER.debug("No se pudo escribir api_status.json: %s", exc)
 
 
 def find_free_port() -> int:
-    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-        s.bind(("127.0.0.1", 0))
-        return s.getsockname()[1]
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
+        sock.bind(("127.0.0.1", 0))
+        return sock.getsockname()[1]
+
+
+def pick_two_free_ports() -> tuple[int, int]:
+    for attempt in range(1, 21):
+        sockets = []
+        ports = set()
+        success = True
+        try:
+            for _ in range(2):
+                sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+                try:
+                    sock.bind(("127.0.0.1", 0))
+                except OSError:
+                    success = False
+                    break
+                sockets.append(sock)
+                ports.add(sock.getsockname()[1])
+        finally:
+            for sock in sockets:
+                sock.close()
+        if success and len(ports) == 2:
+            chosen = tuple(ports)
+            LOGGER.debug("Puertos libres seleccionados: %s (intento %s)", chosen, attempt)
+            return chosen
+        time.sleep(0.05)
+    raise RuntimeError("No se pudieron reservar dos puertos libres.")
 
 
 def wait_for_health(url: str, timeout: float = 15.0) -> bool:
@@ -76,25 +246,23 @@ def wait_for_health(url: str, timeout: float = 15.0) -> bool:
             with urllib.request.urlopen(url, timeout=2) as r:
                 if r.status == 200:
                     body = r.read().decode("utf-8", errors="ignore")
-                    # opcional: validar {"ok": true}
                     try:
                         data = json.loads(body)
                         if data.get("ok") is True:
                             return True
-                        # si responde 200 pero formato distinto, también lo damos por bueno
-                        return True
                     except Exception:
                         return True
         except Exception:
             time.sleep(0.25)
     return False
 
+
 def wait_for_http(url: str, timeout: float = 30.0) -> bool:
     start = time.time()
     while time.time() - start < timeout:
         try:
-            with urllib.request.urlopen(url, timeout=2) as r:
-                if r.status in (200, 302):
+            with urllib.request.urlopen(url, timeout=2) as response:
+                if response.status in (200, 302):
                     return True
         except Exception:
             time.sleep(0.25)
@@ -114,336 +282,200 @@ def get_last_ping_ts(api_port: int) -> float | None:
         return None
 
 
-def file_sha256(path: Path) -> str:
-    h = hashlib.sha256()
-    with open(path, "rb") as f:
-        for chunk in iter(lambda: f.read(1024 * 1024), b""):
-            h.update(chunk)
-    return h.hexdigest()
-
-def get_system_python() -> str:
-    # usa el python del sistema (el que te sale con "where python")
-    p = shutil.which("python")
-    if p:
-        return p
-    # fallback: py launcher
-    py = shutil.which("py")
-    if py:
-        return py
-    raise RuntimeError("No se encuentra Python en el sistema. Instala Python 3.12 y asegúrate de tenerlo en PATH.")
-
-
-def ensure_venv():
-    print("[launcher] ensure_venv: inicio", flush=True)
-    
-    # Verificar si la instalación ya se completó
-    installer_marker = APPDATA_DIR / ".installer_complete"
-    if installer_marker.exists():
-        print("[launcher] ensure_venv: instalación completada por installer, saltando setup", flush=True)
-        if PYTHON.exists():
-            print(f"[launcher] ensure_venv: venv existe en {VENV_DIR}", flush=True)
-            return
-    
-    # Si el venv ya existe y tiene pip, asumir que está completo
-    if PYTHON.exists():
-        print(f"[launcher] ensure_venv: venv ya existe en {VENV_DIR}", flush=True)
-        # Verificar que streamlit está instalado (indica que las dependencias están)
-        try:
-            result = subprocess.run(
-                [str(PYTHON), "-c", "import streamlit"],
-                capture_output=True,
-                timeout=5
-            )
-            if result.returncode == 0:
-                print("[launcher] ensure_venv: streamlit disponible, dependencias OK", flush=True)
-                return
-            else:
-                print("[launcher] ensure_venv: streamlit NO disponible, instalando...", flush=True)
-        except Exception as e:
-            print(f"[launcher] ensure_venv: error verificando streamlit: {e}", flush=True)
-    
-    # Si llegamos aquí, necesitamos instalar
-    stamp = STAMP_FILE
-    req_hash = file_sha256(REQ)
-    print(f"[launcher] ensure_venv: req_hash={req_hash}", flush=True)
-
-    if not PYTHON.exists():
-        print(f"[launcher] ensure_venv: creando venv en {VENV_DIR}", flush=True)
-        system_python = get_system_python()
-        print(f"[launcher] ensure_venv: usando system_python={system_python}", flush=True)
-        subprocess.check_call([system_python, "-m", "venv", str(VENV_DIR)], creationflags=NO_WINDOW)
-        print("[launcher] ensure_venv: venv creado", flush=True)
-
-    # Si ya hay sello y coincide, NO reinstalar
-    if stamp.exists() and stamp.read_text(encoding="utf-8").strip() == req_hash:
-        print("[launcher] ensure_venv: deps ya instaladas (sello coincide)", flush=True)
-        return
-
-    print("[launcher] ensure_venv: instalando/actualizando dependencias...", flush=True)
-    # Log de instalación (por si algo falla)
-    pip_log_path = LOG_DIR / "pip.log"
-    with open(pip_log_path, "w", encoding="utf-8") as pip_log:
-        print("[launcher] ensure_venv: upgrade pip...", flush=True)
-        subprocess.check_call(
-            [str(PYTHON), "-m", "pip", "install", "--upgrade", "pip"],
-            creationflags=NO_WINDOW,
-            stdout=pip_log,
-            stderr=pip_log
-        )
-
-        if WHEELHOUSE.exists():
-            print(f"[launcher] ensure_venv: instalando desde wheelhouse {WHEELHOUSE}", flush=True)
-            subprocess.check_call(
-                [
-                    str(PYTHON), "-m", "pip", "install",
-                    "--no-index", "--find-links", str(WHEELHOUSE),
-                    "-r", str(REQ)
-                ],
-                creationflags=NO_WINDOW,
-                stdout=pip_log,
-                stderr=pip_log
-            )
-        else:
-            print("[launcher] ensure_venv: instalando desde PyPI", flush=True)
-            subprocess.check_call(
-                [str(PYTHON), "-m", "pip", "install", "-r", str(REQ)],
-                creationflags=NO_WINDOW,
-                stdout=pip_log,
-                stderr=pip_log
-            )
-
-    stamp.write_text(req_hash, encoding="utf-8")
-    print("[launcher] ensure_venv: completado", flush=True)
-
-
-
-
-def write_demo_config():
-    """
-    Copia data_demo de Program Files a AppData (escribible) y genera config.json
-    con rutas absolutas apuntando a AppData.
-    """
-    demo_json = ROOT / "config.demo.json"
-    cfg_path = APPDATA_DIR / "config.json"
-    
-    print(f"[launcher] write_demo_config: demo_json={demo_json}", flush=True)
-    print(f"[launcher] write_demo_config: cfg_path={cfg_path}", flush=True)
-    
-    # Copiar data_demo a AppData si no existe
-    data_demo_src = ROOT / "data_demo"
-    data_demo_dst = APPDATA_DIR / "data_demo"
-    
-    print(f"[launcher] write_demo_config: data_demo_src={data_demo_src} (existe: {data_demo_src.exists()})", flush=True)
-    print(f"[launcher] write_demo_config: data_demo_dst={data_demo_dst} (existe: {data_demo_dst.exists()})", flush=True)
-    
-    if data_demo_src.exists() and not data_demo_dst.exists():
-        print(f"[launcher] Copiando data_demo a AppData...", flush=True)
-        try:
-            shutil.copytree(data_demo_src, data_demo_dst)
-            print(f"[launcher] data_demo copiado exitosamente", flush=True)
-        except Exception as e:
-            print(f"[launcher] Error copiando data_demo: {e}", flush=True)
-    
-    # Verificar si el config.json existe y si tiene rutas relativas
-    need_regenerate = False
-    if cfg_path.exists():
-        try:
-            with open(cfg_path, "r", encoding="utf-8") as f:
-                existing = json.load(f)
-            # Verificar si tiene rutas relativas
-            for value in existing.values():
-                if isinstance(value, str) and value.startswith("./"):
-                    print(f"[launcher] config.json tiene rutas relativas, regenerando...", flush=True)
-                    need_regenerate = True
-                    break
-        except Exception as e:
-            print(f"[launcher] Error leyendo config.json existente: {e}", flush=True)
-            need_regenerate = True
-    
-    # Generar config.json si no existe o tiene rutas relativas
-    if (not cfg_path.exists() or need_regenerate) and demo_json.exists():
-        try:
-            with open(demo_json, "r", encoding="utf-8") as f:
-                demo_config = json.load(f)
-            
-            print(f"[launcher] config.demo.json leído: {demo_config}", flush=True)
-            
-            # Convertir rutas relativas a absolutas en AppData
-            new_config = {}
-            for key, value in demo_config.items():
-                if isinstance(value, str) and value.startswith("./data_demo/"):
-                    filename = value.replace("./data_demo/", "")
-                    # Usar ruta absoluta normalizada para Windows
-                    abs_path = os.path.join(str(data_demo_dst), filename)
-                    new_config[key] = abs_path
-                    print(f"[launcher] {key}: {value} -> {abs_path}", flush=True)
-                else:
-                    new_config[key] = value
-            
-            print(f"[launcher] Nuevo config.json: {new_config}", flush=True)
-            
-            with open(cfg_path, "w", encoding="utf-8") as f:
-                json.dump(new_config, f, indent=4, ensure_ascii=False)
-            
-            print(f"[launcher] config.json generado en {cfg_path}", flush=True)
-        except Exception as e:
-            print(f"[launcher] Error generando config: {e}", flush=True)
-            traceback.print_exc()
-
-
-def start_processes():
-    api_port = find_free_port()
-    app_port = find_free_port()
-
+def start_processes(api_enabled: bool = True, api_disabled_reason: str | None = None) -> None:
+    api_port, app_port = pick_two_free_ports()
+    api_url = f"http://127.0.0.1:{api_port}"
     env = os.environ.copy()
     env["PYTHONUTF8"] = "1"
-    env["APP_CONFIG_PATH"] = str(APPDATA_DIR / "config.json")
+    env["APP_CONFIG_PATH"] = str(CONFIG_PATH)
     env["API_HOST"] = "127.0.0.1"
     env["API_PORT"] = str(api_port)
     env["FLASK_SKIP_DOTENV"] = "1"
 
     env_app = env.copy()
-    env_app["API_URL"] = f"http://127.0.0.1:{api_port}"
-    env_app["APP_CONFIG_PATH"] = str(APPDATA_DIR / "config.json")
+    env_app["API_URL"] = api_url
     env_app["STREAMLIT_SERVER_HEADLESS"] = "true"
     env_app["STREAMLIT_BROWSER_GATHER_USAGE_STATS"] = "false"
-
     env_app["STREAMLIT_SERVER_FILE_WATCHER_TYPE"] = "none"
     env_app["STREAMLIT_SERVER_RUN_ON_SAVE"] = "false"
-    env_app["STREAMLIT_BROWSER_GATHER_USAGE_STATS"] = "false"
 
+    app_proc = None
+    api_proc = None
+    app_log = open(APP_LOG_PATH, "w", encoding="utf-8")
+    api_log = open(API_LOG_PATH, "w", encoding="utf-8")
+    try:
+        LOGGER.info("Iniciando Streamlit en 127.0.0.1:%s", app_port)
+        app_proc = subprocess.Popen(
+            [
+                str(PYTHON), "-m", "streamlit", "run", "my_app.py",
+                "--server.address=127.0.0.1",
+                f"--server.port={app_port}",
+                "--server.headless=true",
+                "--server.fileWatcherType=none",
+                "--server.runOnSave=false",
+                "--browser.gatherUsageStats=false",
+            ],
+            cwd=str(ROOT),
+            env=env_app,
+            stdout=app_log,
+            stderr=app_log,
+            creationflags=NO_WINDOW,
+        )
 
-    api_log = open(LOG_DIR / "api.log", "w", encoding="utf-8")
-    app_log = open(LOG_DIR / "app.log", "w", encoding="utf-8")
+        url = f"http://127.0.0.1:{app_port}"
+        (LOG_DIR / "last_url.txt").write_text(url, encoding="utf-8")
+        LOGGER.info("Esperando que Streamlit responda en %s", url)
 
-    # Lanzar primero Streamlit
-    print(f"[launcher] Starting Streamlit on 127.0.0.1:{app_port} ...", flush=True)
-    app_proc = subprocess.Popen(
-        [
-            str(PYTHON), "-m", "streamlit", "run", "my_app.py",
-            "--server.address=127.0.0.1",
-            f"--server.port={app_port}",
-            "--server.headless=true",
-            "--server.fileWatcherType=none",
-            "--server.runOnSave=false",
-            "--browser.gatherUsageStats=false",
+        if not wait_for_http(url, timeout=30.0):
+            LOGGER.error("Streamlit no respondió en %s", url)
+            notify_user(
+                "MovilidadUCLM - Streamlit",
+                "Streamlit no pudo arrancar. Consulta app.log en AppData."
+            )
+            raise RuntimeError("Streamlit no arrancó correctamente.")
 
-        ],
-        cwd=str(ROOT),
-        env=env_app,
-        stdout=app_log,
-        stderr=app_log,
-        creationflags=NO_WINDOW,
-    )
+        LOGGER.info("Abriendo navegador en %s", url)
+        subprocess.Popen(
+            ["rundll32", "url.dll,FileProtocolHandler", url],
+            creationflags=NO_WINDOW,
+        )
 
-    # Mientras Streamlit arranca, lanzar el API
-    print(f"[launcher] Starting API on {env['API_HOST']}:{api_port} ...", flush=True)
-    api_proc = subprocess.Popen(
-        [str(PYTHON), "api.py"],
-        cwd=str(ROOT),
-        env=env,
-        stdout=api_log,
-        stderr=api_log,
-        creationflags=NO_WINDOW,
-    )
+        api_ok_event = threading.Event()
 
-    # Comprobación de salud del API en segundo plano (no bloqueante)
-    def _api_health_worker():
-        health_url = f"http://127.0.0.1:{api_port}/health"
-        ok = wait_for_health(health_url, timeout=20.0)
-        if ok:
-            print("[launcher] API healthy.", flush=True)
+        if api_enabled:
+            LOGGER.info("Iniciando API en 127.0.0.1:%s", api_port)
+            api_proc = subprocess.Popen(
+                [str(PYTHON), "api.py"],
+                cwd=str(ROOT),
+                env=env,
+                stdout=api_log,
+                stderr=api_log,
+                creationflags=NO_WINDOW,
+            )
+
+            PID_FILE.write_text(f"{api_proc.pid}\n{app_proc.pid}\n", encoding="utf-8")
+
+            def _api_health_worker():
+                health_url = f"{api_url}/health"
+                ok = wait_for_health(health_url, timeout=20.0)
+                if ok:
+                    api_ok_event.set()
+                    write_api_status(True, api_url)
+                    LOGGER.info("API saludable en %s", api_url)
+                else:
+                    reason = "API no saludable tras 20s"
+                    write_api_status(False, api_url, reason=reason)
+                    LOGGER.warning(reason)
+                    notify_user(
+                        "MovilidadUCLM - API",
+                        "La aplicación está abierta, pero la API no arrancó correctamente.\n"
+                        "Algunas funciones pueden no estar disponibles.\n\n"
+                        f"Consulta {API_LOG_PATH} y {API_STATUS_PATH}"
+                    )
+
+            threading.Thread(target=_api_health_worker, daemon=True).start()
         else:
-            print("[launcher] WARNING: API not healthy after 20s.", flush=True)
+            reason = api_disabled_reason or "API deshabilitada."
+            write_api_status(False, api_url, reason=reason)
+            PID_FILE.write_text(f"{app_proc.pid}\n", encoding="utf-8")
+            LOGGER.warning(reason)
 
-    threading.Thread(target=_api_health_worker, daemon=True).start()
+        GRACE_STARTUP = 20
+        IDLE_TIMEOUT = 30
+        start_time = time.time()
+        last_seen = time.time()
+        LOGGER.info("Monitor de inactividad activo.")
 
-    PID_FILE.write_text(f"{api_proc.pid}\n{app_proc.pid}\n", encoding="utf-8")
-
-    url = f"http://127.0.0.1:{app_port}"
-    (LOG_DIR / "last_url.txt").write_text(url, encoding="utf-8")
-    print(f"[launcher] Waiting Streamlit at {url}", flush=True)
-
-    if not wait_for_http(url, timeout=30.0):
-        print("[launcher] ERROR: Streamlit no responde. Mira logs/app.log", flush=True)
-        try: app_proc.terminate()
-        except Exception: pass
-        try: api_proc.terminate()
-        except Exception: pass
-        return
-
-    print(f"[launcher] Opening browser {url}", flush=True)
-    subprocess.Popen(
-        ["rundll32", "url.dll,FileProtocolHandler", url],
-        creationflags=NO_WINDOW,
-    )
-
-    # ---- Auto-cierre por inactividad ----
-    GRACE_STARTUP = 20
-    IDLE_TIMEOUT = 30
-
-    print("[launcher] Entering idle monitor...", flush=True)
-    start_time = time.time()
-    last_seen = time.time()
-
-    while True:
-        if app_proc.poll() is not None:
-            print("[launcher] Streamlit ended.", flush=True)
-            break
-
-        ts = get_last_ping_ts(api_port)
-        now = time.time()
-        if ts is not None:
-            last_seen = ts
-
-        if now - start_time > GRACE_STARTUP:
-            if now - last_seen > IDLE_TIMEOUT:
-                print("[launcher] No pings detected. Shutting down...", flush=True)
+        while True:
+            if app_proc.poll() is not None:
+                LOGGER.info("Streamlit finalizó.")
                 break
 
-        time.sleep(2)
+            if api_enabled and api_ok_event.is_set():
+                ts = get_last_ping_ts(api_port)
+                now = time.time()
+                if ts is not None:
+                    last_seen = ts
+                if now - start_time > GRACE_STARTUP and now - last_seen > IDLE_TIMEOUT:
+                    LOGGER.info("Sin pings del API, cerrando.")
+                    break
 
-    for p in (app_proc, api_proc):
-        try: p.terminate()
-        except Exception: pass
-    time.sleep(1)
-    for p in (app_proc, api_proc):
-        try:
-            if p.poll() is None:
-                p.kill()
-        except Exception:
-            pass
+            time.sleep(2)
 
-    print("[launcher] Shutdown complete.", flush=True)
+    except Exception as exc:
+        write_api_status(False, api_url, reason=str(exc))
+        LOGGER.exception("Error iniciando procesos: %s", exc)
+        raise
+    finally:
+        for proc in (app_proc, api_proc):
+            if proc is None:
+                continue
+            try:
+                proc.terminate()
+            except Exception:
+                pass
+        time.sleep(1)
+        for proc in (app_proc, api_proc):
+            if proc is None:
+                continue
+            try:
+                if proc.poll() is None:
+                    proc.kill()
+            except Exception:
+                pass
+        for logfile in (app_log, api_log):
+            try:
+                logfile.close()
+            except Exception:
+                pass
+        LOGGER.info("Procesos detenidos.")
 
 
-
-def main():
-    _lock = single_instance_lock()
-
-    os.chdir(ROOT)
-    LOG_DIR.mkdir(exist_ok=True)
-
-    log_f = open(LOG_DIR / "launcher.log", "w", encoding="utf-8", buffering=1)
-    sys.stdout = log_f
-    sys.stderr = log_f
-
+def run_launcher() -> int:
+    prepare_appdata_dirs()
+    touch_initial_logs()
+    setup_launcher_logging()
+    LOGGER.info("MovilidadUCLM launcher %s iniciando.", LAUNCHER_VERSION)
+    lock_handle = single_instance_lock()
+    if lock_handle is None and os.name == "nt":
+        return 0
+    exit_code = 0
     try:
-        print("[launcher] main start", flush=True)
-        ensure_venv()
-        print("[launcher] venv ok", flush=True)
+        api_enabled, api_reason = ensure_installation()
+        if not api_enabled:
+            exit_code = 1
+            LOGGER.warning("Modo degradado: %s", api_reason)
+            notify_user(
+                "MovilidadUCLM",
+                f"{api_reason}\nConsulta {PIP_LOG_PATH} para más detalles.\n"
+                "La app arrancará solo en modo lectura (Streamlit sin API)."
+            )
+        ensure_data_demo()
         write_demo_config()
-        print("[launcher] config ok", flush=True)
-        start_processes()
-        print("[launcher] start_processes returned", flush=True)
-    except Exception:
-        traceback.print_exc()
-        log_f.flush()
-        # evita el "lost sys.stderr" al salir
-        os._exit(1)
+        start_processes(api_enabled=api_enabled, api_disabled_reason=api_reason)
+    except RuntimeError as exc:
+        LOGGER.error("Launcher abortado: %s", exc)
+        notify_user(
+            "MovilidadUCLM",
+            f"{exc}\nConsulta {LAUNCHER_LOG_PATH} para más detalles."
+        )
+        return 1
+    except Exception as exc:
+        LOGGER.exception("Fallo inesperado en el launcher: %s", exc)
+        notify_user(
+            "MovilidadUCLM",
+            f"Error inesperado. Consulta {LAUNCHER_LOG_PATH}"
+        )
+        return 1
+    finally:
+        release_instance_lock(lock_handle)
+    LOGGER.info("Launcher finalizado correctamente.")
+    return exit_code
 
 
+def main() -> int:
+    return run_launcher()
 
 
 if __name__ == "__main__":
-    main()
+    sys.exit(main())

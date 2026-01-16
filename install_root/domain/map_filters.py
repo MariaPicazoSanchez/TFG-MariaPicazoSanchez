@@ -1,4 +1,5 @@
 import re
+import streamlit as st
 
 def rerun():
     import streamlit as st

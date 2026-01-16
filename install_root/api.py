@@ -8,6 +8,30 @@ from security import get_api_token
 import logging
 import warnings
 import time
+
+def repair_windows_path(path_str: str) -> str:
+    """
+    Repara rutas de Windows mal formadas.
+    Ejemplo: 'C:UsersmariaAppDataLocalMovilidadUCLM' -> 'C:\\Users\\maria\\AppData\\Local\\MovilidadUCLM'
+    """
+    if not path_str:
+        return ""
+    
+    # Si ya tiene barras invertidas, normalizarla
+    if "\\" in path_str:
+        return os.path.normpath(path_str)
+    
+    # Si tiene barras diagonales, reemplazarlas
+    if "/" in path_str:
+        return os.path.normpath(path_str.replace("/", "\\"))
+    
+    # Si NO tiene barras (ej: C:UsersmariaAppData...), insertar después de C:
+    # Patrón: C:Users... -> C:\Users...
+    if len(path_str) > 2 and path_str[1] == ":" and path_str[2] != "\\":
+        path_str = path_str[0:2] + "\\" + path_str[2:]
+    
+    return os.path.normpath(path_str)
+
 LAST_PING = time.time()
 API_TOKEN = get_api_token()
 
@@ -44,7 +68,7 @@ def require_token(f):
                 print("❌ Token inválido. Esperado:", expected, "Recibido:", token)
                 return jsonify({"ok": False, "error": "Unauthorized"}), 401
             else:
-                print("✅ Token válido recibido.")
+                print("Token válido recibido.")
 
         return f(*args, **kwargs)
     return wrapper
@@ -133,14 +157,61 @@ def update_student():
     # Índices y ruta del Excel principal que vienen del popup
     row_index_str = form.get("row_index", "-1")
     idx = int(form.get("idx", "-1"))
-    excel_path = form.get("excel_path", "")
+    excel_path_raw = form.get("excel_path", "")
+    
+    print(f"\n{'='*60}")
+    print(f"[API] FORM recibido del frontend:")
+    for k, v in form.items():
+        if 'path' in k.lower():
+            print(f"  {k} (raw)   = {repr(v)}")
+    
+    # REPARAR y normalizar ruta (desde el formulario)
+    excel_path = repair_windows_path(excel_path_raw)
+
+    # Preferir SIEMPRE la ruta desde config.json según el programa
+    programa = (form.get("programa") or "").strip()
+    excel_cfg_raw = ""
+    excel_cfg = ""
+    try:
+        cfg_path = os.getenv("APP_CONFIG_PATH", "config.json")
+        with open(cfg_path, "r", encoding="utf-8") as f:
+            config = json.load(f)
+        if programa:
+            excel_cfg_raw = (config.get(programa, "") or "").strip()
+            excel_cfg = repair_windows_path(excel_cfg_raw)
+    except Exception as e:
+        print(f"[API] No se pudo leer config.json para '{programa}': {e}")
+
+    # Si la ruta de config existe, usarla; si no, mantener la del form
+    if excel_cfg:
+        print(f"[API] excel (config) raw={repr(excel_cfg_raw)} -> {repr(excel_cfg)} exists={os.path.exists(excel_cfg)}")
+        if os.path.exists(excel_cfg):
+            excel_path = excel_cfg
+    
+    print(f"\n[API] RUTA PROCESADA:")
+    print(f"  excel_path_raw  = {repr(excel_path_raw)}")
+    print(f"  excel_path (OK) = {repr(excel_path)}")
+    print(f"  Existe archivo? {os.path.exists(excel_path)}")
+    print(f"{'='*60}\n")
 
     old_email = (form.get("old_email") or "").strip()
     old_nombre = (form.get("old_nombre") or "").strip()
 
     messages = []
     ok_global = True
-        # === Validación de campos obligatorios ===
+    
+    # Validación: la ruta debe venir y el archivo debe existir
+    if not excel_path:
+        return _build_js_response(False, [
+            "ERROR: No se recibió ruta del Excel.",
+            "Intenta recargar la página o revisa config.json."])
+    
+    if not os.path.exists(excel_path):
+        return _build_js_response(False, [
+            f"ERROR: El archivo Excel no existe en: {excel_path}",
+            "Verifica que el archivo esté en AppData\\Local\\MovilidadUCLM\\data_demo y que config.json apunte ahí."])
+    
+    # === Validación de campos obligatorios ===
     nombre = (form.get("estudiante") or "").strip()
     email = (form.get("email") or "").strip()
     ciudad = (form.get("ciudad") or "").strip()
@@ -185,10 +256,13 @@ def update_student():
                 cfg_path = os.getenv("APP_CONFIG_PATH", "config.json")
                 with open(cfg_path, "r", encoding="utf-8") as f:
                     config = json.load(f)
-                materias_path = (config.get("Materias IN", "") or "").strip()
-                print("[update_student] materias_path (Materias IN) =", materias_path)
+                materias_path_raw = (config.get("Materias IN", "") or "").strip()
+                # REPARAR y normalizar ruta
+                materias_path = repair_windows_path(materias_path_raw)
+                print(f"[update_student] materias_path_raw={materias_path_raw}")
+                print(f"[update_student] materias_path (reparado)={materias_path}")
             except Exception as e:
-                print("[update_student] Error leyendo config.json:", e)
+                print(f"[update_student] Error leyendo config.json: {e}")
                 materias_path = ""
 
             # 4) Actualizar Excel de asignaturas (solo si hay ruta + materias + nombre)
