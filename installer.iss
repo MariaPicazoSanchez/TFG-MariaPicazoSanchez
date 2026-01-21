@@ -24,7 +24,7 @@ Source: "install_root\data_demo\*"; DestDir: "{localappdata}\MovilidadESII\data_
 Source: "install_root\MovilidadESII.ico"; DestDir: "{app}"; Flags: ignoreversion
 
 [Tasks]
-Name: "desktopicon"; Description: "Crear icono en el escritorio"; GroupDescription: "Accesos directos:"; Flags: unchecked
+Name: "desktopicon"; Description: "Crear icono en el escritorio"; GroupDescription: "Accesos directos:"
 
 [Icons]
 Name: "{group}\{#AppName}"; Filename: "{app}\{#AppExe}"; IconFilename: "{app}\MovilidadESII.ico"
