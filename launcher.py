@@ -15,7 +15,7 @@ LAUNCHER_VERSION = "envfix-2026-01-05-1.0"
 
 def get_appdata_dir() -> Path:
     base = os.getenv("LOCALAPPDATA") or os.getenv("APPDATA") or str(Path.home())
-    return Path(base) / "MovilidadUCLM"
+    return Path(base) / "MovilidadESII"
 
 
 APPDATA_DIR = get_appdata_dir()
@@ -30,7 +30,7 @@ LAUNCHER_LOG_PATH = LOG_DIR / "launcher.log"
 APP_LOG_PATH = LOG_DIR / "app.log"
 API_LOG_PATH = LOG_DIR / "api.log"
 PIP_LOG_PATH = LOG_DIR / "pip_install.log"
-LOCK_NAME = "Global\\MovilidadUCLM_Launcher"
+LOCK_NAME = "Global\\MovilidadESII_Launcher"
 
 NO_WINDOW = 0
 if os.name == "nt":
@@ -329,7 +329,7 @@ def start_processes(api_enabled: bool = True, api_disabled_reason: str | None = 
         if not wait_for_http(url, timeout=30.0):
             LOGGER.error("Streamlit no respondió en %s", url)
             notify_user(
-                "MovilidadUCLM - Streamlit",
+                "MovilidadESII - Streamlit",
                 "Streamlit no pudo arrancar. Consulta app.log en AppData."
             )
             raise RuntimeError("Streamlit no arrancó correctamente.")
@@ -367,7 +367,7 @@ def start_processes(api_enabled: bool = True, api_disabled_reason: str | None = 
                     write_api_status(False, api_url, reason=reason)
                     LOGGER.warning(reason)
                     notify_user(
-                        "MovilidadUCLM - API",
+                        "MovilidadESII - API",
                         "La aplicación está abierta, pero la API no arrancó correctamente.\n"
                         "Algunas funciones pueden no estar disponibles.\n\n"
                         f"Consulta {API_LOG_PATH} y {API_STATUS_PATH}"
@@ -435,7 +435,7 @@ def run_launcher() -> int:
     prepare_appdata_dirs()
     touch_initial_logs()
     setup_launcher_logging()
-    LOGGER.info("MovilidadUCLM launcher %s iniciando.", LAUNCHER_VERSION)
+    LOGGER.info("MovilidadESII launcher %s iniciando.", LAUNCHER_VERSION)
     lock_handle = single_instance_lock()
     if lock_handle is None and os.name == "nt":
         return 0
@@ -446,7 +446,7 @@ def run_launcher() -> int:
             exit_code = 1
             LOGGER.warning("Modo degradado: %s", api_reason)
             notify_user(
-                "MovilidadUCLM",
+                "MovilidadESII",
                 f"{api_reason}\nConsulta {PIP_LOG_PATH} para más detalles.\n"
                 "La app arrancará solo en modo lectura (Streamlit sin API)."
             )
@@ -456,14 +456,14 @@ def run_launcher() -> int:
     except RuntimeError as exc:
         LOGGER.error("Launcher abortado: %s", exc)
         notify_user(
-            "MovilidadUCLM",
+            "MovilidadESII",
             f"{exc}\nConsulta {LAUNCHER_LOG_PATH} para más detalles."
         )
         return 1
     except Exception as exc:
         LOGGER.exception("Fallo inesperado en el launcher: %s", exc)
         notify_user(
-            "MovilidadUCLM",
+            "MovilidadESII",
             f"Error inesperado. Consulta {LAUNCHER_LOG_PATH}"
         )
         return 1

@@ -1,7 +1,7 @@
+pandas
 streamlit
 leafmap[maplibre]
 folium
-pandas
 openpyxl
 geopy
 pycountry

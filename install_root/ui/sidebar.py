@@ -7,7 +7,7 @@ import streamlit as st
 def repair_windows_path(path_str: str) -> str:
     """
     Repara rutas de Windows mal formadas.
-    Ejemplo: 'C:UsersmariaAppDataLocalMovilidadUCLM' -> 'C:\\Users\\maria\\AppData\\Local\\MovilidadUCLM'
+    Ejemplo: 'C:UsersmariaAppDataLocalMovilidadESII' -> 'C:\\Users\\maria\\AppData\\Local\\MovilidadESII'
     """
     if not path_str:
         return ""

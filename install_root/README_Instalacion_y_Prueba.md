@@ -1,4 +1,4 @@
-# MovilidadUCLM — Guía de instalación, uso y logs (Windows)
+# MovilidadESII — Guía de instalación, uso y logs (Windows)
 
 ## 1) Qué es esto
 Aplicación de visualización y gestión de movilidad académica:
@@ -9,7 +9,7 @@ Aplicación de visualización y gestión de movilidad académica:
 ---
 
 ## 2) Instalación
-1. Ejecuta el instalador: **MovilidadUCLM_Installer.exe**
+1. Ejecuta el instalador: **MovilidadESII_Installer.exe**
 2. (Opcional) Marca **Crear icono en el escritorio**.
 3. Finaliza la instalación.
 
@@ -18,7 +18,7 @@ Aplicación de visualización y gestión de movilidad académica:
 ---
 
 ## 3) Abrir la aplicación
-- Doble clic en el icono **MovilidadUCLM** (Escritorio o Menú Inicio).
+- Doble clic en el icono **MovilidadESII** (Escritorio o Menú Inicio).
 - Se abrirá automáticamente en el navegador predeterminado.
 
 **Primera ejecución:** puede tardar más (creación de entorno virtual + dependencias).  
@@ -39,12 +39,12 @@ La configuración de rutas se guarda de forma local en el perfil del usuario (pa
 Por permisos de Windows, los logs NO se guardan en “Archivos de programa”.
 Se guardan en tu perfil de usuario:
 
-- `%LOCALAPPDATA%\MovilidadUCLM\logs`
+- `%LOCALAPPDATA%\MovilidadESII\logs`
 
 Cómo abrirlos:
 1. Pulsa **Win + R**
 2. Pega:
-# MovilidadUCLM — Guía de instalación, uso y logs (Windows)
+# MovilidadESII — Guía de instalación, uso y logs (Windows)
 
 ## 1) Qué es esto
 Aplicación de visualización y gestión de movilidad académica:
@@ -55,7 +55,7 @@ Aplicación de visualización y gestión de movilidad académica:
 ---
 
 ## 2) Instalación
-1. Ejecuta el instalador: **MovilidadUCLM_Installer.exe**
+1. Ejecuta el instalador: **MovilidadESII_Installer.exe**
 2. (Opcional) Marca **Crear icono en el escritorio**.
 3. Finaliza la instalación.
 
@@ -64,7 +64,7 @@ Aplicación de visualización y gestión de movilidad académica:
 ---
 
 ## 3) Abrir la aplicación
-- Doble clic en el icono **MovilidadUCLM** (Escritorio o Menú Inicio).
+- Doble clic en el icono **MovilidadESII** (Escritorio o Menú Inicio).
 - Se abrirá automáticamente en el navegador predeterminado.
 
 **Primera ejecución:** puede tardar más (creación de entorno virtual + dependencias).  
@@ -85,11 +85,11 @@ La configuración de rutas se guarda de forma local en el perfil del usuario (pa
 Por permisos de Windows, los logs NO se guardan en “Archivos de programa”.
 Se guardan en tu perfil de usuario:
 
-- `%LOCALAPPDATA%\MovilidadUCLM\logs`
+- `%LOCALAPPDATA%\MovilidadESII\logs`
 
 Cómo abrirlos:
 1. Pulsa **Win + R**.
-2. Pega: `%LOCALAPPDATA%\MovilidadUCLM\logs`.
+2. Pega: `%LOCALAPPDATA%\MovilidadESII\logs`.
 3. Enter.
 
 Archivos:
@@ -111,31 +111,31 @@ Tienes dos opciones:
 
 ### Opción A (recomendada)
 - **Inicio → Configuración → Aplicaciones → Aplicaciones instaladas**
-- Busca **MovilidadUCLM**
+- Busca **MovilidadESII**
 - Pulsa **Desinstalar**
 
 ### Opción B
 - Panel de control → Programas → Desinstalar un programa
-- Busca **MovilidadUCLM** y desinstala.
+- Busca **MovilidadESII** y desinstala.
 
 > Nota: al desinstalar, puede quedar la carpeta de datos local (logs/config/venv) en:
-> `%LOCALAPPDATA%\MovilidadUCLM`
+> `%LOCALAPPDATA%\MovilidadESII`
 > Si quieres borrarlo todo manualmente, elimina esa carpeta.
 
 ---
 
 ## 8) Problemas frecuentes
 ### No se abre nada al hacer doble clic
-- Revisa: `%LOCALAPPDATA%\MovilidadUCLM\logs\launcher.log`
+- Revisa: `%LOCALAPPDATA%\MovilidadESII\logs\launcher.log`
 
 ### Error instalando dependencias
-- Revisa: `%LOCALAPPDATA%\MovilidadUCLM\logs\pip.log`
+- Revisa: `%LOCALAPPDATA%\MovilidadESII\logs\pip.log`
 
 ### La API no arranca
-- Revisa: `%LOCALAPPDATA%\MovilidadUCLM\logs\api.log`
+- Revisa: `%LOCALAPPDATA%\MovilidadESII\logs\api.log`
 
 ### Streamlit no arranca / pantalla en blanco
-- Revisa: `%LOCALAPPDATA%\MovilidadUCLM\logs\app.log`
+- Revisa: `%LOCALAPPDATA%\MovilidadESII\logs\app.log`
 
 ---
 

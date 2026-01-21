@@ -1,6 +1,6 @@
-#define AppName "MovilidadUCLM"
+#define AppName "MovilidadESII"
 #define AppVer  "1.0"
-#define AppExe  "MovilidadUCLM.exe"
+#define AppExe  "MovilidadESII.exe"
 
 [Setup]
 AppName={#AppName}
@@ -9,73 +9,73 @@ DefaultDirName={pf}\{#AppName}
 DefaultGroupName={#AppName}
 DisableProgramGroupPage=yes
 OutputDir=output
-OutputBaseFilename=MovilidadUCLM_Installer
+OutputBaseFilename=MovilidadESII_Installer
 Compression=lzma
 SolidCompression=yes
 PrivilegesRequired=admin
-SetupIconFile=install_root\MovilidadUCLM.ico
+SetupIconFile=install_root\MovilidadESII.ico
 UninstallDisplayIcon={app}\{#AppExe}
 ArchitecturesAllowed=x64
 ArchitecturesInstallIn64BitMode=x64
 
 [Files]
 Source: "install_root\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs; Excludes: "thirdparty\*;data_demo\*"
-Source: "install_root\data_demo\*"; DestDir: "{localappdata}\MovilidadUCLM\data_demo"; Flags: ignoreversion recursesubdirs createallsubdirs
-Source: "install_root\MovilidadUCLM.ico"; DestDir: "{app}"; Flags: ignoreversion
+Source: "install_root\data_demo\*"; DestDir: "{localappdata}\MovilidadESII\data_demo"; Flags: ignoreversion recursesubdirs createallsubdirs
+Source: "install_root\MovilidadESII.ico"; DestDir: "{app}"; Flags: ignoreversion
 
 [Tasks]
 Name: "desktopicon"; Description: "Crear icono en el escritorio"; GroupDescription: "Accesos directos:"; Flags: unchecked
 
 [Icons]
-Name: "{group}\{#AppName}"; Filename: "{app}\{#AppExe}"; IconFilename: "{app}\MovilidadUCLM.ico"
-Name: "{commondesktop}\{#AppName}"; Filename: "{app}\{#AppExe}"; IconFilename: "{app}\MovilidadUCLM.ico"; Tasks: desktopicon
+Name: "{group}\{#AppName}"; Filename: "{app}\{#AppExe}"; IconFilename: "{app}\MovilidadESII.ico"
+Name: "{commondesktop}\{#AppName}"; Filename: "{app}\{#AppExe}"; IconFilename: "{app}\MovilidadESII.ico"; Tasks: desktopicon
 
 [UninstallDelete]
-Type: filesandordirs; Name: "{localappdata}\MovilidadUCLM"
+Type: filesandordirs; Name: "{localappdata}\MovilidadESII"
 
 [Dirs]
-Name: "{localappdata}\MovilidadUCLM\logs"
-Name: "{localappdata}\MovilidadUCLM\cache"
-Name: "{localappdata}\MovilidadUCLM\config"
-Name: "{localappdata}\MovilidadUCLM\data_demo"
-Name: "{localappdata}\MovilidadUCLM\venv"
+Name: "{localappdata}\MovilidadESII\logs"
+Name: "{localappdata}\MovilidadESII\cache"
+Name: "{localappdata}\MovilidadESII\config"
+Name: "{localappdata}\MovilidadESII\data_demo"
+Name: "{localappdata}\MovilidadESII\venv"
 
 [Run]
 Filename: "{cmd}"; \
-  Parameters: "/C echo [SETUP_TRACE] Start >> ""{localappdata}\MovilidadUCLM\logs\setup_trace.log"""; \
+  Parameters: "/C echo [SETUP_TRACE] Start >> ""{localappdata}\MovilidadESII\logs\setup_trace.log"""; \
   StatusMsg: "Inicializando..."; \
   Flags: waituntilterminated runhidden
 
 Filename: "{cmd}"; \
-  Parameters: "/C echo [SETUP_TRACE] Verificando Python 3.12 >> ""{localappdata}\MovilidadUCLM\logs\setup_trace.log"" && python --version >> ""{localappdata}\MovilidadUCLM\logs\setup_trace.log"" 2>&1"; \
+  Parameters: "/C echo [SETUP_TRACE] Verificando Python 3.12 >> ""{localappdata}\MovilidadESII\logs\setup_trace.log"" && python --version >> ""{localappdata}\MovilidadESII\logs\setup_trace.log"" 2>&1"; \
   StatusMsg: "Verificando Python 3.12..."; \
   Flags: waituntilterminated runhidden; \
   Check: not (IsPython312Installed() or IsPython312OnPath())
 
 Filename: "{cmd}"; \
-  Parameters: "/C python -m venv ""{localappdata}\MovilidadUCLM\venv"" >> ""{localappdata}\MovilidadUCLM\logs\setup_trace.log"" 2>&1"; \
+  Parameters: "/C python -m venv ""{localappdata}\MovilidadESII\venv"" >> ""{localappdata}\MovilidadESII\logs\setup_trace.log"" 2>&1"; \
   StatusMsg: "Preparando entorno virtual..."; \
   Flags: waituntilterminated runhidden; \
-  Check: not DirExists(ExpandConstant('{localappdata}\MovilidadUCLM\venv\Scripts'))
+  Check: not DirExists(ExpandConstant('{localappdata}\MovilidadESII\venv\Scripts'))
 
 Filename: "{cmd}"; \
-  Parameters: "/C if exist ""{localappdata}\MovilidadUCLM\venv\Scripts\python.exe"" (echo [SETUP_TRACE] venv ok >> ""{localappdata}\MovilidadUCLM\logs\setup_trace.log"") else (echo [SETUP_TRACE] ERROR: venv not found >> ""{localappdata}\MovilidadUCLM\logs\setup_trace.log"")"; \
+  Parameters: "/C if exist ""{localappdata}\MovilidadESII\venv\Scripts\python.exe"" (echo [SETUP_TRACE] venv ok >> ""{localappdata}\MovilidadESII\logs\setup_trace.log"") else (echo [SETUP_TRACE] ERROR: venv not found >> ""{localappdata}\MovilidadESII\logs\setup_trace.log"")"; \
   StatusMsg: "Verificando venv..."; \
   Flags: waituntilterminated runhidden
 
 Filename: "{cmd}"; \
-  Parameters: "/C (echo [pip_install.log] >> ""{localappdata}\MovilidadUCLM\logs\pip_install.log"" && ""{localappdata}\MovilidadUCLM\venv\Scripts\python.exe"" -m pip install --upgrade pip >> ""{localappdata}\MovilidadUCLM\logs\pip_install.log"" 2>&1 && ""{localappdata}\MovilidadUCLM\venv\Scripts\python.exe"" -m pip install --no-index --find-links ""{app}\wheelhouse"" -r ""{app}\requirements.lock.txt"" >> ""{localappdata}\MovilidadUCLM\logs\pip_install.log"" 2>&1)"; \
+  Parameters: "/C (echo [pip_install.log] >> ""{localappdata}\MovilidadESII\logs\pip_install.log"" && ""{localappdata}\MovilidadESII\venv\Scripts\python.exe"" -m pip install --upgrade pip >> ""{localappdata}\MovilidadESII\logs\pip_install.log"" 2>&1 && ""{localappdata}\MovilidadESII\venv\Scripts\python.exe"" -m pip install --no-index --find-links ""{app}\wheelhouse"" -r ""{app}\requirements.lock.txt"" >> ""{localappdata}\MovilidadESII\logs\pip_install.log"" 2>&1)"; \
   StatusMsg: "Instalando dependencias (esto puede tardar varios minutos)..."; \
   Flags: waituntilterminated runhidden
 
 Filename: "{cmd}"; \
-  Parameters: "/C ""{localappdata}\MovilidadUCLM\venv\Scripts\python.exe"" -c ""import streamlit, flask; print('deps_ok')"" >> ""{localappdata}\MovilidadUCLM\logs\pip_install.log"" 2>&1"; \
+  Parameters: "/C ""{localappdata}\MovilidadESII\venv\Scripts\python.exe"" -c ""import streamlit, flask; print('deps_ok')"" >> ""{localappdata}\MovilidadESII\logs\pip_install.log"" 2>&1"; \
   StatusMsg: "Validando dependencias..."; \
   Flags: waituntilterminated runhidden; \
-  Check: DirExists(ExpandConstant('{localappdata}\MovilidadUCLM\venv\Scripts'))
+  Check: DirExists(ExpandConstant('{localappdata}\MovilidadESII\venv\Scripts'))
 
 Filename: "{cmd}"; \
-  Parameters: "/C (echo [SETUP_TRACE] validate ok >> ""{localappdata}\MovilidadUCLM\logs\setup_trace.log"" && echo installed > ""{localappdata}\MovilidadUCLM\.installer_complete"")"; \
+  Parameters: "/C (echo [SETUP_TRACE] validate ok >> ""{localappdata}\MovilidadESII\logs\setup_trace.log"" && echo installed > ""{localappdata}\MovilidadESII\.installer_complete"")"; \
   StatusMsg: "Finalizando instalación..."; \
   Flags: waituntilterminated runhidden; \
   Check: DepsValidationOk()
@@ -96,7 +96,7 @@ var
 procedure TraceLog(const Msg: string);
 begin
   if SetupTracePath = '' then
-    SetupTracePath := ExpandConstant('{localappdata}\MovilidadUCLM\logs\setup_trace.log');
+    SetupTracePath := ExpandConstant('{localappdata}\MovilidadESII\logs\setup_trace.log');
   ForceDirectories(ExtractFileDir(SetupTracePath));
   SaveStringToFile(SetupTracePath, GetDateTimeString('yyyy-mm-dd hh:nn:ss', '-', ':') + ' ' + Msg + #13#10, True);
 end;
@@ -104,7 +104,7 @@ end;
 procedure PipLog(const Msg: string);
 begin
   if PipLogPath = '' then
-    PipLogPath := ExpandConstant('{localappdata}\MovilidadUCLM\logs\pip_install.log');
+    PipLogPath := ExpandConstant('{localappdata}\MovilidadESII\logs\pip_install.log');
   ForceDirectories(ExtractFileDir(PipLogPath));
   SaveStringToFile(PipLogPath, GetDateTimeString('yyyy-mm-dd hh:nn:ss', '-', ':') + ' ' + Msg + #13#10, True);
 end;
@@ -149,7 +149,7 @@ var
   ResultCode: Integer;
   VenvPython: string;
 begin
-  VenvPython := ExpandConstant('{localappdata}\MovilidadUCLM\venv\Scripts\python.exe');
+  VenvPython := ExpandConstant('{localappdata}\MovilidadESII\venv\Scripts\python.exe');
   
   TraceLog('Validating: ' + VenvPython);
   
@@ -181,7 +181,7 @@ function InitializeSetup(): Boolean;
 var
   LogDir: string;
 begin
-  LogDir := ExpandConstant('{localappdata}\MovilidadUCLM\logs');
+  LogDir := ExpandConstant('{localappdata}\MovilidadESII\logs');
   ForceDirectories(LogDir);
   
   PipLogPath := LogDir + '\pip_install.log';
@@ -211,7 +211,7 @@ begin
     begin
       Msg := 'No se pudieron instalar las dependencias necesarias (streamlit/flask).' + #13#10 + #13#10 +
              'Por favor, revisa los logs en:' + #13#10 +
-             ExpandConstant('{localappdata}\MovilidadUCLM\logs\');
+             ExpandConstant('{localappdata}\MovilidadESII\logs\');
       if PipErrorMsg <> '' then
         Msg := Msg + #13#10 + #13#10 + 'Detalle: ' + PipErrorMsg;
       

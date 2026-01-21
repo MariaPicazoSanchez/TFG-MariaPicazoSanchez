@@ -5,7 +5,7 @@ config.json
 build/
 dist/
 output/
-MovilidadUCLM.spec
+MovilidadESII.spec
 icono.png
 
 # Runtime artifacts
@@ -31,5 +31,5 @@ install_root/_internal/
 install_root/thirdparty/
 install_root/wheelhouse/
 install_root/node_modules/
-install_root/MovilidadUCLM.exe
+install_root/MovilidadESII.exe
 install_root/output/

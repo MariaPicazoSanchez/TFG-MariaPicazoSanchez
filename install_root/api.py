@@ -12,7 +12,7 @@ import time
 def repair_windows_path(path_str: str) -> str:
     """
     Repara rutas de Windows mal formadas.
-    Ejemplo: 'C:UsersmariaAppDataLocalMovilidadUCLM' -> 'C:\\Users\\maria\\AppData\\Local\\MovilidadUCLM'
+    Ejemplo: 'C:UsersmariaAppDataLocalMovilidadESII' -> 'C:\\Users\\maria\\AppData\\Local\\MovilidadESII'
     """
     if not path_str:
         return ""
@@ -209,7 +209,7 @@ def update_student():
     if not os.path.exists(excel_path):
         return _build_js_response(False, [
             f"ERROR: El archivo Excel no existe en: {excel_path}",
-            "Verifica que el archivo esté en AppData\\Local\\MovilidadUCLM\\data_demo y que config.json apunte ahí."])
+            "Verifica que el archivo esté en AppData\\Local\\MovilidadESII\\data_demo y que config.json apunte ahí."])
     
     # === Validación de campos obligatorios ===
     nombre = (form.get("estudiante") or "").strip()
