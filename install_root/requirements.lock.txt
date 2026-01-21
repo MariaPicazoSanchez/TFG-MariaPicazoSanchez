@@ -10,7 +10,6 @@ flask
 requests
 PyMuPDF
 reportlab
-flask
 xlrd
 streamlit-folium
 flask-cors

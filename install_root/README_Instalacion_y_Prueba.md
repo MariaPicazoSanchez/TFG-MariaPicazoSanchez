@@ -147,3 +147,9 @@ Tienes dos opciones:
 5. Abrir ficha de estudiante.
 6. Editar estudiante y guardar.
 7. Verificar que se refleja el cambio.
+
+---
+
+## 10) Cuestionario de calidad (SUS)
+- Cuestionario SUS - Calidad y Facilidad de Uso: [Rellenar formulario](https://forms.office.com/pages/responsepage.aspx?id=5rosxPRhjEmRB2qM9fAeVkFEkc6xy2RJrixnB5tt4NBUNzMzRUM1QlpXOUtDRTUzSVZUWUpVRlZLRS4u&route=shorturl)
+
