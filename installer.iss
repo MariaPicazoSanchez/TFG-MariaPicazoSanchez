@@ -44,8 +44,8 @@ Source: "install_root\requirements.txt"; DestDir: "{app}"; Flags: ignoreversion
 
 
 [Icons]
-Name: "{group}\MovilidadESII"; Filename: "{app}\MovilidadESII.exe"; WorkingDir: "{app}"
-Name: "{userdesktop}\MovilidadESII"; Filename: "{app}\MovilidadESII.exe"; WorkingDir: "{app}"
+Name: "{group}\MovilidadESII"; Filename: "{app}\MovilidadESII.exe"; WorkingDir: "{app}"; IconFilename: "{app}\MovilidadESII.ico"
+Name: "{userdesktop}\MovilidadESII"; Filename: "{app}\MovilidadESII.exe"; WorkingDir: "{app}"; IconFilename: "{app}\MovilidadESII.ico"
 
 
 [Code]
