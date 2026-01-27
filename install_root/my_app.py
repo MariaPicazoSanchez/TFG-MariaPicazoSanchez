@@ -33,7 +33,7 @@ def coincide_en_estudiantes(valor, texto_busqueda_normalizado: str) -> bool:
     return False
 
 def main():
-    st.set_page_config(page_title="Movilidad UCLM", layout="wide", initial_sidebar_state="expanded" )
+    st.set_page_config(page_title="Movilidad ESII", layout="wide", initial_sidebar_state="expanded" )
     inject_js_ping(8000)
     # Aviso temprano si la API aún no está lista (no bloqueante)
     try:
@@ -59,6 +59,7 @@ def main():
         st.cache_data.clear()
 
     if saved_flag == "1":
+        st.cache_data.clear()
         st.success("✅ Alumno guardado correctamente. Los datos se han actualizado.")
         st.rerun()
     elif saved_flag == "0":

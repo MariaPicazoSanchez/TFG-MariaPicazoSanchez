@@ -2,7 +2,6 @@ import re
 import streamlit as st
 
 def rerun():
-    import streamlit as st
     st.rerun()
 
 def filter_button(label: str, program_key: str, key: str, container):
@@ -112,7 +111,6 @@ def render_filters_map(unique_sheets: list[str]) -> str:
             index=idx,
             key="global_sheet_select",
             label_visibility="collapsed",
-            on_change=rerun
         )
 
     if options:

@@ -1,6 +1,7 @@
 #define AppName "MovilidadESII"
 #define AppVer  "1.0"
 #define AppExe  "MovilidadESII.exe"
+#define PyInstallerExe "python-3.12.6-amd64.exe"
 
 [Setup]
 AppName={#AppName}
@@ -13,220 +14,329 @@ OutputBaseFilename=MovilidadESII_Installer
 Compression=lzma
 SolidCompression=yes
 PrivilegesRequired=admin
-SetupIconFile=install_root\MovilidadESII.ico
-UninstallDisplayIcon={app}\{#AppExe}
 ArchitecturesAllowed=x64
 ArchitecturesInstallIn64BitMode=x64
-
-[Files]
-Source: "install_root\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs; Excludes: "thirdparty\*;data_demo\*"
-Source: "install_root\data_demo\*"; DestDir: "{localappdata}\MovilidadESII\data_demo"; Flags: ignoreversion recursesubdirs createallsubdirs
-Source: "install_root\MovilidadESII.ico"; DestDir: "{app}"; Flags: ignoreversion
-
-[Tasks]
-Name: "desktopicon"; Description: "Crear icono en el escritorio"; GroupDescription: "Accesos directos:"
-
-[Icons]
-Name: "{group}\{#AppName}"; Filename: "{app}\{#AppExe}"; IconFilename: "{app}\MovilidadESII.ico"
-Name: "{commondesktop}\{#AppName}"; Filename: "{app}\{#AppExe}"; IconFilename: "{app}\MovilidadESII.ico"; Tasks: desktopicon
-
-[UninstallDelete]
-Type: filesandordirs; Name: "{localappdata}\MovilidadESII"
+SetupLogging=yes
+SetupIconFile=install_root\MovilidadESII.ico
 
 [Dirs]
 Name: "{localappdata}\MovilidadESII\logs"
-Name: "{localappdata}\MovilidadESII\cache"
-Name: "{localappdata}\MovilidadESII\config"
-Name: "{localappdata}\MovilidadESII\data_demo"
+Name: "{localappdata}\MovilidadESII\python"
 Name: "{localappdata}\MovilidadESII\venv"
+Name: "{localappdata}\MovilidadESII\data_demo"
 
-[Run]
-Filename: "{cmd}"; \
-  Parameters: "/C echo [SETUP_TRACE] Start >> ""{localappdata}\MovilidadESII\logs\setup_trace.log"""; \
-  StatusMsg: "Inicializando..."; \
-  Flags: waituntilterminated runhidden
+[Files]
+; Copia todo install_root EXCEPTO thirdparty y data_demo (que van aparte)
+Source: "install_root\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs; Excludes: "thirdparty\*;data_demo\*"
 
-Filename: "{cmd}"; \
-  Parameters: "/C echo [SETUP_TRACE] Verificando Python 3.12 >> ""{localappdata}\MovilidadESII\logs\setup_trace.log"" && python --version >> ""{localappdata}\MovilidadESII\logs\setup_trace.log"" 2>&1"; \
-  StatusMsg: "Verificando Python 3.12..."; \
-  Flags: waituntilterminated runhidden; \
-  Check: not (IsPython312Installed() or IsPython312OnPath())
+; Python installer solo al temp (y se borra al terminar)
+Source: "install_root\thirdparty\{#PyInstallerExe}"; DestDir: "{tmp}"; Flags: deleteafterinstall
 
-Filename: "{cmd}"; \
-  Parameters: "/C python -m venv ""{localappdata}\MovilidadESII\venv"" >> ""{localappdata}\MovilidadESII\logs\setup_trace.log"" 2>&1"; \
-  StatusMsg: "Preparando entorno virtual..."; \
-  Flags: waituntilterminated runhidden; \
-  Check: not DirExists(ExpandConstant('{localappdata}\MovilidadESII\venv\Scripts'))
+; Icono
+Source: "install_root\MovilidadESII.ico"; DestDir: "{app}"; Flags: ignoreversion
 
-Filename: "{cmd}"; \
-  Parameters: "/C if exist ""{localappdata}\MovilidadESII\venv\Scripts\python.exe"" (echo [SETUP_TRACE] venv ok >> ""{localappdata}\MovilidadESII\logs\setup_trace.log"") else (echo [SETUP_TRACE] ERROR: venv not found >> ""{localappdata}\MovilidadESII\logs\setup_trace.log"")"; \
-  StatusMsg: "Verificando venv..."; \
-  Flags: waituntilterminated runhidden
+; data_demo a AppData (tus 4 excels)
+Source: "install_root\data_demo\*.xlsx"; DestDir: "{localappdata}\MovilidadESII\data_demo"; Flags: ignoreversion
 
-Filename: "{cmd}"; \
-  Parameters: "/C (echo [pip_install.log] >> ""{localappdata}\MovilidadESII\logs\pip_install.log"" && ""{localappdata}\MovilidadESII\venv\Scripts\python.exe"" -m pip install --upgrade pip >> ""{localappdata}\MovilidadESII\logs\pip_install.log"" 2>&1 && ""{localappdata}\MovilidadESII\venv\Scripts\python.exe"" -m pip install --no-index --find-links ""{app}\wheelhouse"" -r ""{app}\requirements.lock.txt"" >> ""{localappdata}\MovilidadESII\logs\pip_install.log"" 2>&1)"; \
-  StatusMsg: "Instalando dependencias (esto puede tardar varios minutos)..."; \
-  Flags: waituntilterminated runhidden
+; wheelhouse + requirements (offline pip)
+Source: "install_root\wheelhouse\*"; DestDir: "{app}\wheelhouse"; Flags: ignoreversion recursesubdirs createallsubdirs
+Source: "install_root\requirements.txt"; DestDir: "{app}"; Flags: ignoreversion
 
-Filename: "{cmd}"; \
-  Parameters: "/C ""{localappdata}\MovilidadESII\venv\Scripts\python.exe"" -c ""import streamlit, flask; print('deps_ok')"" >> ""{localappdata}\MovilidadESII\logs\pip_install.log"" 2>&1"; \
-  StatusMsg: "Validando dependencias..."; \
-  Flags: waituntilterminated runhidden; \
-  Check: DirExists(ExpandConstant('{localappdata}\MovilidadESII\venv\Scripts'))
 
-Filename: "{cmd}"; \
-  Parameters: "/C (echo [SETUP_TRACE] validate ok >> ""{localappdata}\MovilidadESII\logs\setup_trace.log"" && echo installed > ""{localappdata}\MovilidadESII\.installer_complete"")"; \
-  StatusMsg: "Finalizando instalación..."; \
-  Flags: waituntilterminated runhidden; \
-  Check: DepsValidationOk()
+[Icons]
+Name: "{group}\MovilidadESII"; Filename: "{app}\MovilidadESII.exe"; WorkingDir: "{app}"
+Name: "{userdesktop}\MovilidadESII"; Filename: "{app}\MovilidadESII.exe"; WorkingDir: "{app}"
 
-Filename: "{app}\{#AppExe}"; \
-  Description: "Abrir {#AppName}"; \
-  Flags: nowait postinstall skipifsilent; \
-  Check: DepsValidationOk()
 
 [Code]
 var
-  DepsOk: Boolean;
-  ValidationFailed: Boolean;
-  PipErrorMsg: string;
+  TracePath: string;
   PipLogPath: string;
-  SetupTracePath: string;
+  BasePythonExe: string;
 
-procedure TraceLog(const Msg: string);
+function AppDataBase(): string;
 begin
-  if SetupTracePath = '' then
-    SetupTracePath := ExpandConstant('{localappdata}\MovilidadESII\logs\setup_trace.log');
-  ForceDirectories(ExtractFileDir(SetupTracePath));
-  SaveStringToFile(SetupTracePath, GetDateTimeString('yyyy-mm-dd hh:nn:ss', '-', ':') + ' ' + Msg + #13#10, True);
+  Result := ExpandConstant('{localappdata}\MovilidadESII');
 end;
 
-procedure PipLog(const Msg: string);
+function PyDir(): string;
 begin
-  if PipLogPath = '' then
-    PipLogPath := ExpandConstant('{localappdata}\MovilidadESII\logs\pip_install.log');
-  ForceDirectories(ExtractFileDir(PipLogPath));
-  SaveStringToFile(PipLogPath, GetDateTimeString('yyyy-mm-dd hh:nn:ss', '-', ':') + ' ' + Msg + #13#10, True);
+  Result := AppDataBase() + '\python';
 end;
 
-function GetPythonExePath(Value: string): string;
+function PyExe(): string;
+begin
+  Result := PyDir() + '\python.exe';
+end;
+
+function VenvDir(): string;
+begin
+  Result := AppDataBase() + '\venv';
+end;
+
+function VenvPy(): string;
+begin
+  Result := VenvDir() + '\Scripts\python.exe';
+end;
+
+function Quote(const S: string): string;
+begin
+  Result := '"' + S + '"';
+end;
+
+procedure LogLine(const S: string);
+begin
+  SaveStringToFile(
+    TracePath,
+    GetDateTimeString('yyyy-mm-dd hh:nn:ss', '-', ':') + ' ' + S + #13#10,
+    True
+  );
+end;
+
+function ExecLogged(const Exe, Params, WorkDir: string; out RC: Integer): Boolean;
+begin
+  LogLine('Exec: ' + Exe + ' ' + Params);
+  Result := Exec(Exe, Params, WorkDir, SW_HIDE, ewWaitUntilTerminated, RC);
+  LogLine(' -> exit=' + IntToStr(RC));
+end;
+
+function RunCmdRedirect(const CmdLine, OutLog: string; out RC: Integer): Boolean;
 var
-  InstallPath: string;
+  Params: string;
 begin
-  // Intentar encontrar Python en registry
-  if RegQueryStringValue(HKLM, 'SOFTWARE\Python\PythonCore\3.12\InstallPath', '', InstallPath) or
-     RegQueryStringValue(HKCU, 'SOFTWARE\Python\PythonCore\3.12\InstallPath', '', InstallPath) or
-     RegQueryStringValue(HKLM, 'SOFTWARE\WOW6432Node\Python\PythonCore\3.12\InstallPath', '', InstallPath) then
+  Params := '/C ' + Quote(CmdLine + ' > ' + Quote(OutLog) + ' 2>&1');
+  LogLine('CMD: ' + Params);
+  Result := Exec('cmd.exe', Params, '', SW_HIDE, ewWaitUntilTerminated, RC);
+  LogLine(' -> exit=' + IntToStr(RC));
+end;
+
+procedure FailAndStop(const Msg: string);
+begin
+  LogLine('ERROR: ' + Msg);
+  MsgBox(
+    Msg + #13#10#13#10 +
+    'Revisa logs en:' + #13#10 +
+    AppDataBase() + '\logs',
+    mbError, MB_OK
+  );
+end;
+
+procedure EnsureLogs();
+begin
+  ForceDirectories(AppDataBase() + '\logs');
+  TracePath := AppDataBase() + '\logs\setup_trace.log';
+  PipLogPath := AppDataBase() + '\logs\pip_install.log';
+  BasePythonExe := '';
+end;
+
+function FindPython312ByPaths(out PyPath: string): Boolean;
+begin
+  Result := False;
+  PyPath := '';
+
+  PyPath := PyExe();
+  if FileExists(PyPath) then begin Result := True; exit; end;
+
+  PyPath := ExpandConstant('{localappdata}\Programs\Python\Python312\python.exe');
+  if FileExists(PyPath) then begin Result := True; exit; end;
+
+  PyPath := ExpandConstant('{pf}\Python312\python.exe');
+  if FileExists(PyPath) then begin Result := True; exit; end;
+
+  PyPath := ExpandConstant('{pf32}\Python312\python.exe');
+  if FileExists(PyPath) then begin Result := True; exit; end;
+
+  PyPath := '';
+end;
+
+procedure InstallPythonIfMissing();
+var
+  RC: Integer;
+  InstallerPath: string;
+  Params: string;
+  FoundPy: string;
+begin
+  if FileExists(PyExe()) then
   begin
-    Result := AddBackslash(InstallPath) + 'python.exe';
-    TraceLog('Python en: ' + Result);
-    Exit;
+    BasePythonExe := PyExe();
+    LogLine('Python privado ya existe: ' + BasePythonExe);
+    exit;
   end;
-  // Si no está en registry, usar "python" del PATH
-  Result := 'python.exe';
-  TraceLog('Python: usando PATH (python.exe)');
-end;
 
-function IsPython312Installed(): Boolean;
-var
-  InstallPath: string;
-begin
-  Result :=
-    RegQueryStringValue(HKLM, 'SOFTWARE\Python\PythonCore\3.12\InstallPath', '', InstallPath) or
-    RegQueryStringValue(HKCU, 'SOFTWARE\Python\PythonCore\3.12\InstallPath', '', InstallPath) or
-    RegQueryStringValue(HKLM, 'SOFTWARE\WOW6432Node\Python\PythonCore\3.12\InstallPath', '', InstallPath);
-end;
-
-function IsPython312OnPath(): Boolean;
-var
-  ResultCode: Integer;
-begin
-  Result := Exec('cmd.exe', '/C python --version', '', SW_HIDE, ewWaitUntilTerminated, ResultCode) and (ResultCode = 0);
-end;
-
-function DepsValidationOk(): Boolean;
-var
-  ResultCode: Integer;
-  VenvPython: string;
-begin
-  VenvPython := ExpandConstant('{localappdata}\MovilidadESII\venv\Scripts\python.exe');
-  
-  TraceLog('Validating: ' + VenvPython);
-  
-  if not FileExists(VenvPython) then
+  if FindPython312ByPaths(FoundPy) then
   begin
-    PipErrorMsg := 'venv\Scripts\python.exe no existe en: ' + VenvPython;
-    TraceLog('ERROR: ' + PipErrorMsg);
-    ValidationFailed := True;
-    Result := False;
-    Exit;
+    BasePythonExe := FoundPy;
+    LogLine('Python 3.12 encontrado en el sistema: ' + BasePythonExe);
+    exit;
   end;
 
-  Result := Exec(VenvPython, '-c "import streamlit, flask"', '', SW_HIDE, ewWaitUntilTerminated, ResultCode) and (ResultCode = 0);
-  DepsOk := Result;
-  
-  if not Result then
+  InstallerPath := ExpandConstant('{tmp}\{#PyInstallerExe}');
+  if not FileExists(InstallerPath) then
   begin
-    ValidationFailed := True;
-    PipErrorMsg := 'Fallo al validar streamlit/flask (ResultCode=' + IntToStr(ResultCode) + '). Revisa los logs.';
-    TraceLog('ERROR: validate failed - ResultCode=' + IntToStr(ResultCode));
-  end
-  else
+    FailAndStop('No encuentro el instalador de Python en: ' + InstallerPath);
+    exit;
+  end;
+
+  ForceDirectories(PyDir());
+
+  Params := '/quiet InstallAllUsers=0 PrependPath=0 Include_pip=1 TargetDir=' + Quote(PyDir());
+  LogLine('Instalando Python en: ' + PyDir());
+
+  if (not ExecLogged(InstallerPath, Params, '', RC)) or (RC <> 0) then
   begin
-    TraceLog('validate ok');
+    FailAndStop('Falló la instalación de Python (exit ' + IntToStr(RC) + ').');
+    exit;
+  end;
+
+  if FileExists(PyExe()) then
+  begin
+    BasePythonExe := PyExe();
+    LogLine('Python instalado en TargetDir: ' + BasePythonExe);
+    exit;
+  end;
+
+  if FindPython312ByPaths(FoundPy) then
+  begin
+    BasePythonExe := FoundPy;
+    LogLine('Python instalado/localizado fuera de TargetDir: ' + BasePythonExe);
+    exit;
+  end;
+
+  FailAndStop('Python se ejecutó (exit=0) pero no pude localizar python.exe.');
+end;
+
+procedure CreateVenvIfMissing();
+var
+  RC: Integer;
+begin
+  if FileExists(VenvPy()) then
+  begin
+    LogLine('Venv ya existe: ' + VenvPy());
+    exit;
+  end;
+
+  if (BasePythonExe = '') or (not FileExists(BasePythonExe)) then
+  begin
+    FailAndStop('No existe Python base usable. Python localizado: ' + BasePythonExe);
+    exit;
+  end;
+
+  ForceDirectories(VenvDir());
+
+  if (not ExecLogged(BasePythonExe, '-m venv ' + Quote(VenvDir()), '', RC)) or (RC <> 0) then
+  begin
+    FailAndStop('Falló la creación del venv (exit ' + IntToStr(RC) + ').');
+    exit;
+  end;
+
+  if not FileExists(VenvPy()) then
+  begin
+    FailAndStop('El venv quedó incompleto: falta ' + VenvPy());
+    exit;
   end;
 end;
 
-function InitializeSetup(): Boolean;
+procedure InstallDepsOffline();
 var
-  LogDir: string;
+  RC: Integer;
+  Wheelhouse: string;
+  Req: string;
+  Cmd: string;
+  FR: TFindRec;
 begin
-  LogDir := ExpandConstant('{localappdata}\MovilidadESII\logs');
-  ForceDirectories(LogDir);
-  
-  PipLogPath := LogDir + '\pip_install.log';
-  SetupTracePath := LogDir + '\setup_trace.log';
-  DepsOk := False;
-  ValidationFailed := False;
-  
-  TraceLog('start');
-  TraceLog('Windows: ' + GetWindowsVersionString());
-  if Is64BitInstallMode() then
-    TraceLog('Is64BitMode=True')
-  else
-    TraceLog('Is64BitMode=False');
-  
-  Result := True;
+  Wheelhouse := ExpandConstant('{app}\wheelhouse');
+
+  Req := ExpandConstant('{app}\requirements.txt');
+
+  if not DirExists(Wheelhouse) then
+  begin
+    FailAndStop('No existe wheelhouse en: ' + Wheelhouse);
+    exit;
+  end;
+
+  if not FileExists(Req) then
+  begin
+    FailAndStop('No existe requirements.runtime/lock/txt en: ' + Req);
+    exit;
+  end;
+
+  if not FindFirst(Wheelhouse + '\setuptools-*.whl', FR) then
+  begin
+    FailAndStop('Falta setuptools-*.whl en wheelhouse. (offline pip no puede continuar)');
+    exit;
+  end else FindClose(FR);
+
+  if not FindFirst(Wheelhouse + '\wheel-*.whl', FR) then
+  begin
+    FailAndStop('Falta wheel-*.whl en wheelhouse. (offline pip no puede continuar)');
+    exit;
+  end else FindClose(FR);
+
+  ExecLogged(VenvPy(), '-m ensurepip --upgrade', '', RC);
+  ExecLogged(VenvPy(), '-m pip install --upgrade pip', '', RC);
+
+  Cmd := Quote(VenvPy()) + ' -m pip install --no-index --find-links ' + Quote(Wheelhouse) + ' pip setuptools wheel';
+  RunCmdRedirect(Cmd, PipLogPath, RC);
+  if RC <> 0 then
+  begin
+    FailAndStop('Falló la preinstalación de pip/setuptools/wheel. Mira pip_install.log.');
+    exit;
+  end;
+
+  Cmd := Quote(VenvPy()) + ' -m pip install --no-index --find-links ' + Quote(Wheelhouse) + ' -r ' + Quote(Req);
+  if (not RunCmdRedirect(Cmd, PipLogPath, RC)) or (RC <> 0) then
+  begin
+    FailAndStop('Falló la instalación de dependencias (pip). Mira pip_install.log.');
+    exit;
+  end;
+end;
+
+procedure ValidateCriticalImports();
+var
+  RC: Integer;
+begin
+  if (not ExecLogged(VenvPy(), '-c "import streamlit, flask, pandas"', '', RC)) or (RC <> 0) then
+  begin
+    FailAndStop('Fallo al validar imports (streamlit/flask/pandas). Revisa pip_install.log.');
+    exit;
+  end;
+end;
+
+procedure WriteMarkerOk();
+var
+  Marker: string;
+begin
+  Marker := AppDataBase() + '\.installer_complete';
+  SaveStringToFile(Marker, 'ok', False);
+  LogLine('Marker OK creado: ' + Marker);
 end;
 
 procedure CurStepChanged(CurStep: TSetupStep);
-var
-  Msg: string;
-  LastLogLine: string;
-  LogContent: TArrayOfString;
 begin
   if CurStep = ssPostInstall then
   begin
-    if ValidationFailed or not DepsOk then
-    begin
-      Msg := 'No se pudieron instalar las dependencias necesarias (streamlit/flask).' + #13#10 + #13#10 +
-             'Por favor, revisa los logs en:' + #13#10 +
-             ExpandConstant('{localappdata}\MovilidadESII\logs\');
-      if PipErrorMsg <> '' then
-        Msg := Msg + #13#10 + #13#10 + 'Detalle: ' + PipErrorMsg;
-      
-      if FileExists(PipLogPath) and LoadStringsFromFile(PipLogPath, LogContent) then
-      begin
-        if Length(LogContent) > 0 then
-          Msg := Msg + #13#10 + #13#10 + 'Última línea del log: ' + Trim(LogContent[High(LogContent)]);
-      end;
-      
-      MsgBox(Msg, mbError, MB_OK);
-      TraceLog('ERROR: installer incomplete - validation failed');
-    end
-    else
-    begin
-      TraceLog('complete ok');
-    end;
+    EnsureLogs();
+    LogLine('POSTINSTALL start');
+
+    InstallPythonIfMissing();
+    LogLine('Python base seleccionado: ' + BasePythonExe);
+    if (BasePythonExe = '') or (not FileExists(BasePythonExe)) then exit;
+
+    CreateVenvIfMissing();
+    if not FileExists(VenvPy()) then exit;
+
+    InstallDepsOffline();
+    ValidateCriticalImports();
+    WriteMarkerOk();
+
+    LogLine('POSTINSTALL end OK');
   end;
 end;
+
+[Run]
+Filename: "{app}\{#AppExe}"; Description: "Abrir {#AppName}"; Flags: nowait postinstall skipifsilent
+
+[UninstallDelete]
+Type: filesandordirs; Name: "{app}"
+Type: filesandordirs; Name: "{localappdata}\MovilidadESII"
+

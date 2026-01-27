@@ -2,6 +2,7 @@ import ctypes
 import json
 import logging
 import os
+import shutil
 import socket
 import subprocess
 import sys
@@ -21,8 +22,13 @@ def get_appdata_dir() -> Path:
 APPDATA_DIR = get_appdata_dir()
 LOG_DIR = APPDATA_DIR / "logs"
 DATA_DEMO_DIR = APPDATA_DIR / "data_demo"
+# Legacy: el instalador antiguo creaba un venv en AppData. Ya no lo usamos,
+# pero lo dejamos para no romper rutas en logs / mensajes.
 VENV_DIR = APPDATA_DIR / "venv"
-PYTHON = VENV_DIR / "Scripts" / "python.exe"
+
+# Python a usar para lanzar Streamlit y la API: se resuelve dinámicamente
+# desde el Python del sistema (PATH/py launcher/registro), no desde AppData.
+_PYTHON_EXE: Path | None = None
 CONFIG_PATH = APPDATA_DIR / "config.json"
 API_STATUS_PATH = APPDATA_DIR / "api_status.json"
 PID_FILE = APPDATA_DIR / ".pids"
@@ -43,6 +49,166 @@ else:
 
 LOGGER = logging.getLogger("movilidad_launcher")
 LOGGER.addHandler(logging.NullHandler())
+
+
+def _is_under(child: Path, parent: Path) -> bool:
+    """Devuelve True si child está dentro de parent (resolviendo rutas)."""
+    try:
+        child_r = child.resolve()
+        parent_r = parent.resolve()
+        return os.path.commonpath([str(child_r), str(parent_r)]) == str(parent_r)
+    except Exception:
+        return False
+
+
+def _run_capture(cmd: list[str], timeout: float = 8.0) -> subprocess.CompletedProcess:
+    return subprocess.run(
+        cmd,
+        capture_output=True,
+        text=True,
+        timeout=timeout,
+        creationflags=NO_WINDOW,
+    )
+
+
+def _python_is_312(exe: Path) -> bool:
+    """Valida que el ejecutable es Python 3.12.x y no es el alias de Windows Store."""
+    try:
+        if not exe.exists():
+            return False
+        # Evitar el alias de Microsoft Store
+        if "WindowsApps" in str(exe):
+            return False
+        r = _run_capture([str(exe), "-c", "import sys; print(f'{sys.version_info[0]}.{sys.version_info[1]}')"], timeout=6)
+        if r.returncode != 0:
+            return False
+        ver = (r.stdout or "").strip().splitlines()[-1] if (r.stdout or "").strip() else ""
+        return ver == "3.12"
+    except Exception:
+        return False
+
+
+def _registry_python312_candidates() -> list[Path]:
+    """Busca rutas de Python 3.12 en el registro de Windows."""
+    if os.name != "nt":
+        return []
+    try:
+        import winreg  # type: ignore
+    except Exception:
+        return []
+
+    keys = [
+        r"SOFTWARE\\Python\\PythonCore\\3.12\\InstallPath",
+        r"SOFTWARE\\WOW6432Node\\Python\\PythonCore\\3.12\\InstallPath",
+    ]
+    roots = [winreg.HKEY_CURRENT_USER, winreg.HKEY_LOCAL_MACHINE]
+    out: list[Path] = []
+    for root in roots:
+        for k in keys:
+            try:
+                with winreg.OpenKey(root, k) as h:
+                    install_path, _ = winreg.QueryValueEx(h, "")
+                    if install_path:
+                        out.append(Path(str(install_path)) / "python.exe")
+            except Exception:
+                continue
+    return out
+
+def _venv_python_exe() -> Path:
+    if os.name == "nt":
+        return VENV_DIR / "Scripts" / "python.exe"
+    return VENV_DIR / "bin" / "python"
+
+
+def _python_works(exe: Path) -> bool:
+    try:
+        if not exe.exists():
+            return False
+        r = _run_capture([str(exe), "-c", "import sys; print(sys.executable)"], timeout=6)
+        return r.returncode == 0
+    except Exception:
+        return False
+
+
+def get_runtime_python() -> Path:
+    """
+    Preferimos el venv si existe (porque ahí están las dependencias de la app).
+    Si no existe o está roto, usamos Python del sistema.
+    """
+    vpy = _venv_python_exe()
+    if _python_works(vpy):
+        LOGGER.debug("Python runtime seleccionado (venv): %s", vpy)
+        return vpy.resolve()
+
+    # fallback
+    py = get_system_python()
+    LOGGER.debug("Python runtime seleccionado (system): %s", py)
+    return py
+
+
+def get_system_python() -> Path:
+    """Resuelve un Python 3.12.x del sistema (no el empaquetado en MovilidadESII)."""
+    global _PYTHON_EXE
+    if _PYTHON_EXE is not None:
+        return _PYTHON_EXE
+
+    blocked_base = APPDATA_DIR  # no queremos usar python dentro de MovilidadESII
+    candidates: list[Path] = []
+
+    # 1) Python Launcher (py -3.12)
+    if os.name == "nt" and shutil.which("py"):
+        try:
+            r = _run_capture(["py", "-3.12", "-c", "import sys; print(sys.executable)"])
+            if r.returncode == 0:
+                exe = (r.stdout or "").strip().splitlines()[-1]
+                if exe:
+                    candidates.append(Path(exe))
+        except Exception:
+            pass
+
+    # 2) python en PATH
+    for name in ("python", "python3", "python3.12"):
+        p = shutil.which(name)
+        if p:
+            candidates.append(Path(p))
+
+    # 3) Registro
+    candidates.extend(_registry_python312_candidates())
+
+    # 4) Rutas comunes
+    common = []
+    if os.name == "nt":
+        local = os.getenv("LOCALAPPDATA") or ""
+        common = [
+            Path(local) / "Programs" / "Python" / "Python312" / "python.exe",
+            Path("C:/Program Files/Python312/python.exe"),
+            Path("C:/Python312/python.exe"),
+        ]
+    candidates.extend(common)
+
+    # Filtrar duplicados manteniendo orden
+    seen = set()
+    uniq: list[Path] = []
+    for c in candidates:
+        s = str(c).lower()
+        if s in seen:
+            continue
+        seen.add(s)
+        uniq.append(c)
+
+    for exe in uniq:
+        # No usar el python instalado en la carpeta de la propia app
+        if _is_under(exe, blocked_base):
+            continue
+        if _python_is_312(exe):
+            _PYTHON_EXE = exe.resolve()
+            LOGGER.debug("Python del sistema seleccionado: %s", _PYTHON_EXE)
+            return _PYTHON_EXE
+
+    raise RuntimeError(
+        "No se encontró Python 3.12 del sistema (fuera de MovilidadESII). "
+        "Instala Python 3.12.x y marca 'Add to PATH' o instala el Python Launcher (py)."
+    )
 
 
 def prepare_appdata_dirs() -> None:
@@ -147,18 +313,17 @@ def write_demo_config() -> None:
 
 
 def ensure_installation() -> tuple[bool, str | None]:
-    if not VENV_DIR.exists():
-        raise RuntimeError(f"El entorno virtual no existe en {VENV_DIR}. Reinstala la aplicación.")
-    if not PYTHON.exists():
-        raise RuntimeError("No se encuentra python.exe dentro del entorno virtual.")
+    py = get_runtime_python()
+
     installer_marker = APPDATA_DIR / ".installer_complete"
-    LOGGER.debug("Verificando dependencias en %s", PYTHON)
+    LOGGER.debug("Verificando dependencias con %s", py)
     def _run_import(code: str) -> subprocess.CompletedProcess:
         return subprocess.run(
-            [str(PYTHON), "-c", code],
+            [str(py), "-c", code],
             capture_output=True,
             text=True,
-            timeout=12
+            timeout=12,
+            creationflags=NO_WINDOW,
         )
     try:
         if installer_marker.exists():
@@ -174,7 +339,7 @@ def ensure_installation() -> tuple[bool, str | None]:
         LOGGER.warning(".installer_complete ausente; asegurar dependencias mínimas.")
         result = _run_import("import streamlit")
     except Exception as exc:
-        raise RuntimeError(f"No se pudo ejecutar python del entorno virtual: {exc}") from exc
+        raise RuntimeError(f"No se pudo ejecutar Python del sistema: {exc}") from exc
     if result.returncode != 0:
         details = (result.stderr or result.stdout or "Sin detalles").strip()
         raise RuntimeError(
@@ -268,6 +433,39 @@ def wait_for_http(url: str, timeout: float = 30.0) -> bool:
             time.sleep(0.25)
     return False
 
+def has_active_streamlit_client(app_port: int) -> bool:
+    """
+    True si hay alguna conexión TCP ESTABLISHED hacia el puerto de Streamlit.
+    En Windows lo detectamos con netstat.
+    """
+    if os.name != "nt":
+        return True  # en otros SO no apagamos por este criterio
+
+    try:
+        out = subprocess.check_output(
+            ["netstat", "-ano", "-p", "TCP"],
+            text=True,
+            creationflags=NO_WINDOW,
+        )
+    except Exception:
+        return True  # si falla netstat, no cerramos
+
+    needle = f":{app_port}"
+    for line in out.splitlines():
+        line = line.strip()
+        if not line.startswith("TCP"):
+            continue
+        parts = line.split()
+        # Formato típico: TCP 127.0.0.1:8501 127.0.0.1:xxxxx ESTABLISHED PID
+        if len(parts) < 4:
+            continue
+        local_addr = parts[1]
+        state = parts[3].upper()
+        if local_addr.endswith(needle) and state == "ESTABLISHED":
+            return True
+
+    return False
+
 
 def get_last_ping_ts(api_port: int) -> float | None:
     try:
@@ -283,6 +481,8 @@ def get_last_ping_ts(api_port: int) -> float | None:
 
 
 def start_processes(api_enabled: bool = True, api_disabled_reason: str | None = None) -> None:
+    py = get_runtime_python()
+
     api_port, app_port = pick_two_free_ports()
     api_url = f"http://127.0.0.1:{api_port}"
     env = os.environ.copy()
@@ -307,7 +507,7 @@ def start_processes(api_enabled: bool = True, api_disabled_reason: str | None = 
         LOGGER.info("Iniciando Streamlit en 127.0.0.1:%s", app_port)
         app_proc = subprocess.Popen(
             [
-                str(PYTHON), "-m", "streamlit", "run", "my_app.py",
+                str(py), "-m", "streamlit", "run", "my_app.py",
                 "--server.address=127.0.0.1",
                 f"--server.port={app_port}",
                 "--server.headless=true",
@@ -345,7 +545,7 @@ def start_processes(api_enabled: bool = True, api_disabled_reason: str | None = 
         if api_enabled:
             LOGGER.info("Iniciando API en 127.0.0.1:%s", api_port)
             api_proc = subprocess.Popen(
-                [str(PYTHON), "api.py"],
+                [str(py), "api.py"],
                 cwd=str(ROOT),
                 env=env,
                 stdout=api_log,
@@ -382,25 +582,36 @@ def start_processes(api_enabled: bool = True, api_disabled_reason: str | None = 
 
         GRACE_STARTUP = 20
         IDLE_TIMEOUT = 30
+
         start_time = time.time()
         last_seen = time.time()
-        LOGGER.info("Monitor de inactividad activo.")
+        seen_client_once = False
+
+        LOGGER.info("Monitor: cerrar cuando se cierre la pestaña (sin conexiones).")
 
         while True:
             if app_proc.poll() is not None:
                 LOGGER.info("Streamlit finalizó.")
                 break
 
-            if api_enabled and api_ok_event.is_set():
-                ts = get_last_ping_ts(api_port)
-                now = time.time()
-                if ts is not None:
-                    last_seen = ts
-                if now - start_time > GRACE_STARTUP and now - last_seen > IDLE_TIMEOUT:
-                    LOGGER.info("Sin pings del API, cerrando.")
-                    break
+            now = time.time()
+
+            # No empezamos a cerrar hasta que:
+            # 1) haya pasado el arranque
+            # 2) y hayamos visto al menos una conexión real de navegador alguna vez
+            if now - start_time > GRACE_STARTUP:
+                active = has_active_streamlit_client(app_port)
+
+                if active:
+                    last_seen = now
+                    seen_client_once = True
+                else:
+                    if seen_client_once and (now - last_seen > IDLE_TIMEOUT):
+                        LOGGER.info("Sin pestañas conectadas durante %ss, cerrando.", IDLE_TIMEOUT)
+                        break
 
             time.sleep(2)
+
 
     except Exception as exc:
         write_api_status(False, api_url, reason=str(exc))

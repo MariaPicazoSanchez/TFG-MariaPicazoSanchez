@@ -1,6 +1,6 @@
-# TFG – Visualización de Movilidad UCLM
+# TFG – Visualización de Movilidad ESII
 
-Aplicación desarrollada con **Streamlit** y **Leafmap** para visualizar y gestionar datos de movilidad internacional de estudiantes de la UCLM.
+Aplicación desarrollada con **Streamlit** y **Leafmap** para visualizar y gestionar datos de movilidad internacional de estudiantes de la ESII.
 
 La app permite:
 
@@ -71,7 +71,7 @@ python -m streamlit run my_app.py
 ```
 Compilar el sistema
 ```bash
-py -3.12 -m PyInstaller --onedir --noconsole --clean --noconfirm --name MovilidadESII launcher.py
+py -3.12 -m PyInstaller --onedir --noconsole --clean --noconfirm --icon=./install_root/MovilidadESII.ico --name MovilidadESII launcher_system.py
 ```
 
 ---
