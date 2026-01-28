@@ -274,11 +274,11 @@ def generate_dynamic_popup(row, programa: str, row_index: int) -> str:
             if "SICUE" in prog_upper:
                 grid_fields += [dur_field, coord_field, gest_field, la_field, plan_field, destino_field, ciudad_field_sicue]
 
-            # Erasmus OUT: nombre, email, curso, duración, LA, plan, ToR, responsable, destino, país
+            # Erasmus OUT: nombre, email, curso, duración, LA, plan, ToR, responsable, destino, país, ciudad
             elif "ERASMUS OUT" == prog_upper:
                 grid_fields += [curso_field, dur_field, la_field, plan_field, tor_field, responsable_field, destino_field, pais_field, ciudad_field]
 
-            # Erasmus IN: nombre, email, cuatrimestre, LA, origen, país
+            # Erasmus IN: nombre, email, cuatrimestre, LA, origen, país, ciudad
             elif "ERASMUS IN" == prog_upper:
                 grid_fields += [cuatri_field, la_field, origen_field, pais_field, ciudad_field]
 
@@ -287,7 +287,8 @@ def generate_dynamic_popup(row, programa: str, row_index: int) -> str:
                 grid_fields += [
                     curso_field, cuatri_field, dur_field,
                     gest_field, coord_field,
-                    la_field, tor_field, acta_field, plan_field
+                    la_field, tor_field, acta_field, plan_field,
+                    ciudad_field
                 ]
 
             # === BLOQUES DE VISTA SEGÚN TIPO DE PROGRAMA ===

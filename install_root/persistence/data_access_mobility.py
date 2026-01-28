@@ -307,6 +307,8 @@ def load_sicue_out(path: str, sheet_name: str | None = None) -> pd.DataFrame:
     def _to_records(g: pd.DataFrame) -> list[dict]:
         keep = ["estudiante"] + [k for k in mapping.keys() if k in g.columns]
         out = g[keep].copy().rename(columns=mapping)
+        if c_ciudad and c_ciudad in g.columns:
+            out["ciudad"] = g[c_ciudad]
         return out.to_dict(orient="records")
 
     grouped = (
