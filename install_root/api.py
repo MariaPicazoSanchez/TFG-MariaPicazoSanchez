@@ -3,6 +3,7 @@ from flask_cors import CORS
 # from persistence import actualizar_excel_materias_para_estudiante, update_student_in_excel
 import json
 import os
+import pandas as pd
 from functools import wraps
 from security import get_api_token
 import logging
@@ -107,7 +108,7 @@ def parse_materias_raw(materias_raw: str):
 
     return materias
 
-def _build_js_response(ok: bool, messages: list[str]):
+def _build_js_response(ok: bool, messages: list[str], extra: dict | None = None):
     """
     Devuelve una página mínima que solo manda el resultado al iframe padre.
     Nada más: sin window.addEventListener ni cosas raras para no romper el JS.
@@ -120,7 +121,12 @@ def _build_js_response(ok: bool, messages: list[str]):
     }
 
     # Evita que aparezca </script> dentro del JSON
-    payload_json = json.dumps(payload).replace("</", "<\\/")
+    # Merge extra payload if provided (e.g., updated row info)
+    if extra and isinstance(extra, dict):
+        payload.update(extra)
+
+    # Evita que aparezca </script> dentro del JSON
+    payload_json = json.dumps(payload, default=str).replace("</", "<\\/")
 
     html = f"""<!DOCTYPE html>
 <html>
@@ -292,7 +298,46 @@ def update_student():
     
     
 
-    return _build_js_response(ok_global, messages)
+    # If the save went OK, attempt to read the updated row from the Excel
+    extra = None
+    if ok_global:
+        try:
+            # Leer el Excel y extraer la fila por índice
+            if excel_path and os.path.exists(excel_path):
+                try:
+                    df_check = pd.read_excel(excel_path)
+                    ri = int(row_index_str) if row_index_str and str(row_index_str).isdigit() else None
+                    row_dict = None
+                    student_obj = None
+                    if ri is not None and 0 <= ri < len(df_check):
+                        row_series = df_check.iloc[ri]
+                        row_dict = row_series.to_dict()
+                        # intentar extraer estudiante concreto si existe columna 'estudiantes'
+                        try:
+                            raw = row_series.get('estudiantes')
+                            if isinstance(raw, str) and raw.strip():
+                                lst = json.loads(raw)
+                            elif isinstance(raw, list):
+                                lst = raw
+                            else:
+                                lst = []
+                            if isinstance(lst, list) and 0 <= idx < len(lst):
+                                student_obj = lst[idx]
+                        except Exception:
+                            student_obj = None
+                    extra = {
+                        'programa': programa,
+                        'row_index': row_index_str,
+                        'idx': idx,
+                        'row': row_dict,
+                        'student': student_obj,
+                    }
+                except Exception as e:
+                    print('[API] Error leyendo fila actualizada:', e)
+        except Exception:
+            pass
+
+    return _build_js_response(ok_global, messages, extra)
 
 
 

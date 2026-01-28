@@ -309,6 +309,75 @@ def show_map(dfs: dict, base_map, materias_in_por_estudiante=None, filtros_activ
 
                     var msgs = data.messages || [];
                     showStatusPopup(!!data.ok, msgs);
+
+                    if (data.ok) {
+                        // helper para escapar
+                        function _escapeHtml(s) {
+                            if (s === null || s === undefined) return '';
+                            return String(s).replace(/[&<>\"]/g, function (c) {
+                                return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];
+                            });
+                        }
+
+                        // Actualiza la vista del estudiante en el popup sin recargar
+                        function updateStudentInDOM(d) {
+                            try {
+                                var row_index = d.row_index;
+                                var idx = d.idx;
+                                if (!row_index && row_index !== 0) return false;
+                                var formId = 'edit-form-' + row_index + '-' + idx;
+                                var form = document.getElementById(formId);
+                                if (!form) return false;
+                                var pcontent = form.closest('.pcontent') || form.parentElement;
+                                if (!pcontent) return false;
+
+                                if (d.student && d.student.estudiante) {
+                                    var pname = pcontent.querySelector('.pname');
+                                    if (pname) pname.textContent = d.student.estudiante;
+                                }
+
+                                var small = pcontent.querySelector('.view-block .small');
+                                if (small) {
+                                    var parts = [];
+                                    var s = d.student || {};
+                                    if (s.email) parts.push('<div class="line"><b>Email:</b> ' + _escapeHtml(s.email) + '</div>');
+                                    if (s.ciudad) parts.push('<div class="line"><b>Ciudad:</b> ' + _escapeHtml(s.ciudad) + '</div>');
+                                    if (s.pais) parts.push('<div class="line"><b>País:</b> ' + _escapeHtml(s.pais) + '</div>');
+                                    if (parts.length) small.innerHTML = parts.join('');
+                                }
+                                return true;
+                            } catch (err) {
+                                console.log('updateStudentInDOM error', err);
+                                return false;
+                            }
+                        }
+
+                        // Si la API ha incluido la fila/estudiante, intentamos actualizar DOM y no recargar
+                        if (data.row || data.student) {
+                            var updated = updateStudentInDOM(data);
+                            if (updated) {
+                                try {
+                                    var u = new URL(window.location.href);
+                                    u.searchParams.set('clear_cache', '1');
+                                    u.searchParams.set('student_saved', '1');
+                                    window.history.replaceState({}, '', u.toString());
+                                } catch (e) {}
+                                return;
+                            }
+                        }
+
+                        // fallback: recargar la app para forzar recarga de datos
+                        try {
+                            setTimeout(function() {
+                                var u = new URL(window.location.href);
+                                u.searchParams.set('clear_cache', '1');
+                                u.searchParams.set('student_saved', '1');
+                                window.location.href = u.toString();
+                            }, 900);
+                        } catch (e) {
+                            setTimeout(function(){ window.location.reload(); }, 900);
+                        }
+                    }
                     });
 
                 // Pinta la lista a partir del array y actualiza data-*
@@ -510,6 +579,16 @@ def show_map(dfs: dict, base_map, materias_in_por_estudiante=None, filtros_activ
             toggles.forEach(function(ch) {
             ch.checked = false;
             });
+
+            // Forzamos recarga para invalidar caché y actualizar el mapa
+            try {
+                var u2 = new URL(window.location.href);
+                u2.searchParams.set('clear_cache', '1');
+                u2.searchParams.set('student_saved', '1');
+                setTimeout(function(){ window.location.href = u2.toString(); }, 700);
+            } catch (e) {
+                setTimeout(function(){ window.location.reload(); }, 700);
+            }
         });
         })();
         </script>
@@ -522,14 +601,15 @@ def show_map(dfs: dict, base_map, materias_in_por_estudiante=None, filtros_activ
             continue
 
         color = PROGRAM_COLORS.get(program, "blue")
-        rows_iter = df.to_dict(orient="records")
+        # Agrupar filas por ubicación (considerar iguales si coinciden hasta 2 decimales)
+        grouped = group_rows_by_location(df, decimals=2)
 
-        for row_index, row in enumerate(rows_iter):
+        for row_index, row in enumerate(grouped):
             lat, lon = row.get("latitud"), row.get("longitud")
             if pd.isna(lat) or pd.isna(lon):
                 continue
 
-            # SOLO PARA ERASMUS IN: enganchar materias IN a cada estudiante
+            # SOLO PARA ERASMUS IN: enganchar materias IN a cada estudiante dentro del grupo
             if program == "Erasmus IN":
                 ests = row.get("estudiantes") or []
                 if isinstance(ests, list):

@@ -64,6 +64,9 @@ def append_user_to_excel(xlsx_path: str, tipo: str, row_data: dict, sheet_name: 
     # ── Hoja NO existe → crear con columnas estándar ────────────────────────────
     if not _sheet_exists(xlsx_path, target_sheet):
         need_cols = COMMON_COLS + (SPEC_COLS.get(tipo) or [])
+        # Si el payload incluye ciudad, añadirla a las columnas de la nueva hoja
+        if (row_data.get("ciudad") or row_data.get("ciudad_sicue")) and "Ciudad" not in need_cols:
+            need_cols = need_cols + ["Ciudad"]
         new = {
             "Nombre":      row_data.get("nombre"),
             "Apellidos":   row_data.get("apellidos"),
@@ -77,8 +80,14 @@ def append_user_to_excel(xlsx_path: str, tipo: str, row_data: dict, sheet_name: 
         }
         if tipo == "Erasmus OUT":
             new.update({"ToR": row_data.get("tor"), "Curso": row_data.get("curso"), "ActaEquivalencias": row_data.get("acta_equivalencias")})
+            # ciudad (campo opcional en OUT)
+            if row_data.get("ciudad"):
+                new.update({"Ciudad": row_data.get("ciudad")})
         elif tipo == "Erasmus IN":
             new.update({"LA": row_data.get("la"), "Horario": row_data.get("horario")})
+            # ciudad (campo opcional en IN)
+            if row_data.get("ciudad"):
+                new.update({"Ciudad": row_data.get("ciudad")})
             c_univ = _pick_col(df, "Destino", "Universidad Destino", "universidad destino", "Universidad")
             if c_univ:  new_row[c_univ]  = row_data.get("destino_origen") or row_data.get("universidad_origen") or row_data.get("destino")
 
@@ -127,6 +136,7 @@ def append_user_to_excel(xlsx_path: str, tipo: str, row_data: dict, sheet_name: 
         c_gestion = _pick_col(df, "Gestion LA", "Gestión LA", "gestion la", "gestión la")
         c_estado  = _pick_col(df, "EstadoFirmas", "Estado firmas", "estado de firmas")
         c_plan    = _pick_col(df, "Enlace plan de estudios", "plan de estudios", "PlanEstudios")
+        c_ciudad = _pick_col(df, "Ciudad", "ciudad", "ciudad destino", "Ciudad destino", "city")
     elif tipo == "Erasmus OUT":
         c_la      = _pick_col(df, "LA", "la")
         c_tor     = _pick_col(df, "ToR", "tor")
@@ -180,12 +190,14 @@ def append_user_to_excel(xlsx_path: str, tipo: str, row_data: dict, sheet_name: 
         c_plan  = _pick_col(df, "Enlace plan de estudios", "plan de estudios")
         c_dest  = _pick_col(df, "Destino")
         c_pais  = _pick_col(df, "País", "Pais")
+        c_ciudad = _pick_col(df, "Ciudad", "ciudad", "city", "localidad", "poblacion")
         if c_dur:  new_row[c_dur]  = (row_data.get("dur_out") or None)
         if c_resp: new_row[c_resp] = (row_data.get("resp_prog") or None)
         if c_la and row_data.get("la_out"):   new_row[c_la] = row_data.get("la_out")
         if c_plan and row_data.get("plan_out"): new_row[c_plan] = row_data.get("plan_out")
         if c_dest and row_data.get("destino_tabla_out"): new_row[c_dest] = row_data.get("destino_tabla_out")
         if c_pais and row_data.get("pais_out"): new_row[c_pais] = row_data.get("pais_out")
+        if c_ciudad and row_data.get("ciudad"): new_row[c_ciudad] = row_data.get("ciudad")
 
     else:
         if c_la:      new_row[c_la]      = row_data.get("la")
@@ -205,6 +217,10 @@ def append_user_to_excel(xlsx_path: str, tipo: str, row_data: dict, sheet_name: 
             new_row[c_uo] = (row_data.get("uni_origen_in") or None)
         if c_pais:
             new_row[c_pais] = (row_data.get("pais_in") or None)
+        # ciudad para Erasmus IN
+        c_ciudad = _pick_col(df, "Ciudad", "ciudad", "city", "localidad", "poblacion")
+        if c_ciudad and row_data.get("ciudad"):
+            new_row[c_ciudad] = row_data.get("ciudad")
 
     out = pd.concat([df, pd.DataFrame([new_row])], ignore_index=True).reindex(columns=cols_order)
 

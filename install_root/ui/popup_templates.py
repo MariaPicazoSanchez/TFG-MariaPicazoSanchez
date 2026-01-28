@@ -39,7 +39,13 @@ def generate_dynamic_popup(row, programa: str, row_index: int) -> str:
     """
     universidad = html.escape(str(row.get("universidad", "")) or "Sin universidad")
     pais = html.escape(str(row.get("pais", "") or ""))
-    ciudad = html.escape(str(row.get("ciudad", "") or ""))
+    # Buscar la ciudad en varias columnas posibles del row (por si tiene distinto nombre)
+    ciudad_raw = None
+    for ck in ("ciudad", "Ciudad", "ciudad destino", "Ciudad destino", "City", "city", "localidad", "poblacion"):
+      if ck in row and row.get(ck) and str(row.get(ck)).strip():
+        ciudad_raw = row.get(ck)
+        break
+    ciudad = html.escape(str(ciudad_raw or "") )
 
     row_id = str(row.get("id", ""))
     row_id_attr = html.escape(row_id, quote=True)
@@ -114,7 +120,18 @@ def generate_dynamic_popup(row, programa: str, row_index: int) -> str:
             origen_val  = _clean(e.get("origen") or row.get("origen") or row.get("Origen") or row.get("universidad"))
             responsable_val = _clean(e.get("responsable") or row.get("responsable") or row.get("Responsable") or row.get("responsable programa"))
             pais_val    = _clean(e.get("pais") or row.get("pais") or row.get("País"))
-            ciudad_val  = _clean(e.get("ciudad") or row.get("ciudad") or row.get("Ciudad"))
+            # Normalizar ciudad consultando varias claves tanto en el estudiante como en la fila
+            ciudad_val  = _clean(
+              e.get("ciudad")
+              or e.get("Ciudad")
+              or row.get("ciudad")
+              or row.get("Ciudad")
+              or row.get("ciudad destino")
+              or row.get("Ciudad destino")
+              or row.get("city")
+              or row.get("localidad")
+              or row.get("poblacion")
+            )
             # Materias delegadas al módulo popup_materias
             has_materias, materias_view_html, materias_edit_block = build_materias_blocks(
                 e,

@@ -35,6 +35,9 @@ def coincide_en_estudiantes(valor, texto_busqueda_normalizado: str) -> bool:
 def main():
     st.set_page_config(page_title="Movilidad ESII", layout="wide", initial_sidebar_state="expanded" )
     inject_js_ping(8000)
+    if "data_version" not in st.session_state:
+        st.session_state["data_version"] = 0
+
     # Aviso temprano si la API aún no está lista (no bloqueante)
     try:
         api_url = os.getenv("API_URL", "http://127.0.0.1:5000").rstrip("/")
@@ -47,8 +50,17 @@ def main():
     # Manejo de query params al inicio
     try:
         params = st.query_params
-        clear_cache_flag = params.get("clear_cache", None)
-        saved_flag = params.get("student_saved", None)
+        # st.query_params returns lists for each key: {'k': ['v']}
+        def _qp_val(p, k):
+            v = p.get(k)
+            if v is None:
+                return None
+            if isinstance(v, list):
+                return v[0] if v else None
+            return v
+
+        clear_cache_flag = _qp_val(params, "clear_cache")
+        saved_flag = _qp_val(params, "student_saved")
     except Exception:
         params = st.experimental_get_query_params()
         clear_cache_flag = params.get("clear_cache", [None])[0] if params.get("clear_cache") else None
@@ -59,7 +71,7 @@ def main():
         st.cache_data.clear()
 
     if saved_flag == "1":
-        st.cache_data.clear()
+        st.session_state["data_version"] += 1
         st.success("✅ Alumno guardado correctamente. Los datos se han actualizado.")
         st.rerun()
     elif saved_flag == "0":
@@ -68,6 +80,9 @@ def main():
 
     setup_session()
     config = st.session_state["config"]
+
+    # Render sidebar early so `global_sheet` is set before loading data
+    base_map = sidebar_controls()
 
     # Asegura defaults (porque ahora los vas a leer ANTES de map_filters)
     if "selected_programs" not in st.session_state:
@@ -82,22 +97,54 @@ def main():
         st.session_state["global_sheet"] = "Todas"
 
     global_sheet = st.session_state.get("global_sheet", None)
+    def _get_config_mtimes(cfg):
+        # Return a tuple of mtimes for the configured Excel files (stable order)
+        keys = ["Erasmus OUT", "Erasmus IN", "SICUE OUT"]
+        mtimes = []
+        for k in keys:
+            p = cfg.get(k)
+            try:
+                if p and os.path.exists(p):
+                    mtimes.append(os.path.getmtime(p))
+                else:
+                    mtimes.append(None)
+            except Exception:
+                mtimes.append(None)
+        return tuple(mtimes)
+
     @st.cache_data(show_spinner=False)
-    def cached_load_all_dataframes(cfg, sheet):
+    def cached_load_all_dataframes(cfg, sheet, data_version, src_mtimes):
+        # `data_version` and `src_mtimes` are dummy args used to invalidate the cache
         return load_all_dataframes(cfg, sheet)
 
     t0 = time.perf_counter()
-    dfs = cached_load_all_dataframes(config, global_sheet)
+    cfg_mtimes = _get_config_mtimes(config)
+    dfs = cached_load_all_dataframes(config, global_sheet, st.session_state.get("data_version", 0), cfg_mtimes)
     t1 = time.perf_counter()
     try:
         print(f"[perf] load_all_dataframes: {(t1 - t0)*1000:.1f} ms")
     except Exception:
         pass
 
+    # Debug: print modification times of configured Excel files to help diagnose stale reads
+    try:
+        for k in ("Erasmus OUT", "Erasmus IN", "SICUE OUT"):
+            p = config.get(k)
+            if p and os.path.exists(p):
+                try:
+                    m = os.path.getmtime(p)
+                    print(f"[files] {k}: {p} -> mtime={m}")
+                except Exception as e:
+                    print(f"[files] {k}: {p} -> stat error: {e}")
+            else:
+                print(f"[files] {k}: not found or not configured: {p}")
+    except Exception:
+        pass
+
     # Aplica filtros de programas y OUT sin LA (para que el índice sea coherente)
     selected = st.session_state.get("selected_programs", {})
     activos = [k for k, v in selected.items() if v]
-    if isinstance(dfs, dict) and activos:
+    if isinstance(dfs, dict) and len(activos) > 0:
         dfs = {k: v for k, v in dfs.items() if k in activos}
 
     only_no_la = st.session_state.get("only_erasmus_out_no_LA", False)
@@ -117,7 +164,6 @@ def main():
         pass
 
     # A partir de aquí tu flujo normal:
-    base_map = sidebar_controls()
 
     # =========================
     # FILTRO POR BÚSQUEDA (SIN MÉTODOS EXTERNOS)
@@ -169,11 +215,12 @@ def main():
     # ==============================================
     if dfs and isinstance(dfs, dict) and any(not df.empty for df in dfs.values()):
         @st.cache_data(show_spinner=False)
-        def cached_materias_in_por_estudiante(cfg):
+        def cached_materias_in_por_estudiante(cfg, data_version, src_mtimes):
+            # include `data_version` and `src_mtimes` to force invalidation when data changes
             return get_materias_in_por_estudiante(cfg)
 
         t4 = time.perf_counter()
-        materias_in_por_est = cached_materias_in_por_estudiante(config)
+        materias_in_por_est = cached_materias_in_por_estudiante(config, st.session_state.get("data_version", 0), cfg_mtimes)
         t5 = time.perf_counter()
         try:
             print(f"[perf] materias_in_loader: {(t5 - t4)*1000:.1f} ms")

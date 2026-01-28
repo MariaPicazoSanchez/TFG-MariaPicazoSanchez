@@ -582,8 +582,9 @@ def render_new_user_form(available_types: list[str], config: dict) -> dict | Non
         _append_materias_in_excel_single_student(materias_payload, payload, config)
 
 
-    # Marcamos éxito para mostrar el mensaje en el siguiente run
+    # Marcamos éxito y forzamos incremento de `data_version` para invalidar caches
     st.session_state["_user_saved"] = True
+    st.session_state["data_version"] = st.session_state.get("data_version", 0) + 1
     st.rerun()
 
 
