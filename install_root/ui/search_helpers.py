@@ -164,10 +164,21 @@ def render_search_box(parent=None) -> str:
     all_opts = st.session_state.get("search_index_options", [("", "")])
     options = [(v, lbl) for (v, lbl) in all_opts if v]
 
+    # Obtener el valor anterior de búsqueda (si existe)
+    prev_search = st.session_state.get("search_text", "").strip()
+    
+    # Encontrar el índice del valor anterior en las opciones
+    current_index = None
+    if prev_search:
+        for i, (val, _) in enumerate(options):
+            if val == prev_search:
+                current_index = i
+                break
+
     selected = parent.selectbox(
         label=" ",
         options=options,
-        index=None,
+        index=current_index,
         key="search_select",
         label_visibility="collapsed",
         format_func=lambda o: o[1],

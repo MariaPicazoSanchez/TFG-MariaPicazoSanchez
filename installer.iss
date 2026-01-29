@@ -6,6 +6,7 @@
 [Setup]
 AppName={#AppName}
 AppVersion={#AppVer}
+AppPublisher=TFG-MariaPicazoSanchez
 DefaultDirName={pf}\{#AppName}
 DefaultGroupName={#AppName}
 DisableProgramGroupPage=yes
