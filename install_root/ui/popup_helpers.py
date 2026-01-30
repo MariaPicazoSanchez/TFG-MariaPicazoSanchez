@@ -2,8 +2,10 @@
 import html
 import json
 import math
+from typing import Any
 from urllib.parse import quote
-def _normalize_estudiantes(estudiantes):
+
+def _normalize_estudiantes(estudiantes: Any) -> list[dict[str, Any]]:
     """Normaliza la lista de estudiantes y mapea los nombres de columnas
     del Excel a claves internas homogéneas.
     """
@@ -79,17 +81,17 @@ def _normalize_estudiantes(estudiantes):
         out.append(norm)
     return out
 
-def _clean(v):
+def _clean(v: Any) -> str:
     s = "" if v is None else str(v).strip()
     return "" if s.lower() in {"nan", "none", ""} else s
 
 
-def _line(label, value):
+def _line(label: str, value: Any) -> str:
     value = _clean(value)
     return f"<b>{label}:</b> {html.escape(value)}<br>" if value else ""
 
 
-def _view_line(label, value):
+def _view_line(label: str, value: Any) -> str:
     """
     Línea para modo *vista*:
     - Siempre muestra la etiqueta.
@@ -103,7 +105,7 @@ def _view_line(label, value):
     return f"<b>{html.escape(label)}:</b> {val_html}<br>"
 
 
-def _view_link(label, url, text="Abrir", open_in_system=False):
+def _view_link(label: str, url: Any, text: str = "Abrir", open_in_system: bool = False) -> str:
     """
     Versión genérica de links; por si la necesitas desde otros módulos.
     """
@@ -128,7 +130,7 @@ def _view_link(label, url, text="Abrir", open_in_system=False):
     safe_url = html.escape(str(url), quote=True)
     return f"<b>{label_html}:</b> <a href='{safe_url}' target='_blank' rel='noopener noreferrer'>{text_html}</a><br>"
 
-def _is_empty(value):
+def _is_empty(value: Any) -> bool:
     import math
     if value is None:
         return True

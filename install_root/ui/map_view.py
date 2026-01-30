@@ -4,6 +4,7 @@ import streamlit as st
 from streamlit_folium import st_folium
 from .popup_templates import generate_dynamic_popup
 from export import add_export_control, add_program_legend
+from constants import PROGRAM_ERASMUS_IN, PROGRAM_ERASMUS_OUT, PROGRAM_SICUE_OUT, PROGRAM_ICONS
 
 
 def add_points_to_map(m, df, nombre_capa, color):
@@ -610,7 +611,7 @@ def show_map(dfs: dict, base_map, materias_in_por_estudiante=None, filtros_activ
                 continue
 
             # SOLO PARA ERASMUS IN: enganchar materias IN a cada estudiante dentro del grupo
-            if program == "Erasmus IN":
+            if program == PROGRAM_ERASMUS_IN:
                 ests = row.get("estudiantes") or []
                 if isinstance(ests, list):
                     for e in ests:
@@ -623,7 +624,7 @@ def show_map(dfs: dict, base_map, materias_in_por_estudiante=None, filtros_activ
             popup = folium.Popup(content, max_width=480)
             marker_icon = PROGRAM_ICONS.get(program, "map-marker")
             angle = 0
-            if program == "Erasmus IN":
+            if program == PROGRAM_ERASMUS_IN:
                 angle = 180
 
             icon = folium.Icon(

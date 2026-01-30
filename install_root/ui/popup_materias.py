@@ -1,5 +1,6 @@
 import html
 from .popup_helpers import _clean
+from constants import PROGRAM_ERASMUS_IN
 
 def build_materias_blocks(e, programa: str, row_index_attr: str, idx_attr: str):
     """
@@ -12,7 +13,7 @@ def build_materias_blocks(e, programa: str, row_index_attr: str, idx_attr: str):
     """
 
     prog_upper = (programa or "").upper()
-    if prog_upper != "ERASMUS IN":
+    if prog_upper != PROGRAM_ERASMUS_IN.upper():
         return False, "", ""
 
     # ---- 1) Sacar materias_in del estudiante ----

@@ -8,6 +8,7 @@ import streamlit.components.v1 as components
 from ui import setup_session, sidebar_controls, render_new_user_form, show_map, render_stats_view, build_search_index, render_search_box
 from utils import handle_open_pdf_query, handle_open_excel_query
 from persistence import load_all_dataframes, get_materias_in_por_estudiante
+from constants import PROGRAM_ERASMUS_OUT, PROGRAM_ERASMUS_IN, PROGRAM_SICUE_OUT
 
 
 def quitar_tildes(s: str) -> str:
@@ -87,9 +88,9 @@ def main():
     # Asegura defaults (porque ahora los vas a leer ANTES de map_filters)
     if "selected_programs" not in st.session_state:
         st.session_state["selected_programs"] = {
-            "Erasmus IN": False,
-            "Erasmus OUT": False,
-            "SICUE OUT": False,
+            PROGRAM_ERASMUS_IN: False,
+            PROGRAM_ERASMUS_OUT: False,
+            PROGRAM_SICUE_OUT: False,
         }
     if "only_erasmus_out_no_LA" not in st.session_state:
         st.session_state["only_erasmus_out_no_LA"] = False
@@ -99,7 +100,7 @@ def main():
     global_sheet = st.session_state.get("global_sheet", None)
     def _get_config_mtimes(cfg):
         # Return a tuple of mtimes for the configured Excel files (stable order)
-        keys = ["Erasmus OUT", "Erasmus IN", "SICUE OUT"]
+        keys = [PROGRAM_ERASMUS_OUT, PROGRAM_ERASMUS_IN, PROGRAM_SICUE_OUT]
         mtimes = []
         for k in keys:
             p = cfg.get(k)
@@ -128,7 +129,7 @@ def main():
 
     # Debug: print modification times of configured Excel files to help diagnose stale reads
     try:
-        for k in ("Erasmus OUT", "Erasmus IN", "SICUE OUT"):
+        for k in (PROGRAM_ERASMUS_OUT, PROGRAM_ERASMUS_IN, PROGRAM_SICUE_OUT):
             p = config.get(k)
             if p and os.path.exists(p):
                 try:
@@ -148,11 +149,11 @@ def main():
         dfs = {k: v for k, v in dfs.items() if k in activos}
 
     only_no_la = st.session_state.get("only_erasmus_out_no_LA", False)
-    if only_no_la and isinstance(dfs, dict) and "Erasmus OUT" in dfs:
-        df_out = dfs["Erasmus OUT"]
+    if only_no_la and isinstance(dfs, dict) and PROGRAM_ERASMUS_OUT in dfs:
+        df_out = dfs[PROGRAM_ERASMUS_OUT]
         if "link_LA" in df_out.columns:
             mask = df_out["link_LA"].isna() | (df_out["link_LA"].astype(str).str.strip() == "")
-            dfs["Erasmus OUT"] = df_out[mask]
+            dfs[PROGRAM_ERASMUS_OUT] = df_out[mask]
 
   
     t2 = time.perf_counter()
@@ -236,7 +237,7 @@ def main():
 
     # Tipos disponibles según config y existencia de ficheros
     available_types = [
-        k for k in ("Erasmus OUT", "Erasmus IN", "SICUE OUT")
+        k for k in (PROGRAM_ERASMUS_OUT, PROGRAM_ERASMUS_IN, PROGRAM_SICUE_OUT)
         if config.get(k) and os.path.exists(config[k])
     ]
     # ==============================================

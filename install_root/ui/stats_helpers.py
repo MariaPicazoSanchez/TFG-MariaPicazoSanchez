@@ -7,8 +7,9 @@ import streamlit as st
 
 from export import build_stats_excel
 from . import stats_details as details
+from constants import MOBILITY_PROGRAMS, PROGRAM_ERASMUS_OUT, PROGRAM_ERASMUS_IN, PROGRAM_SICUE_OUT, SPAIN
 
-MOBILITY_TYPES: tuple[str, ...] = ("Erasmus OUT", "Erasmus IN", "SICUE OUT")
+MOBILITY_TYPES: tuple[str, ...] = MOBILITY_PROGRAMS
 
 
 def _read_sheet_safe(path: str, sheet_name: str) -> pd.DataFrame:
@@ -75,9 +76,9 @@ def load_students_for_course(config: dict, course: str) -> pd.DataFrame:
         # Normalizar columna país
         common_candidates = ["pais", "país", "country", "pais destino", "país destino"]
 
-        if tipo == "Erasmus OUT":
+        if tipo == PROGRAM_ERASMUS_OUT:
             candidates = common_candidates + ["pais_out", "país_out", "country_out"]
-        elif tipo == "Erasmus IN":
+        elif tipo == PROGRAM_ERASMUS_IN:
             candidates = common_candidates + ["pais_in", "país_in", "country_in", "pais origen", "país origen"]
         else:
             candidates = common_candidates
@@ -86,7 +87,7 @@ def load_students_for_course(config: dict, course: str) -> pd.DataFrame:
         if col_pais:
             df_tipo["pais"] = df_tipo[col_pais]
         else:
-            df_tipo["pais"] = "España" if tipo == "SICUE OUT" else ""
+            df_tipo["pais"] = SPAIN if tipo == PROGRAM_SICUE_OUT else ""
 
         # Normalizar columna universidad
         col_uni = details._find_university_column(df_tipo)
@@ -176,7 +177,7 @@ def build_export_xlsx(
         blocks = []
         for t in tipos:
             dft = df[df[col_tipo] == t].copy()
-            if t == "SICUE OUT":
+            if t == PROGRAM_SICUE_OUT:
                 blocks.append((f"Ciudad - {t}", stats_by_city(dft)))
             else:
                 blocks.append((f"País - {t}", stats_by_country(dft)))
@@ -205,13 +206,13 @@ def build_export_xlsx(
             blocks.append(("Universidad - total", tab))
             
             # Agregar también por tipo
-            for t in ["Erasmus OUT", "Erasmus IN", "SICUE OUT"]:
+            for t in MOBILITY_PROGRAMS:
                 df_filtrado = df[df[col_tipo] == t].copy()
                 tab = details._stats_by_university(df_filtrado, top_n=1000000)
                 blocks.append((f"Universidad - {t}", tab))
         else:
             # Si selecciona tipos específicos, solo esos
-            for t in ["Erasmus OUT", "Erasmus IN", "SICUE OUT"]:
+            for t in MOBILITY_PROGRAMS:
                 if t in selected:
                     df_filtrado = df[df[col_tipo] == t].copy()
                     tab = details._stats_by_university(df_filtrado, top_n=1000000)

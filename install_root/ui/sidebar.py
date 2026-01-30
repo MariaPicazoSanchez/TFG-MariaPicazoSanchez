@@ -3,6 +3,7 @@ import json
 import xlrd
 import pandas as pd
 import streamlit as st
+from constants import PROGRAM_ERASMUS_OUT, PROGRAM_ERASMUS_IN, PROGRAM_SICUE_OUT, CSV_SHEET_MARKER
 
 def repair_windows_path(path_str: str) -> str:
     """
@@ -38,7 +39,7 @@ def _list_sheets_in_file(path: str) -> list[str]:
         return []
     ext = os.path.splitext(path)[1].lower()
     if ext == ".csv":
-        return ["__CSV__"]
+        return [CSV_SHEET_MARKER]
     # intento con pandas
     try:
         xls = pd.ExcelFile(path)  # requiere openpyxl para .xlsx
@@ -64,7 +65,7 @@ def _list_sheets_in_file(path: str) -> list[str]:
 
 def _unique_sheets_from_config_or_files(cfg: dict) -> list[str]:
     """Une hojas de todos los Excels; si no hay 'sheets' en config, las detecta leyendo los ficheros."""
-    keys = ("Erasmus OUT", "Erasmus IN", "SICUE OUT")
+    keys = (PROGRAM_ERASMUS_OUT, PROGRAM_ERASMUS_IN, PROGRAM_SICUE_OUT)
     sheets_map = cfg.get("sheets", {}) or {}
     names = set()
     for k in keys:
@@ -78,7 +79,7 @@ def _unique_sheets_from_config_or_files(cfg: dict) -> list[str]:
                 names.add(str(name))
     return sorted(names)
 
-def pick_local_file(initial_path: str | None = None, filetypes=[("Excel/CSV", "*.xlsx *.xls"), ("Todos", "*.*")]):
+def pick_local_file(initial_path: str | None = None, filetypes: list[tuple[str, str]] = [("Excel/CSV", "*.xlsx *.xls"), ("Todos", "*.*")]) -> str | None:
     """Abre el diálogo nativo del SO y devuelve la ruta seleccionada (o None). Solo en local."""
     import os
     try:
@@ -137,13 +138,13 @@ def load_config():
     return {}
 
 
-def save_config(config):
+def save_config(config: dict) -> None:
     """Guarda las rutas actuales en config.json."""
     with open(CONFIG_FILE, "w", encoding="utf-8") as f:
         json.dump(config, f, indent=4, ensure_ascii=False)
 
 
-def setup_session():
+def setup_session() -> None:
     """Inicializa variables en session_state."""
     if "config" not in st.session_state:
         st.session_state["config"] = load_config()
@@ -151,12 +152,12 @@ def setup_session():
         st.session_state["show_routes"] = False
 
 
-def open_routes_editor():
+def open_routes_editor() -> None:
     """Callback: muestra el editor de rutas."""
     st.session_state["show_routes"] = True
 
 
-def close_routes_editor(new_config=None):
+def close_routes_editor(new_config: dict | None = None) -> None:
     """
     Cierra el panel de modificación de rutas y, si se pasa una nueva configuración,
     comprueba las rutas y guarda en config.json si son válidas.
@@ -188,13 +189,13 @@ def get_placeholder(config, key):
     ruta = config.get(key, "")
     return ruta if ruta else f"Inserte la ruta del archivo {key} aquí"
 
-def route_editor(config):
+def route_editor(config: dict) -> None:
     st.sidebar.subheader("📁 Modificar fuentes de datos")
 
     entries = [
-        ("SICUE OUT", "📘 SICUE OUT"),
-        ("Erasmus IN", "🌍 Erasmus IN"),
-        ("Erasmus OUT", "✈️ Erasmus OUT"),
+        (PROGRAM_SICUE_OUT, "📘 SICUE OUT"),
+        (PROGRAM_ERASMUS_IN, "🌍 Erasmus IN"),
+        (PROGRAM_ERASMUS_OUT, "✈️ Erasmus OUT"),
         ("Materias IN", "📑 Materias IN"),
     ]
 
@@ -260,7 +261,7 @@ def _unique_sheets_from_config(cfg: dict) -> list[str]:
     return sorted(names)
 
 
-def sidebar_controls():
+def sidebar_controls() -> tuple[str | None, st.delta_generator.DeltaGenerator | None]:
     """Crea la barra lateral con filtros y gestión de rutas."""
     # Establecer ancho del sidebar a 400px
     st.markdown(

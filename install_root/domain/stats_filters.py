@@ -1,16 +1,7 @@
 from __future__ import annotations
 
 from ui import stats_helpers as sh
-
-
-MOBILITY_OPTIONS = ["Todos", "Erasmus OUT", "Erasmus IN", "SICUE OUT"]
-
-MOBILITY_LABELS = {
-    "Todos": "Todos",
-    "Erasmus OUT": "Erasmus OUT",
-    "Erasmus IN": "Erasmus IN",
-    "SICUE OUT": "SICUE OUT",
-}
+from constants import MOBILITY_OPTIONS, MOBILITY_LABELS
 
 
 def render_filters_stats(available_courses: list[str]) -> None:

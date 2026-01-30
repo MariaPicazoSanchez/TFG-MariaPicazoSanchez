@@ -1,10 +1,13 @@
+from __future__ import annotations
+
 import re
 import streamlit as st
+from constants import PROGRAM_ERASMUS_IN, PROGRAM_ERASMUS_OUT, PROGRAM_SICUE_OUT
 
-def rerun():
+def rerun() -> None:
     st.rerun()
 
-def filter_button(label: str, program_key: str, key: str, container):
+def filter_button(label: str, program_key: str, key: str, container: st.delta_generator.DeltaGenerator) -> None:
     """
     label: texto que se muestra en el botón
     program_key: nombre en el diccionario selected_programs
@@ -53,20 +56,20 @@ def render_filters_map(unique_sheets: list[str]) -> str:
     # --- ESTADO DE PROGRAMAS SELECCIONADOS ---
     if "selected_programs" not in st.session_state:
             st.session_state["selected_programs"] = {
-            "Erasmus IN": False,
-            "Erasmus OUT": False,
-            "SICUE OUT": False,
+            PROGRAM_ERASMUS_IN: False,
+            PROGRAM_ERASMUS_OUT: False,
+            PROGRAM_SICUE_OUT: False,
         }
     if "only_erasmus_out_no_LA" not in st.session_state:
         st.session_state["only_erasmus_out_no_LA"] = False
             
-    def toggle(program: str):
+    def toggle(program: str) -> None:
         d = st.session_state["selected_programs"]
 
         # cambiamos solo el pulsado
         d[program] = not d.get(program, False)
 
-        main_keys = ["Erasmus IN", "Erasmus OUT", "SICUE OUT"]
+        main_keys = [PROGRAM_ERASMUS_IN, PROGRAM_ERASMUS_OUT, PROGRAM_SICUE_OUT]
 
         # si los 3 están activos, es como no filtrar nada -> los apagamos
         if all(d.get(k, False) for k in main_keys):
@@ -125,26 +128,26 @@ def render_filters_map(unique_sheets: list[str]) -> str:
         st.markdown("**Erasmus:**")
     # Erasmus IN
     with c2:
-        is_active_in = st.session_state["selected_programs"]["Erasmus IN"]
+        is_active_in = st.session_state["selected_programs"][PROGRAM_ERASMUS_IN]
         if st.button(
             "IN",
             use_container_width=True,
             key="btn_erasmus_in",
             type="primary" if is_active_in else "secondary",   # color sólo si activo
         ):
-            toggle("Erasmus IN")
+            toggle(PROGRAM_ERASMUS_IN)
             st.rerun()
 
     # Erasmus OUT
     with c3:
-        is_active_out = st.session_state["selected_programs"]["Erasmus OUT"]
+        is_active_out = st.session_state["selected_programs"][PROGRAM_ERASMUS_OUT]
         if st.button(
             "OUT",
             use_container_width=True,
             key="btn_erasmus_out",
             type="primary" if is_active_out else "secondary",
         ):
-            toggle("Erasmus OUT")
+            toggle(PROGRAM_ERASMUS_OUT)
             st.rerun()
 
 
@@ -171,14 +174,14 @@ def render_filters_map(unique_sheets: list[str]) -> str:
     with c4:
         st.markdown("**SICUE:**")
     with c5:
-        is_active_sicue = st.session_state["selected_programs"]["SICUE OUT"]
+        is_active_sicue = st.session_state["selected_programs"][PROGRAM_SICUE_OUT]
         if st.button(
             "OUT",
             use_container_width=True,
             key="btn_sicue_out",
             type="primary" if is_active_sicue else "secondary",
         ):
-            toggle("SICUE OUT")
+            toggle(PROGRAM_SICUE_OUT)
             st.rerun()
             
     # Mapa base

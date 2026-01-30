@@ -5,6 +5,7 @@ from utils import open_in_system
 import pycountry
 import pandas as pd
 from babel import Locale
+from constants import PROGRAM_ERASMUS_OUT, PROGRAM_ERASMUS_IN, PROGRAM_SICUE_OUT
 
 from .sidebar import pick_local_file
 USE_LOCAL_PICKER = True
@@ -219,7 +220,7 @@ def render_new_user_form(available_types: list[str], config: dict) -> dict | Non
             email  = st.text_input("Email", key="nu_email")
         with col2:
             apellidos = st.text_input("Apellidos", key="nu_apellidos")
-            dest_label = "Origen (universidad)" if tipo_norm.lower() == "erasmus in" else "Destino (universidad)"
+            dest_label = "Origen (universidad)" if tipo_norm.lower() == PROGRAM_ERASMUS_IN.lower() else "Destino (universidad)"
             destino_origen = st.text_input(dest_label, key="nu_destino_origen")
 
         extra: dict = {}
@@ -227,7 +228,7 @@ def render_new_user_form(available_types: list[str], config: dict) -> dict | Non
         # _____________________________________
         # Erasmus OUT
         # _____________________________________
-        if tipo_norm == "Erasmus OUT":
+        if tipo_norm == PROGRAM_ERASMUS_OUT:
             col1, col2 = st.columns(2)
             # obligatorios
             with col1:
@@ -272,7 +273,7 @@ def render_new_user_form(available_types: list[str], config: dict) -> dict | Non
         # Erasmus IN
         # _____________________________________
 
-        elif tipo_norm == "Erasmus IN":
+        elif tipo_norm == PROGRAM_ERASMUS_IN:
             col1, col2 = st.columns(2)
 
             with col1:
@@ -310,7 +311,7 @@ def render_new_user_form(available_types: list[str], config: dict) -> dict | Non
         # SICUE OUT
         # _____________________________________
 
-        elif tipo_norm == "SICUE OUT":
+        elif tipo_norm == PROGRAM_SICUE_OUT:
             col1, col2 = st.columns(2)
             # obligatorios
             with col1:
@@ -521,7 +522,7 @@ def render_new_user_form(available_types: list[str], config: dict) -> dict | Non
     # GEOCODING
     # ────────────────────────────────────────────────────────────────
     lat, lon, gerr = _geocode_cached(destino_origen.strip())
-    if (lat is None or lon is None) and tipo_norm == "SICUE OUT":
+    if (lat is None or lon is None) and tipo_norm == PROGRAM_SICUE_OUT:
         ciudad_opt = (extra.get("ciudad_sicue") or "").strip()
         if ciudad_opt:
             lat, lon, gerr2 = _geocode_cached(ciudad_opt)
@@ -578,7 +579,7 @@ def render_new_user_form(available_types: list[str], config: dict) -> dict | Non
         return None
 
     # Si es Erasmus IN y hay materias, añadimos también al Excel 'Materias IN'
-    if tipo_norm == "Erasmus IN" and materias_payload:
+    if tipo_norm == PROGRAM_ERASMUS_IN and materias_payload:
         _append_materias_in_excel_single_student(materias_payload, payload, config)
 
 

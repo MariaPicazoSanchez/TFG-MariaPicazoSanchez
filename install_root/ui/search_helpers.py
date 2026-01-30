@@ -33,7 +33,7 @@ def build_search_index(dfs: Dict[str, pd.DataFrame]) -> None:
 
     particles = {"de", "del", "la", "las", "los", "da", "do", "dos", "das"}
 
-    def add(term: str, cat: str):
+    def add(term: str, cat: str) -> None:
         term = str(term).strip()
         if len(term) < 2:
             return

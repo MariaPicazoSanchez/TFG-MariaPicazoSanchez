@@ -6,8 +6,9 @@ import pandas as pd
 import streamlit as st
 from . import stats_details as details
 from export import build_stats_excel
+from constants import MOBILITY_PROGRAMS, MOBILITY_OPTIONS, PROGRAM_ERASMUS_OUT, PROGRAM_ERASMUS_IN, PROGRAM_SICUE_OUT, SPAIN
 
-MOBILITY_TYPES: tuple[str, ...] = ("Erasmus OUT", "Erasmus IN", "SICUE OUT")
+MOBILITY_TYPES: tuple[str, ...] = MOBILITY_PROGRAMS
 
 
 def render_filters_stats(available_courses: list[str]) -> None:
@@ -55,7 +56,7 @@ def render_filters_stats(available_courses: list[str]) -> None:
     # ===========================
     # TIPO DE MOVILIDAD
     # ===========================
-    mobility_options = ["Todos", "Erasmus OUT", "Erasmus IN", "SICUE OUT"]
+    mobility_options = MOBILITY_OPTIONS
     if "stats_mobility" not in st.session_state:
         st.session_state["stats_mobility"] = "Todos"
 
@@ -437,7 +438,7 @@ def render_stats_view() -> None:
             return
 
         # Si es SICUE OUT → agrupar por ciudad
-        if mobility_filter == "SICUE OUT":
+        if mobility_filter == PROGRAM_SICUE_OUT:
             st.subheader("Alumnos por ciudad (SICUE OUT)")
             tabla_geo = _stats_by_city(df_filtered)
             if tabla_geo.empty:

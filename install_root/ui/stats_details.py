@@ -3,6 +3,7 @@ from __future__ import annotations
 import os
 import pandas as pd
 import streamlit as st
+from constants import PROGRAM_ERASMUS_IN
 
 
 # ────────────────────────────────────────────────────────────────────────────────
@@ -234,7 +235,7 @@ def render_stats_details(df_filtered: pd.DataFrame, mobility_filter: str, config
             )
 
     # 2) Materias más frecuentes (solo tiene sentido para Erasmus IN / Todos)
-    if mobility_filter in ("Erasmus IN", "Todos"):
+    if mobility_filter in (PROGRAM_ERASMUS_IN, "Todos"):
         with st.expander("Asignaturas más frecuentes (Erasmus IN)"):
             df_mat = _load_materias_in(config)
             tabla_mat = _stats_materias_mas_frecuentes(df_mat)

@@ -4,6 +4,7 @@ from typing import Iterable, Tuple, Optional
 import pandas as pd
 from .sheets_helpers import sheets_for, resolve_sheet
 import streamlit as st
+from constants import PROGRAM_ERASMUS_OUT, PROGRAM_ERASMUS_IN, PROGRAM_SICUE_OUT, EXCEL_EXTENSIONS
 
 
 # ==============================
@@ -62,11 +63,11 @@ def _read_table(path: str, sheet_name: str | None = None, nrows: int | None = No
     if ext == ".csv":
         return pd.read_csv(path, nrows=nrows, encoding="utf-8", sep=None, engine="python")
 
-    if ext in (".xlsx", ".xlsm", ".xltx", ".xltm", ".xls"):
+    if ext in EXCEL_EXTENSIONS:
         effective_sheet = 0 if sheet_name is None else sheet_name
         try:
             # usa openpyxl cuando aplica; pandas elegirá motor para .xls
-            engine = "openpyxl" if ext in (".xlsx", ".xlsm", ".xltx", ".xltm") else None
+            engine = "openpyxl" if ext in EXCEL_EXTENSIONS[:-1] else None
             return pd.read_excel(path, sheet_name=effective_sheet, engine=engine, nrows=nrows)
         except TypeError:
             # algunos pandas no aceptan engine=None; reintenta sin engine
@@ -349,9 +350,9 @@ def load_all_dataframes(config: dict, global_sheet: str) -> dict[str, pd.DataFra
     dfs: dict[str, pd.DataFrame] = {}
 
     mapping = [
-        ("Erasmus OUT", config.get("Erasmus OUT"), load_erasmus_out),
-        ("Erasmus IN",  config.get("Erasmus IN"),  load_erasmus_in),
-        ("SICUE OUT",   config.get("SICUE OUT"),   load_sicue_out),
+        (PROGRAM_ERASMUS_OUT, config.get(PROGRAM_ERASMUS_OUT), load_erasmus_out),
+        (PROGRAM_ERASMUS_IN,  config.get(PROGRAM_ERASMUS_IN),  load_erasmus_in),
+        (PROGRAM_SICUE_OUT,   config.get(PROGRAM_SICUE_OUT),   load_sicue_out),
     ]
     sheets_map = (config or {}).get("sheets", {}) or {}
 
