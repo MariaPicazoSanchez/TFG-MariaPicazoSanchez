@@ -6,6 +6,7 @@ from urllib.parse import quote
 from security import get_api_token
 from .styles import POPUP_STYLES
 from domain import CITIES_ES
+from domain.validators import safe_int_to_str, normalize_int
 from .popup_helpers import (
     _normalize_estudiantes,
     _clean,
@@ -99,14 +100,10 @@ def generate_dynamic_popup(row, programa: str, row_index: int) -> str:
             curso_val_raw  = _clean(e.get("curso") or row.get("curso") or row.get("Curso"))
             cuatri_val_raw = _clean(e.get("cuatrimestre"))
             dur_val_raw = _clean(e.get("duracion_meses") or row.get("duracion meses") or row.get("Duración (meses)") or row.get("Duracion (meses)") or row.get("duracion_meses"))
-            try:
-              dur_val = str(int(float(dur_val_raw))) if dur_val_raw else ""
-              curso_val = str(int(float(curso_val_raw))) if curso_val_raw and str(curso_val_raw).replace('.','').isdigit() else ""
-              cuatri_val = str(int(float(cuatri_val_raw))) if cuatri_val_raw and str(cuatri_val_raw).replace('.','').isdigit() else ""
-            except (ValueError, TypeError):
-              dur_val = dur_val_raw
-              curso_val = curso_val_raw
-              cuatri_val = cuatri_val_raw
+            
+            dur_val = safe_int_to_str(dur_val_raw)
+            curso_val = safe_int_to_str(curso_val_raw)
+            cuatri_val = safe_int_to_str(cuatri_val_raw)
 
             gest_val   = _clean(e.get("gestion_LA") or row.get("gestion_LA") or row.get("Gestión LA") or row.get("Gestion LA"))
             coord_val  = _clean(e.get("coordinador_destino") or row.get("coordinador_destino") or row.get("Coordinador en destino"))

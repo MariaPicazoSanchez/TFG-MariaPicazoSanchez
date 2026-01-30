@@ -94,7 +94,6 @@ def show_map(dfs: dict, base_map, materias_in_por_estudiante=None, filtros_activ
     """
     import folium
     import pandas as pd
-    import leafmap.foliumap as leafmap
 
     if materias_in_por_estudiante is None:
         materias_in_por_estudiante = {}
@@ -103,14 +102,16 @@ def show_map(dfs: dict, base_map, materias_in_por_estudiante=None, filtros_activ
     if hasattr(base_map, "add_child"):
         m = base_map
     else:
-        m = leafmap.Map(center=(40.4168, -3.7038), zoom=4, tiles=None, draw_control=False,
-            measure_control=False,
-            search_control=True
-        )
+        tile_map = {
+            "CartoDB.Positron": "CartoDB positron",
+            "CartoDB.PositronNoLabels": "CartoDB positron",
+        }
+        tiles = base_map if isinstance(base_map, str) else "CartoDB positron"
+        tiles = tile_map.get(tiles, tiles)
         try:
-            m.add_basemap(base_map if isinstance(base_map, str) else "CartoDB.Positron")
+            m = folium.Map(location=(40.4168, -3.7038), zoom_start=4, tiles=tiles)
         except Exception:
-            m.add_basemap("CartoDB.Positron")
+            m = folium.Map(location=(40.4168, -3.7038), zoom_start=4, tiles="OpenStreetMap")
 
     # Quitar padding del popup de Leaflet (global)
     m.get_root().html.add_child(folium.Element("""

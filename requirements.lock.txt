@@ -7,6 +7,5 @@ babel==2.16.0
 geopy==2.4.1
 folium==0.20.0
 streamlit-folium==0.25.3
-leafmap==0.53.1
 Flask==3.1.2
 flask-cors==6.0.1

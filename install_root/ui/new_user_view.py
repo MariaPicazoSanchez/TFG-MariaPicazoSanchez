@@ -6,6 +6,12 @@ import pycountry
 import pandas as pd
 from babel import Locale
 from constants import PROGRAM_ERASMUS_OUT, PROGRAM_ERASMUS_IN, PROGRAM_SICUE_OUT
+from domain.validators import (
+    DataValidator, is_not_empty, is_email, is_duration_valid,
+    normalize_string, normalize_email, normalize_int,
+    get_erasmus_out_schema, get_erasmus_in_schema, get_sicue_out_schema,
+    safe_int_convert
+)
 
 from .sidebar import pick_local_file
 USE_LOCAL_PICKER = True
@@ -494,28 +500,43 @@ def render_new_user_form(available_types: list[str], config: dict) -> dict | Non
     # ────────────────────────────────────────────────────────────────
     # VALIDACIONES
     # ────────────────────────────────────────────────────────────────
-    missing = []
-    if not nombre.strip():          missing.append("Nombre")
-    if not apellidos.strip():       missing.append("Apellidos")
-    if not email.strip():           missing.append("Email")
-    if not destino_origen.strip():  missing.append("Destino/Origen")
-    if tipo_norm == "Erasmus OUT":
-        if not extra["pais_out"].strip():   missing.append("País")
-        # if not extra["tor"].strip():        missing.append("ToR")
-        # if not extra["curso"].strip():      missing.append("Curso")
-    elif tipo_norm == "Erasmus IN":
-        if not extra["pais_in"].strip():    missing.append("País")
-        # if not extra["la"].strip():         missing.append("LA")
-        # if not extra["horario"].strip():    missing.append("Horario")
-    elif tipo_norm == "SICUE OUT":
-        if not extra["ciudad_sicue"].strip():   missing.append("Ciudad")
-        # if not extra["la"].strip():             missing.append("LA")
-        # if not extra["estado_firmas"].strip():  missing.append("Estado de firmas")
-        # if not extra["plan_estudios"].strip():  missing.append("Plan de estudios")
-
-    if missing:
-        st.error("Faltan campos: " + ", ".join(missing))
+    validator = DataValidator()
+    
+    # Campos obligatorios con normalización
+    validator.validate_field("nombre", nombre.strip(), lambda x: len(x) > 0, 
+                            normalizer=lambda x: x.strip())
+    validator.validate_field("apellidos", apellidos.strip(), lambda x: len(x) > 0,
+                            normalizer=lambda x: x.strip())
+    validator.validate_field("email", email.strip(), is_email(),
+                            normalizer=lambda x: x.strip().lower())
+    validator.validate_field("destino_origen", destino_origen.strip(), lambda x: len(x) > 0,
+                            normalizer=lambda x: x.strip())
+    
+    # Validaciones específicas por tipo con normalización
+    if tipo_norm == PROGRAM_ERASMUS_OUT:
+        validator.validate_field("pais_out", extra["pais_out"].strip(), lambda x: len(x) > 0,
+                                normalizer=lambda x: x.strip())
+        if extra["dur_out"]:
+            validator.validate_field("dur_out", extra["dur_out"], is_duration_valid(),
+                                    normalizer=lambda x: str(safe_int_convert(x, default=0)))
+            
+    elif tipo_norm == PROGRAM_ERASMUS_IN:
+        validator.validate_field("pais_in", extra["pais_in"].strip(), lambda x: len(x) > 0,
+                                normalizer=lambda x: x.strip())
+            
+    elif tipo_norm == PROGRAM_SICUE_OUT:
+        validator.validate_field("ciudad_sicue", extra["ciudad_sicue"].strip(), lambda x: len(x) > 0,
+                                normalizer=lambda x: x.strip())
+        if extra["dur_sicue"]:
+            validator.validate_field("dur_sicue", extra["dur_sicue"], is_duration_valid(),
+                                    normalizer=lambda x: str(safe_int_convert(x, default=0)))
+    
+    if not validator.is_valid():
+        st.error(validator.get_error_messages())
         return None
+    
+    # Obtener datos normalizados
+    clean_data = validator.get_clean_data()
 
 
     # ────────────────────────────────────────────────────────────────
@@ -533,12 +554,13 @@ def render_new_user_form(available_types: list[str], config: dict) -> dict | Non
     # ────────────────────────────────────────────────────────────────
     # PAYLOAD + MATERIAS
     # ────────────────────────────────────────────────────────────────
+    # Usar datos normalizados del validador - mucho más limpio
     payload = {
         "tipo": tipo_norm,
-        "nombre": nombre.strip(),
-        "apellidos": apellidos.strip(),
-        "email": email.strip(),
-        "destino_origen": destino_origen.strip(),
+        "nombre": clean_data.get("nombre", ""),
+        "apellidos": clean_data.get("apellidos", ""),
+        "email": clean_data.get("email", ""),
+        "destino_origen": clean_data.get("destino_origen", ""),
         "coordenadas": (lat, lon),
         **{k: (v.strip() if isinstance(v, str) else v) for k, v in extra.items()},
     }

@@ -28,7 +28,7 @@ Name: "{app}\data_demo"
 
 [Files]
 ; Copia todo install_root EXCEPTO thirdparty y data_demo (que van aparte)
-Source: "install_root\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs; Excludes: "thirdparty\*;data_demo\*"
+Source: "install_root\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs; Excludes: "thirdparty\*;data_demo\*;__pycache__\*;_internal\*"
 
 ; Python installer solo al temp (y se borra al terminar)
 Source: "install_root\thirdparty\{#PyInstallerExe}"; DestDir: "{tmp}"; Flags: deleteafterinstall
