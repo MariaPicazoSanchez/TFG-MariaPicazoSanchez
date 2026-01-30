@@ -57,16 +57,14 @@ def generate_dynamic_popup(row, programa: str, row_index: int) -> str:
     estudiantes = _normalize_estudiantes(row.get("estudiantes", []))
     n = len(estudiantes)
 
-    # Subtítulo: Programa · Ciudad · País
-    loc_text = " · ".join(p for p in (ciudad, pais) if p)  # primero ciudad, luego país
-
-    # Solo mostrar "Erasmus OUT" y el país
-    if programa and programa.upper() == "ERASMUS OUT":
-        subtitle_text = f"{html.escape(programa)}"
-        if pais:
-            subtitle_text += f" · {pais}"
-    else:
-      subtitle_text = ""
+    # Subtítulo: Programa · País (para todos los tipos de movilidad)
+    subtitle_parts = []
+    if programa:
+        subtitle_parts.append(html.escape(programa))
+    if pais:
+        subtitle_parts.append(pais)
+    
+    subtitle_text = " · ".join(subtitle_parts)
     subtitle_html = f"<div class='sub'>{subtitle_text}</div>" if subtitle_text else ""
 
     # Botón "Abrir Excel <programa>" SOLO si tenemos ruta local
