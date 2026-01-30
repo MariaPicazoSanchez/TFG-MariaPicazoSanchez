@@ -55,6 +55,12 @@ pip install \
     PyMuPDF \
     reportlab
 ```
+
+  ### 3.2. Crear/actualizar wheelhouse (offline)
+
+  ```bash
+  python -m pip download -r requirements.lock.txt -d install_root/wheelhouse --no-deps --prefer-binary
+  ```
 ---
 
 ## 4. Ejecución del sistema

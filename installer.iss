@@ -7,24 +7,24 @@
 AppName={#AppName}
 AppVersion={#AppVer}
 AppPublisher=TFG-MariaPicazoSanchez
-DefaultDirName={pf}\{#AppName}
+DefaultDirName={localappdata}\{#AppName}
 DefaultGroupName={#AppName}
 DisableProgramGroupPage=yes
 OutputDir=output
 OutputBaseFilename=MovilidadESII_Installer
 Compression=lzma
 SolidCompression=yes
-PrivilegesRequired=admin
+PrivilegesRequired=lowest
 ArchitecturesAllowed=x64
 ArchitecturesInstallIn64BitMode=x64
 SetupLogging=yes
 SetupIconFile=install_root\MovilidadESII.ico
 
 [Dirs]
-Name: "{localappdata}\MovilidadESII\logs"
-Name: "{localappdata}\MovilidadESII\python"
-Name: "{localappdata}\MovilidadESII\venv"
-Name: "{localappdata}\MovilidadESII\data_demo"
+Name: "{app}\logs"
+Name: "{app}\python"
+Name: "{app}\venv"
+Name: "{app}\data_demo"
 
 [Files]
 ; Copia todo install_root EXCEPTO thirdparty y data_demo (que van aparte)
@@ -36,17 +36,23 @@ Source: "install_root\thirdparty\{#PyInstallerExe}"; DestDir: "{tmp}"; Flags: de
 ; Icono
 Source: "install_root\MovilidadESII.ico"; DestDir: "{app}"; Flags: ignoreversion
 
-; data_demo a AppData (tus 4 excels)
-Source: "install_root\data_demo\*.xlsx"; DestDir: "{localappdata}\MovilidadESII\data_demo"; Flags: ignoreversion
+; data_demo a AppData (4 excels)
+Source: "install_root\data_demo\*.xlsx"; DestDir: "{app}\data_demo"; Flags: ignoreversion
 
 ; wheelhouse + requirements (offline pip)
 Source: "install_root\wheelhouse\*"; DestDir: "{app}\wheelhouse"; Flags: ignoreversion recursesubdirs createallsubdirs
 Source: "install_root\requirements.txt"; DestDir: "{app}"; Flags: ignoreversion
 
-
 [Icons]
-Name: "{group}\MovilidadESII"; Filename: "{app}\MovilidadESII.exe"; WorkingDir: "{app}"; IconFilename: "{app}\MovilidadESII.ico"
-Name: "{userdesktop}\MovilidadESII"; Filename: "{app}\MovilidadESII.exe"; WorkingDir: "{app}"; IconFilename: "{app}\MovilidadESII.ico"
+Name: "{userdesktop}\MovilidadESII"; \
+  Filename: "{app}\MovilidadESII.exe"; \
+  WorkingDir: "{app}"; \
+  IconFilename: "{app}\MovilidadESII.ico"
+
+Name: "{group}\MovilidadESII"; \
+  Filename: "{app}\MovilidadESII.exe"; \
+  WorkingDir: "{app}"; \
+  IconFilename: "{app}\MovilidadESII.ico"
 
 
 [Code]
@@ -54,11 +60,13 @@ var
   TracePath: string;
   PipLogPath: string;
   BasePythonExe: string;
+  PySetupLogPath: string;
 
 function AppDataBase(): string;
 begin
-  Result := ExpandConstant('{localappdata}\MovilidadESII');
+  Result := ExpandConstant('{app}');
 end;
+
 
 function PyDir(): string;
 begin
@@ -127,6 +135,7 @@ begin
   ForceDirectories(AppDataBase() + '\logs');
   TracePath := AppDataBase() + '\logs\setup_trace.log';
   PipLogPath := AppDataBase() + '\logs\pip_install.log';
+  PySetupLogPath := AppDataBase() + '\logs\python_install.log';
   BasePythonExe := '';
 end;
 
@@ -164,13 +173,6 @@ begin
     exit;
   end;
 
-  if FindPython312ByPaths(FoundPy) then
-  begin
-    BasePythonExe := FoundPy;
-    LogLine('Python 3.12 encontrado en el sistema: ' + BasePythonExe);
-    exit;
-  end;
-
   InstallerPath := ExpandConstant('{tmp}\{#PyInstallerExe}');
   if not FileExists(InstallerPath) then
   begin
@@ -180,9 +182,14 @@ begin
 
   ForceDirectories(PyDir());
 
-  Params := '/quiet InstallAllUsers=0 PrependPath=0 Include_pip=1 TargetDir=' + Quote(PyDir());
-  LogLine('Instalando Python en: ' + PyDir());
+  Params :=
+    '/quiet InstallAllUsers=0 PrependPath=0 Include_pip=1 ' +
+    'Include_launcher=0 Shortcuts=0 ' +
+    'TargetDir=' + PyDir() + ' ' +
+    'DefaultJustForMeTargetDir=' + PyDir() + ' ' +
+    '/log ' + Quote(PySetupLogPath);
 
+  LogLine('Instalando Python en: ' + PyDir());
   if (not ExecLogged(InstallerPath, Params, '', RC)) or (RC <> 0) then
   begin
     FailAndStop('Falló la instalación de Python (exit ' + IntToStr(RC) + ').');
@@ -199,12 +206,16 @@ begin
   if FindPython312ByPaths(FoundPy) then
   begin
     BasePythonExe := FoundPy;
-    LogLine('Python instalado/localizado fuera de TargetDir: ' + BasePythonExe);
+    LogLine('AVISO: Python no quedó en TargetDir. Usaré: ' + BasePythonExe);
     exit;
   end;
 
-  FailAndStop('Python se ejecutó (exit=0) pero no pude localizar python.exe.');
+  FailAndStop(
+    'Python se ejecutó (exit=0) pero no aparece ni en TargetDir ni en rutas típicas.' + #13#10 +
+    'Revisa: ' + PySetupLogPath
+  );
 end;
+
 
 procedure CreateVenvIfMissing();
 var
@@ -335,7 +346,10 @@ begin
 end;
 
 [Run]
-Filename: "{app}\{#AppExe}"; Description: "Abrir {#AppName}"; Flags: nowait postinstall skipifsilent
+Filename: "{app}\venv\Scripts\pythonw.exe"; \
+  Parameters: "-m streamlit run ""{app}\app.py"""; \
+  Description: "Abrir {#AppName}"; \
+  Flags: nowait postinstall skipifsilent
 
 [UninstallDelete]
 Type: filesandordirs; Name: "{app}"

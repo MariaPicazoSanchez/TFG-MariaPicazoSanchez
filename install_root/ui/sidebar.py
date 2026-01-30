@@ -278,6 +278,8 @@ def sidebar_controls():
     if "view" not in st.session_state:
         st.session_state["view"] = "map"
 
+    search_slot = None
+
     if st.session_state["view"] == "new_user":
         if st.sidebar.button("⬅️ Volver al mapa", use_container_width=True):
             st.session_state["view"] = "map"
@@ -311,6 +313,9 @@ def sidebar_controls():
         unique_sheets = _unique_sheets_from_config_or_files(cfg)
         from domain import render_filters_map
         base_map = render_filters_map(unique_sheets)
+
+        # Placeholder para el buscador debajo de los botones de filtros
+        search_slot = st.sidebar.empty()
 
         st.sidebar.markdown("---")
         # Botón para crear estudiante (esto no es filtro, lo dejamos aquí)
@@ -354,4 +359,6 @@ def sidebar_controls():
                 unsafe_allow_html=True,
             )
 
-        return base_map
+        return base_map, search_slot
+
+    return None, search_slot

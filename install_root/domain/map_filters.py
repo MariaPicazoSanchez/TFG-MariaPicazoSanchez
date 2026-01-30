@@ -181,10 +181,6 @@ def render_filters_map(unique_sheets: list[str]) -> str:
             toggle("SICUE OUT")
             st.rerun()
             
-    # --- BÚSQUEDA ---
-    from ui import render_search_box  # para evitar ciclo
-    render_search_box()
-
     # Mapa base
     base_map = "OpenStreetMap"
     return base_map

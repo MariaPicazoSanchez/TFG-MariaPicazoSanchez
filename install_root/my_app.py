@@ -82,7 +82,7 @@ def main():
     config = st.session_state["config"]
 
     # Render sidebar early so `global_sheet` is set before loading data
-    base_map = sidebar_controls()
+    base_map, search_slot = sidebar_controls()
 
     # Asegura defaults (porque ahora los vas a leer ANTES de map_filters)
     if "selected_programs" not in st.session_state:
@@ -162,6 +162,10 @@ def main():
         print(f"[perf] build_search_index: {(t3 - t2)*1000:.1f} ms")
     except Exception:
         pass
+
+    # Render search box in its sidebar slot after building the index
+    if search_slot is not None:
+        render_search_box(parent=search_slot)
 
     # A partir de aquí tu flujo normal:
 

@@ -581,7 +581,7 @@ def start_processes(api_enabled: bool = True, api_disabled_reason: str | None = 
             LOGGER.warning(reason)
 
         GRACE_STARTUP = 20
-        IDLE_TIMEOUT = 30
+        IDLE_TIMEOUT = 10
 
         start_time = time.time()
         last_seen = time.time()
