@@ -145,17 +145,29 @@ def load_erasmus_out(path: str, sheet_name: str | None = None) -> pd.DataFrame:
         if c_duracion: mapping[c_duracion] = "duracion_meses"
         if c_resp:     mapping[c_resp]     = "responsable"
         if c_tor:      mapping[c_tor]      = "ToR"
+        
         keep = ["estudiante"]
         if "link_LA" in g.columns:
             keep.append("link_LA")
         if "link_plan" in g.columns:
             keep.append("link_plan")
-        keep = keep + list(mapping.keys())
-        out = g[keep].copy() if keep else g.copy()
-        out = out.rename(columns=mapping)
-        if c_ciudad and c_ciudad in g.columns:
-            out["ciudad"] = g[c_ciudad]
-        return out.to_dict(orient="records")
+        keep_mapped = keep + list(mapping.keys())
+        
+        # Convertir a lista de dicts sin .copy()
+        records = []
+        for row in g.itertuples(index=False, name='Row'):
+            record = {}
+            for col in keep:
+                if hasattr(row, col):
+                    record[col] = getattr(row, col)
+            for orig_col, mapped_col in mapping.items():
+                if hasattr(row, orig_col):
+                    record[mapped_col] = getattr(row, orig_col)
+            if c_ciudad and c_ciudad in g.columns:
+                if hasattr(row, c_ciudad):
+                    record["ciudad"] = getattr(row, c_ciudad)
+            records.append(record)
+        return records
     
     groupby_cols = ["universidad", "ciudad", "latitud", "longitud", "pais"]
     if "link_LA" in df.columns:
@@ -227,12 +239,21 @@ def load_erasmus_in(path: str, sheet_name: str | None = None) -> pd.DataFrame:
         cols = ["estudiante", "cuatrimestre", "link_LA"]
         if c_email: cols.insert(1, c_email)
         cols = [c for c in cols if c in g.columns]
-        out = g[cols].copy()
-        if c_email and c_email in out.columns:
-            out = out.rename(columns={c_email: "email"})
-        if c_ciudad and c_ciudad in g.columns:
-            out["ciudad"] = g[c_ciudad]
-        return out.to_dict(orient="records")
+        
+        records = []
+        for row in g.itertuples(index=False, name='Row'):
+            record = {}
+            for col in cols:
+                if hasattr(row, col):
+                    # Renombra email si viene de otra columna
+                    if col == c_email and c_email != "email":
+                        record["email"] = getattr(row, col)
+                    else:
+                        record[col] = getattr(row, col)
+            if c_ciudad and c_ciudad in g.columns and hasattr(row, c_ciudad):
+                record["ciudad"] = getattr(row, c_ciudad)
+            records.append(record)
+        return records
 
     grouped = (
         df.groupby(["universidad","ciudad", "latitud", "longitud", "pais"], dropna=False)
@@ -307,10 +328,22 @@ def load_sicue_out(path: str, sheet_name: str | None = None) -> pd.DataFrame:
 
     def _to_records(g: pd.DataFrame) -> list[dict]:
         keep = ["estudiante"] + [k for k in mapping.keys() if k in g.columns]
-        out = g[keep].copy().rename(columns=mapping)
-        if c_ciudad and c_ciudad in g.columns:
-            out["ciudad"] = g[c_ciudad]
-        return out.to_dict(orient="records")
+        
+        records = []
+        for row in g.itertuples(index=False, name='Row'):
+            record = {}
+            # Agregar field estudiante
+            if hasattr(row, "estudiante"):
+                record["estudiante"] = getattr(row, "estudiante")
+            # Agregar campos mapeados
+            for orig_col, new_col in mapping.items():
+                if orig_col in g.columns and hasattr(row, orig_col):
+                    record[new_col] = getattr(row, orig_col)
+            # Agregar ciudad si existe
+            if c_ciudad and c_ciudad in g.columns and hasattr(row, c_ciudad):
+                record["ciudad"] = getattr(row, c_ciudad)
+            records.append(record)
+        return records
 
     grouped = (
         df.groupby(["universidad", "ciudad", "latitud", "longitud"], dropna=False)

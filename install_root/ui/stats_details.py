@@ -159,8 +159,8 @@ def _load_materias_in(config: dict) -> pd.DataFrame:
         return pd.DataFrame()
 
     try:
-        df = pd.read_excel(path)
-        if df is None:
+        df = pd.read_excel(path, dtype_backend='numpy_nullable')
+        if df is None or df.empty:
             return pd.DataFrame()
         return df
     except Exception:
