@@ -2,9 +2,9 @@ from .sheets_helpers import sheets_for
 
 
 # Lazy wrapper for load_all_dataframes to avoid importing Streamlit-heavy module on package import
-def load_all_dataframes(cfg, sheet):
+def load_all_dataframes(cfg, sheet, programs_to_load=None):
     from .data_access_mobility import load_all_dataframes as _f
-    return _f(cfg, sheet)
+    return _f(cfg, sheet, programs_to_load=programs_to_load)
 
 
 # Lazy wrappers for functions that import Streamlit or heavy modules at import time

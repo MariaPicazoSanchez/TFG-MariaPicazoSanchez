@@ -114,13 +114,19 @@ def main():
         return tuple(mtimes)
 
     @st.cache_data(show_spinner=False)
-    def cached_load_all_dataframes(cfg, sheet, data_version, src_mtimes):
+    def cached_load_all_dataframes(cfg, sheet, data_version, src_mtimes, programs=None):
         # `data_version` and `src_mtimes` are dummy args used to invalidate the cache
-        return load_all_dataframes(cfg, sheet)
+        # programs: lista de programas a cargar (lazy loading selectivo)
+        return load_all_dataframes(cfg, sheet, programs_to_load=programs)
 
     t0 = time.perf_counter()
     cfg_mtimes = _get_config_mtimes(config)
-    dfs = cached_load_all_dataframes(config, global_sheet, st.session_state.get("data_version", 0), cfg_mtimes)
+    
+    # Fase 3: Lazy loading - obtener programas seleccionados ANTES de cargar
+    selected = st.session_state.get("selected_programs", {})
+    programs_to_load = tuple(k for k, v in selected.items() if v) or None  # None = cargar todos
+    
+    dfs = cached_load_all_dataframes(config, global_sheet, st.session_state.get("data_version", 0), cfg_mtimes, programs_to_load)
     t1 = time.perf_counter()
     try:
         print(f"[perf] load_all_dataframes: {(t1 - t0)*1000:.1f} ms")
@@ -142,11 +148,12 @@ def main():
     except Exception:
         pass
 
-    # Aplica filtros de programas y OUT sin LA (para que el índice sea coherente)
+    # Nota: Ya filtramos por programas seleccionados en load_all_dataframes (Fase 3 lazy loading)
+    # Aquí solo aplicamos filtros adicionales (like LA filtering)
+    
+    # Obtener lista de programas activos para pasarla a show_map
     selected = st.session_state.get("selected_programs", {})
     activos = [k for k, v in selected.items() if v]
-    if isinstance(dfs, dict) and len(activos) > 0:
-        dfs = {k: v for k, v in dfs.items() if k in activos}
 
     only_no_la = st.session_state.get("only_erasmus_out_no_LA", False)
     if only_no_la and isinstance(dfs, dict) and PROGRAM_ERASMUS_OUT in dfs:

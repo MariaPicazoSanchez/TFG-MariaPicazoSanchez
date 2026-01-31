@@ -216,6 +216,22 @@ begin
   );
 end;
 
+procedure RemoveThirdpartyIfPresent();
+var
+  ThirdpartyDir: string;
+begin
+  ThirdpartyDir := ExpandConstant('{app}\thirdparty');
+  if DirExists(ThirdpartyDir) then
+  begin
+    LogLine('Eliminando carpeta thirdparty: ' + ThirdpartyDir);
+    DelTree(ThirdpartyDir, True, True, True);
+  end
+  else
+  begin
+    LogLine('No existe carpeta thirdparty en app. No se elimina.');
+  end;
+end;
+
 
 procedure CreateVenvIfMissing();
 var
@@ -323,6 +339,22 @@ begin
   LogLine('Marker OK creado: ' + Marker);
 end;
 
+procedure RemoveWheelhouseIfPresent();
+var
+  WheelhouseDir: string;
+begin
+  WheelhouseDir := ExpandConstant('{app}\wheelhouse');
+  if DirExists(WheelhouseDir) then
+  begin
+    LogLine('Eliminando carpeta wheelhouse: ' + WheelhouseDir);
+    DelTree(WheelhouseDir, True, True, True);
+  end
+  else
+  begin
+    LogLine('No existe carpeta wheelhouse en app. No se elimina.');
+  end;
+end;
+
 procedure CurStepChanged(CurStep: TSetupStep);
 begin
   if CurStep = ssPostInstall then
@@ -334,11 +366,14 @@ begin
     LogLine('Python base seleccionado: ' + BasePythonExe);
     if (BasePythonExe = '') or (not FileExists(BasePythonExe)) then exit;
 
+    RemoveThirdpartyIfPresent();
+
     CreateVenvIfMissing();
     if not FileExists(VenvPy()) then exit;
 
     InstallDepsOffline();
     ValidateCriticalImports();
+    RemoveWheelhouseIfPresent();
     WriteMarkerOk();
 
     LogLine('POSTINSTALL end OK');

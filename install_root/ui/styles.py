@@ -99,7 +99,25 @@ POPUP_STYLES = """
 
 .plist {
   list-style:none;padding:0;margin:6px 0 0 0;
-  max-height:360px;overflow:auto;
+  max-height:500px;overflow-y:auto;overflow-x:hidden;
+}
+
+.plist::-webkit-scrollbar {
+  width: 6px;
+}
+
+.plist::-webkit-scrollbar-track {
+  background: #f1f5f9;
+  border-radius: 3px;
+}
+
+.plist::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 3px;
+}
+
+.plist::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
 }
 
 .pitem + .pitem {

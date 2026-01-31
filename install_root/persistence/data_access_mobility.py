@@ -2,6 +2,7 @@ import os
 import re
 from typing import Iterable, Tuple, Optional
 import pandas as pd
+import math
 from .sheets_helpers import sheets_for, resolve_sheet
 import streamlit as st
 from constants import PROGRAM_ERASMUS_OUT, PROGRAM_ERASMUS_IN, PROGRAM_SICUE_OUT, EXCEL_EXTENSIONS
@@ -76,6 +77,109 @@ def _read_table(path: str, sheet_name: str | None = None, nrows: int | None = No
     # fallback genérico
     effective_sheet = 0 if sheet_name is None else sheet_name
     return pd.read_excel(path, sheet_name=effective_sheet, nrows=nrows)
+
+
+# ==============================
+#   CLUSTERING DE COORDENADAS
+# ==============================
+def haversine_distance(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
+    """
+    Calcula distancia en metros entre dos puntos usando Haversine.
+    Retorna distancia en metros.
+    """
+    if any(v is None or pd.isna(v) for v in [lat1, lon1, lat2, lon2]):
+        return float('inf')
+    
+    R = 6371000  # Radio terrestre en metros
+    phi1 = math.radians(lat1)
+    phi2 = math.radians(lat2)
+    delta_phi = math.radians(lat2 - lat1)
+    delta_lambda = math.radians(lon2 - lon1)
+    
+    a = math.sin(delta_phi/2)**2 + math.cos(phi1)*math.cos(phi2)*math.sin(delta_lambda/2)**2
+    c = 2 * math.atan2(math.sqrt(a), math.sqrt(1-a))
+    return R * c
+
+
+def cluster_coordinates(df: pd.DataFrame, max_distance_m: int = 150) -> pd.DataFrame:
+    """
+    Agrupa coordenadas que están muy cerca (clustering con Union-Find).
+    Si dos puntos están a menos de max_distance_m, se agrupan en uno.
+    
+    Args:
+        df: DataFrame con columnas 'latitud' y 'longitud'
+        max_distance_m: Distancia máxima en metros para agrupar (default: 150m)
+    
+    Returns:
+        DataFrame con coordenadas agrupadas y promedios calculados
+    """
+    if df.empty or "latitud" not in df.columns or "longitud" not in df.columns:
+        return df
+    
+    # Validar que hay coordenadas
+    valid_mask = df["latitud"].notna() & df["longitud"].notna()
+    if not valid_mask.any():
+        return df
+    
+    # Reiniciar índices para tracking
+    df_reset = df.reset_index(drop=True).copy()
+    valid_indices = valid_mask.reset_index(drop=True)
+    
+    # Union-Find para agrupar índices
+    parent = list(range(len(df_reset)))
+    
+    def find(x):
+        if parent[x] != x:
+            parent[x] = find(parent[x])
+        return parent[x]
+    
+    def union(x, y):
+        px, py = find(x), find(y)
+        if px != py:
+            parent[px] = py
+    
+    # Construir clusters usando distancia Haversine
+    for i in range(len(df_reset)):
+        if not valid_indices.iloc[i]:
+            continue
+        lat1, lon1 = df_reset.iloc[i]["latitud"], df_reset.iloc[i]["longitud"]
+        
+        for j in range(i + 1, len(df_reset)):
+            if not valid_indices.iloc[j]:
+                continue
+            lat2, lon2 = df_reset.iloc[j]["latitud"], df_reset.iloc[j]["longitud"]
+            
+            if haversine_distance(lat1, lon1, lat2, lon2) < max_distance_m:
+                union(i, j)
+    
+    # Agrupar por cluster y promediar
+    clusters_map = {}
+    for i in range(len(df_reset)):
+        if valid_indices.iloc[i]:
+            root = find(i)
+            if root not in clusters_map:
+                clusters_map[root] = []
+            clusters_map[root].append(i)
+    
+    # Crear DataFrame resultado
+    result_rows = []
+    for cluster_id, indices in clusters_map.items():
+        cluster_data = df_reset.iloc[indices]
+        
+        # Usar la primera fila como base
+        new_row = cluster_data.iloc[0].copy()
+        
+        # Promediar coordenadas del cluster
+        new_row["latitud"] = cluster_data["latitud"].mean()
+        new_row["longitud"] = cluster_data["longitud"].mean()
+        
+        result_rows.append(new_row)
+    
+    # Agregar filas con coordenadas inválidas
+    invalid_rows = df_reset[~valid_mask].copy()
+    
+    result = pd.concat([pd.DataFrame(result_rows), invalid_rows], ignore_index=True)
+    return result
 
 
 # ==============================
@@ -172,11 +276,21 @@ def load_erasmus_out(path: str, sheet_name: str | None = None) -> pd.DataFrame:
     groupby_cols = ["universidad", "ciudad", "latitud", "longitud", "pais"]
     if "link_LA" in df.columns:
         groupby_cols.append("link_LA")
+    
+    # Fase 4: Clustering de coordenadas - agrupar puntos cercanos
+    df = cluster_coordinates(df, max_distance_m=150)
+    
     grouped = (
         df.groupby(groupby_cols, dropna=False)
           .apply(_to_records, include_groups=False)
           .reset_index(name="estudiantes")
     )
+    
+    # Fase 3: Liberar memoria del DataFrame original tras agrupar
+    del df
+    import gc
+    gc.collect()
+    
     return grouped
 
 
@@ -255,11 +369,20 @@ def load_erasmus_in(path: str, sheet_name: str | None = None) -> pd.DataFrame:
             records.append(record)
         return records
 
+    # Fase 4: Clustering de coordenadas
+    df = cluster_coordinates(df, max_distance_m=150)
+    
     grouped = (
         df.groupby(["universidad","ciudad", "latitud", "longitud", "pais"], dropna=False)
           .apply(_to_records, include_groups=False)
           .reset_index(name="estudiantes")
     )
+    
+    # Fase 3: Liberar memoria
+    del df
+    import gc
+    gc.collect()
+    
     return grouped
 
 
@@ -345,6 +468,9 @@ def load_sicue_out(path: str, sheet_name: str | None = None) -> pd.DataFrame:
             records.append(record)
         return records
 
+    # Fase 4: Clustering de coordenadas
+    df = cluster_coordinates(df, max_distance_m=150)
+    
     grouped = (
         df.groupby(["universidad", "ciudad", "latitud", "longitud"], dropna=False)
           .apply(_to_records, include_groups=False)
@@ -352,6 +478,12 @@ def load_sicue_out(path: str, sheet_name: str | None = None) -> pd.DataFrame:
     )
     grouped["pais"] = "España"
     grouped = grouped[["universidad", "pais", "ciudad", "latitud", "longitud", "estudiantes"]]
+    
+    # Fase 3: Liberar memoria
+    del df
+    import gc
+    gc.collect()
+    
     return grouped
 
 
@@ -373,14 +505,26 @@ def load_mobility_any(path: str, sheet_name: str | None = None) -> pd.DataFrame:
 # ==============================
 #   Agregador con filtro global
 # ==============================
-def load_all_dataframes(config: dict, global_sheet: str) -> dict[str, pd.DataFrame]:
+def load_all_dataframes(config: dict, global_sheet: str, programs_to_load: list[str] | None = None) -> dict[str, pd.DataFrame]:
     """
     Carga DF por tipo aplicando el filtro global de hoja:
     - 'Todas' → usa los loaders habituales.
     - Hoja concreta → lee solo esa hoja (si el loader acepta sheet_name, se usa;
       si no, se lee directo con pandas).
+    
+    Args:
+        config: Configuración con rutas a Excel
+        global_sheet: Hoja a cargar ('Todas' o nombre específico)
+        programs_to_load: Lista de programas a cargar. Si None, carga todos.
+                         Ej: [PROGRAM_ERASMUS_OUT, PROGRAM_ERASMUS_IN]
+    
+    Optimización (Fase 3): Lazy loading selectivo evita cargar datos innecesarios.
     """
     dfs: dict[str, pd.DataFrame] = {}
+
+    # Si no se especifica, carga todos
+    if programs_to_load is None:
+        programs_to_load = [PROGRAM_ERASMUS_OUT, PROGRAM_ERASMUS_IN, PROGRAM_SICUE_OUT]
 
     mapping = [
         (PROGRAM_ERASMUS_OUT, config.get(PROGRAM_ERASMUS_OUT), load_erasmus_out),
@@ -390,6 +534,10 @@ def load_all_dataframes(config: dict, global_sheet: str) -> dict[str, pd.DataFra
     sheets_map = (config or {}).get("sheets", {}) or {}
 
     for type_name, path, loader in mapping:
+        # Fase 3: Lazy loading - solo cargar programas seleccionados
+        if type_name not in programs_to_load:
+            continue
+            
         if not path:
             continue
 
