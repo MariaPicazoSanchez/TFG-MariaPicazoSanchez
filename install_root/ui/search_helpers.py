@@ -1,19 +1,25 @@
 from __future__ import annotations
 import unicodedata
-from typing import Dict, List, Tuple
+from typing import Dict, List, Tuple, Optional
 import pandas as pd
 import streamlit as st
 
 STOPWORDS = {"de", "del", "la", "las", "los", "y", "da", "do", "dos", "das"}
 
 def quitar_tildes(s: str) -> str:
+    """Remove accents/tildes from string."""
     return ''.join(
         c for c in unicodedata.normalize('NFD', s)
         if unicodedata.category(c) != 'Mn'
     )
 
 def _norm(s: str) -> str:
+    """Normalize text: remove accents, lowercase, trim."""
     return quitar_tildes(str(s).strip().lower())
+
+def normalize_text(s: str) -> str:
+    """Alias for _norm - remove accents and convert to lowercase for comparison."""
+    return _norm(s)
 
 def build_search_index(dfs: Dict[str, pd.DataFrame]) -> None:
     if not isinstance(dfs, dict):
@@ -188,3 +194,79 @@ def render_search_box(parent=None) -> str:
     st.session_state["search_text"] = selected[0] if selected else ""
     return st.session_state["search_text"].strip()
 
+
+def search_in_student(student: dict, search_term: str) -> bool:
+    """Check if search term matches any field in a student record.
+    
+    Args:
+        student: Dictionary with student fields (estudiante, email, ciudad, etc.)
+        search_term: Normalized search term (lowercase, no accents)
+    
+    Returns:
+        True if search term found in any student field
+    """
+    if not isinstance(student, dict):
+        return False
+    
+    search_fields = ("estudiante", "email", "ciudad")
+    for field in search_fields:
+        value = normalize_text(str(student.get(field, "")))
+        if search_term in value:
+            return True
+    return False
+
+
+def filter_dataframes_by_search(
+    dfs: Dict[str, pd.DataFrame],
+    search_text: str,
+    search_fields: Optional[List[str]] = None
+) -> Dict[str, pd.DataFrame]:
+    """Filter all dataframes by search text.
+    
+    Args:
+        dfs: Dictionary of program -> DataFrame
+        search_text: Raw search text
+        search_fields: Fields to search in. Defaults to common fields.
+    
+    Returns:
+        Filtered dictionary of dataframes
+    """
+    if not search_text or len(search_text.strip()) < 2:
+        return dfs
+    
+    if search_fields is None:
+        search_fields = [
+            "universidad", "pais", "país", "ciudad", "destino",
+            "nombre", "apellidos", "apellido", "apellido1", "apellido2",
+            "estudiante", "email", "full_name",
+        ]
+    
+    needle = normalize_text(search_text.strip())
+    filtered = {}
+    
+    for program, df in dfs.items():
+        if df is None or df.empty:
+            continue
+        
+        # Search in flat columns
+        mask_flat = pd.Series(False, index=df.index)
+        cols = [c for c in search_fields if c in df.columns]
+        if cols:
+            combined = df[cols].fillna("").astype(str).agg(" ".join, axis=1)
+            normalized = combined.apply(normalize_text)
+            mask_flat = normalized.str.contains(needle, na=False)
+        
+        # Search in student records
+        mask_students = pd.Series(False, index=df.index)
+        if "estudiantes" in df.columns:
+            mask_students = df["estudiantes"].apply(
+                lambda students: any(search_in_student(s, needle) for s in (students or []))
+            )
+        
+        mask = mask_flat | mask_students
+        filtered_df = df.loc[mask].copy()
+        
+        if not filtered_df.empty:
+            filtered[program] = filtered_df
+    
+    return filtered

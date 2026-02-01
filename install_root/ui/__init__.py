@@ -4,7 +4,7 @@ from .new_user_view import render_new_user_form
 from .stats_view import render_stats_view
 from .popup_helpers import _normalize_estudiantes, _clean
 from .popup_templates import generate_dynamic_popup
-from .search_helpers import build_search_index, render_search_box
+from .search_helpers import build_search_index, render_search_box, filter_dataframes_by_search
 from .stats_helpers import build_export_xlsx
 from .styles import POPUP_STYLES
 
@@ -20,4 +20,5 @@ __all__ = [
     "render_stats_view",
     "build_search_index",
     "render_search_box",
+    "filter_dataframes_by_search",
 ]

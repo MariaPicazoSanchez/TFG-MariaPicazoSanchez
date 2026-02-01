@@ -1,305 +1,188 @@
+"""
+Aplicación principal de Streamlit para visualización de movilidad estudiantil.
+
+Este módulo orquesta la carga de datos, filtrado y pipeline de visualización.
+Separa responsabilidades en funciones más pequeñas y testeables.
+"""
+
 import os
-import unicodedata
 import streamlit as st
 import urllib.request
-import pandas as pd
-import time
 import streamlit.components.v1 as components
-from ui import setup_session, sidebar_controls, render_new_user_form, show_map, render_stats_view, build_search_index, render_search_box
+
+from ui import (
+    setup_session, sidebar_controls, render_new_user_form,
+    show_map, render_stats_view, build_search_index, render_search_box,
+    filter_dataframes_by_search
+)
 from utils import handle_open_pdf_query, handle_open_excel_query
+from utils.app_config import (
+    init_session_defaults, get_query_param, get_config_mtimes,
+    get_active_programs, get_available_program_types
+)
+from utils.map_processing import (
+    calculate_auto_zoom_bounds, check_dataframes_have_data, filter_out_no_la
+)
 from persistence import load_all_dataframes, get_materias_in_por_estudiante
 from constants import PROGRAM_ERASMUS_OUT, PROGRAM_ERASMUS_IN, PROGRAM_SICUE_OUT
 
 
-def quitar_tildes(s: str) -> str:
-    return ''.join(
-        c for c in unicodedata.normalize('NFD', s)
-        if unicodedata.category(c) != 'Mn'
-    )
-
-def coincide_en_estudiantes(valor, texto_busqueda_normalizado: str) -> bool:
+def _check_api_health(timeout: int = 1) -> bool:
+    """Verifica si la API está respondiendo.
+    
+    Args:
+        timeout: Tiempo de espera de la petición en segundos
+    
+    Returns:
+        True si la API está saludable, False en caso contrario
     """
-    valor: lista de dicts (columna 'estudiantes')
-    texto_busqueda_normalizado: ya en minúsculas y sin tildes.
-    """
-    if not isinstance(valor, list):
-        return False
-
-    for e in valor:
-        # Nombres, email y ciudad del estudiante
-        for campo in ("estudiante", "email", "ciudad"):
-            val = quitar_tildes(str(e.get(campo, "")).lower())
-            if texto_busqueda_normalizado in val:
-                return True
-    return False
-
-def main():
-    st.set_page_config(page_title="Movilidad ESII", layout="wide", initial_sidebar_state="expanded" )
-    inject_js_ping(8000)
-    if "data_version" not in st.session_state:
-        st.session_state["data_version"] = 0
-
-    # Aviso temprano si la API aún no está lista (no bloqueante)
     try:
         api_url = os.getenv("API_URL", "http://127.0.0.1:5000").rstrip("/")
-        with urllib.request.urlopen(f"{api_url}/health", timeout=1) as r:
-            api_ok = (r.status == 200)
+        with urllib.request.urlopen(f"{api_url}/health", timeout=timeout) as r:
+            return r.status == 200
     except Exception:
-        api_ok = False
-    if not api_ok:
-        st.info("La API está iniciándose…", icon="🕒")
-    # Manejo de query params al inicio
-    try:
-        params = st.query_params
-        # st.query_params returns lists for each key: {'k': ['v']}
-        def _qp_val(p, k):
-            v = p.get(k)
-            if v is None:
-                return None
-            if isinstance(v, list):
-                return v[0] if v else None
-            return v
+        return False
 
-        clear_cache_flag = _qp_val(params, "clear_cache")
-        saved_flag = _qp_val(params, "student_saved")
-    except Exception:
-        params = st.experimental_get_query_params()
-        clear_cache_flag = params.get("clear_cache", [None])[0] if params.get("clear_cache") else None
-        saved_flag = params.get("student_saved", [None])[0] if params.get("student_saved") else None
 
-    # Si viene del guardado, limpia caché
-    if clear_cache_flag == "1":
+def _handle_query_params() -> None:
+    """Procesa parámetros de consulta para limpiar caché y notificaciones de guardado.
+    
+    Maneja:
+    - clear_cache=1: Limpia la caché de Streamlit
+    - student_saved=1: Muestra mensaje de éxito y refresca los datos
+    - student_saved=0: Muestra mensaje de error
+    """
+    clear_cache = get_query_param("clear_cache")
+    saved = get_query_param("student_saved")
+    
+    if clear_cache == "1":
         st.cache_data.clear()
-
-    if saved_flag == "1":
+    
+    if saved == "1":
         st.session_state["data_version"] += 1
         st.success("✅ Alumno guardado correctamente. Los datos se han actualizado.")
         st.rerun()
-    elif saved_flag == "0":
+    elif saved == "0":
         st.error("❌ No se pudieron guardar los cambios.")
+
+
+def _load_dataframes_with_cache(config, global_sheet: str):
+    """Carga y cachea dataframes con registro de rendimiento.
     
-
-    setup_session()
-    config = st.session_state["config"]
-
-    # Render sidebar early so `global_sheet` is set before loading data
-    base_map, search_slot = sidebar_controls()
-
-    # Asegura defaults (porque ahora los vas a leer ANTES de map_filters)
-    if "selected_programs" not in st.session_state:
-        st.session_state["selected_programs"] = {
-            PROGRAM_ERASMUS_IN: False,
-            PROGRAM_ERASMUS_OUT: False,
-            PROGRAM_SICUE_OUT: False,
-        }
-    if "only_erasmus_out_no_LA" not in st.session_state:
-        st.session_state["only_erasmus_out_no_LA"] = False
-    if "global_sheet" not in st.session_state:
-        st.session_state["global_sheet"] = "Todas"
-
-    global_sheet = st.session_state.get("global_sheet", None)
-    def _get_config_mtimes(cfg):
-        # Return a tuple of mtimes for the configured Excel files (stable order)
-        keys = [PROGRAM_ERASMUS_OUT, PROGRAM_ERASMUS_IN, PROGRAM_SICUE_OUT]
-        mtimes = []
-        for k in keys:
-            p = cfg.get(k)
-            try:
-                if p and os.path.exists(p):
-                    mtimes.append(os.path.getmtime(p))
-                else:
-                    mtimes.append(None)
-            except Exception:
-                mtimes.append(None)
-        return tuple(mtimes)
-
+    Args:
+        config: Diccionario de configuración con rutas de archivos Excel
+        global_sheet: Nombre de la hoja a cargar (ej. "Todas")
+    
+    Returns:
+        Tupla de (diccionario de dataframes, tupla de tiempos de modificación de config)
+    """
     @st.cache_data(show_spinner=False)
-    def cached_load_all_dataframes(cfg, sheet, data_version, src_mtimes, programs=None):
-        # `data_version` and `src_mtimes` are dummy args used to invalidate the cache
-        # programs: lista de programas a cargar (lazy loading selectivo)
+    def cached_load(cfg, sheet, data_version, src_mtimes, programs=None):
         return load_all_dataframes(cfg, sheet, programs_to_load=programs)
-
-    t0 = time.perf_counter()
-    cfg_mtimes = _get_config_mtimes(config)
     
-    # Fase 3: Lazy loading - obtener programas seleccionados ANTES de cargar
-    selected = st.session_state.get("selected_programs", {})
-    programs_to_load = tuple(k for k, v in selected.items() if v) or None  # None = cargar todos
+    cfg_mtimes = get_config_mtimes(config)
     
-    dfs = cached_load_all_dataframes(config, global_sheet, st.session_state.get("data_version", 0), cfg_mtimes, programs_to_load)
-    t1 = time.perf_counter()
-    try:
-        print(f"[perf] load_all_dataframes: {(t1 - t0)*1000:.1f} ms")
-    except Exception:
-        pass
-
-    # Debug: print modification times of configured Excel files to help diagnose stale reads
-    try:
-        for k in (PROGRAM_ERASMUS_OUT, PROGRAM_ERASMUS_IN, PROGRAM_SICUE_OUT):
-            p = config.get(k)
-            if p and os.path.exists(p):
-                try:
-                    m = os.path.getmtime(p)
-                    print(f"[files] {k}: {p} -> mtime={m}")
-                except Exception as e:
-                    print(f"[files] {k}: {p} -> stat error: {e}")
-            else:
-                print(f"[files] {k}: not found or not configured: {p}")
-    except Exception:
-        pass
-
-    # Nota: Ya filtramos por programas seleccionados en load_all_dataframes (Fase 3 lazy loading)
-    # Aquí solo aplicamos filtros adicionales (like LA filtering)
+    # Obtener programas seleccionados para carga perezosa
+    programs_to_load = tuple(get_active_programs()) or None
     
-    # Obtener lista de programas activos para pasarla a show_map
-    selected = st.session_state.get("selected_programs", {})
-    activos = [k for k, v in selected.items() if v]
+    dfs = cached_load(
+        config, global_sheet,
+        st.session_state.get("data_version", 0),
+        cfg_mtimes,
+        programs_to_load
+    )
+    
+    return dfs, cfg_mtimes
 
+
+def _load_materias_with_cache(config, cfg_mtimes):
+    """Carga datos de materias con registro de rendimiento.
+    
+    Solo intenta cargar si los dataframes tienen datos.
+    
+    Args:
+        config: Diccionario de configuración
+        cfg_mtimes: Tupla de tiempos de modificación de configuración
+    
+    Returns:
+        Diccionario de materias o diccionario vacío si no hay datos
+    """
+    # Verificación rápida - solo cargar si tenemos datos
+    if not st.session_state.get("has_data", False):
+        return {}
+    
+    @st.cache_data(show_spinner=False)
+    def cached_materias(cfg, data_version, src_mtimes):
+        return get_materias_in_por_estudiante(cfg)
+    
+    materias = cached_materias(
+        config,
+        st.session_state.get("data_version", 0),
+        cfg_mtimes
+    )
+    
+    return materias
+
+
+def _render_map_view(dfs, base_map, materias):
+    """Renderiza la vista del mapa con búsqueda y filtros.
+    
+    Aplica filtrado de LA y filtrado de búsqueda antes de renderizar.
+    
+    Args:
+        dfs: Diccionario de programa -> DataFrame
+        base_map: Objeto de mapa base de Folium
+        materias: Diccionario de asignaturas de estudiantes
+    """
+    if not check_dataframes_have_data(dfs):
+        st.info("Cargando datos y mapa…")
+        st.stop()
+    
+    # Aplicar filtro sin-LA si es necesario
     only_no_la = st.session_state.get("only_erasmus_out_no_LA", False)
-    if only_no_la and isinstance(dfs, dict) and PROGRAM_ERASMUS_OUT in dfs:
-        df_out = dfs[PROGRAM_ERASMUS_OUT]
-        if "link_LA" in df_out.columns:
-            mask = df_out["link_LA"].isna() | (df_out["link_LA"].astype(str).str.strip() == "")
-            dfs[PROGRAM_ERASMUS_OUT] = df_out[mask]
-
-  
-    t2 = time.perf_counter()
-    build_search_index(dfs)
-    t3 = time.perf_counter()
-    try:
-        print(f"[perf] build_search_index: {(t3 - t2)*1000:.1f} ms")
-    except Exception:
-        pass
-
-    # Render search box in its sidebar slot after building the index
-    if search_slot is not None:
-        render_search_box(parent=search_slot)
-
-    # A partir de aquí tu flujo normal:
-
-    # =========================
-    # FILTRO POR BÚSQUEDA (SIN MÉTODOS EXTERNOS)
-    # =========================
+    if only_no_la:
+        dfs = filter_out_no_la(dfs, PROGRAM_ERASMUS_OUT)
+    
+    # Aplicar filtro de búsqueda
     search_text = st.session_state.get("search_text", "").strip()
-    needle = quitar_tildes(search_text.lower()).strip()
-
-    if isinstance(dfs, dict) and len(needle) >= 2:
-        row_fields = [
-            "universidad", "pais", "país", "ciudad", "destino",
-            "nombre", "apellidos", "apellido", "apellido1", "apellido2",
-            "estudiante", "email", "full_name",
-        ]
-
-        dfs_filtrado = {}
-        for program, df in dfs.items():
-            if df is None or df.empty:
-                continue
-
-            # 1) Match en columnas planas (vectorizado)
-            cols = [c for c in row_fields if c in df.columns]
-            mask_flat = pd.Series(False, index=df.index)
-            if cols:
-                blob = df[cols].fillna("").astype(str).agg(" ".join, axis=1)
-                blob_norm = blob.map(lambda x: quitar_tildes(x.lower()))
-                mask_flat = blob_norm.str.contains(needle, na=False)
-
-            # 2) Match en estudiantes
-            mask_est = pd.Series(False, index=df.index)
-            if "estudiantes" in df.columns:
-                mask_est = df["estudiantes"].apply(lambda v: coincide_en_estudiantes(v, needle))
-
-            mask = mask_flat | mask_est
-            df2 = df.loc[mask].copy()
-
-            if not df2.empty:
-                dfs_filtrado[program] = df2
-
-        dfs = dfs_filtrado
+    dfs = filter_dataframes_by_search(dfs, search_text)
+    
+    # Calcular límites de auto-zoom
+    has_search = bool(search_text and len(search_text) >= 2)
+    auto_zoom_bounds = calculate_auto_zoom_bounds(dfs, has_search=has_search, search_margin=0.4, filter_margin=0.05)
+    
+    # Renderizar mapa
+    show_map(dfs, base_map, materias, get_active_programs(), only_no_la, auto_zoom_bounds)
 
 
-    handle_open_pdf_query()
-    handle_open_excel_query()
-
-    st.title("Visualizador de Movilidad ESII")
-
-    # ==============================================
-    # MUESTRA DE MATERIAS IN POR ESTUDIANTE
-    # ==============================================
-    if dfs and isinstance(dfs, dict) and any(not df.empty for df in dfs.values()):
-        @st.cache_data(show_spinner=False)
-        def cached_materias_in_por_estudiante(cfg, data_version, src_mtimes):
-            # include `data_version` and `src_mtimes` to force invalidation when data changes
-            return get_materias_in_por_estudiante(cfg)
-
-        t4 = time.perf_counter()
-        materias_in_por_est = cached_materias_in_por_estudiante(config, st.session_state.get("data_version", 0), cfg_mtimes)
-        t5 = time.perf_counter()
-        try:
-            print(f"[perf] materias_in_loader: {(t5 - t4)*1000:.1f} ms")
-        except Exception:
-            pass
-    else:
-        materias_in_por_est = {}
-        st.info("No hay datos disponibles para mostrar. Por favor, revisa la configuración o selecciona otra hoja.")
-
-    # Tipos disponibles según config y existencia de ficheros
-    available_types = [
-        k for k in (PROGRAM_ERASMUS_OUT, PROGRAM_ERASMUS_IN, PROGRAM_SICUE_OUT)
-        if config.get(k) and os.path.exists(config[k])
-    ]
-    # ==============================================
-    # RENDERIZA VISTAS SEGÚN SELECCIÓN
-    # ==============================================
-
-    if st.session_state.get("view", "map") == "new_user":
+def _render_view(dfs, base_map, materias, config):
+    """Renderiza la vista apropiada según el estado de la sesión.
+    
+    Despacha al formulario de nuevo usuario, vista de estadísticas, o vista de mapa.
+    
+    Args:
+        dfs: Diccionario de programa -> DataFrame
+        base_map: Objeto de mapa base de Folium
+        materias: Diccionario de asignaturas de estudiantes
+        config: Diccionario de configuración
+    """
+    available_types = get_available_program_types(config)
+    view = st.session_state.get("view", "map")
+    
+    if view == "new_user":
         render_new_user_form(available_types, config)
-    elif st.session_state.get("view", "map") == "stats":
+    elif view == "stats":
         render_stats_view()
     else:
-        if not (isinstance(dfs, dict) and any(df is not None and not df.empty for df in dfs.values())):
-            st.info("Cargando datos y mapa…")
-            st.stop()
-        
-        # Calcular bounds para auto-zoom
-        auto_zoom_bounds = None
-        
-        # Prioridad 1: Si hay búsqueda activa, zoom en los resultados de búsqueda
-        # Prioridad 2: Si hay filtros de programas activos, zoom según el programa
-        if isinstance(dfs, dict):
-            all_lats = []
-            all_lons = []
-            for program, df in dfs.items():
-                if df is None or df.empty:
-                    continue
-                if "latitud" in df.columns and "longitud" in df.columns:
-                    lats = pd.to_numeric(df["latitud"], errors="coerce").dropna()
-                    lons = pd.to_numeric(df["longitud"], errors="coerce").dropna()
-                    all_lats.extend(lats.tolist())
-                    all_lons.extend(lons.tolist())
-            
-            if all_lats and all_lons:
-                min_lat, max_lat = min(all_lats), max(all_lats)
-                min_lon, max_lon = min(all_lons), max(all_lons)
-                
-                # Determinar margen según si es búsqueda o filtro de programa
-                if search_text:
-                    # Búsqueda: margen generoso para ver el país/zona completa
-                    lat_margin = (max_lat - min_lat) * 0.4 if max_lat != min_lat else 2.0
-                    lon_margin = (max_lon - min_lon) * 0.4 if max_lon != min_lon else 2.0
-                else:
-                    # Filtro de programa: margen más pequeño (15%) para ver la región compactamente
-                    lat_margin = (max_lat - min_lat) * 0.05 if max_lat != min_lat else 2.0
-                    lon_margin = (max_lon - min_lon) * 0.05 if max_lon != min_lon else 2.0
-                
-                auto_zoom_bounds = [
-                    (min_lat - lat_margin, min_lon - lon_margin),
-                    (max_lat + lat_margin, max_lon + lon_margin)
-                ]
-        
-        show_map(dfs, base_map, materias_in_por_est, activos, only_no_la, auto_zoom_bounds)
-        
+        _render_map_view(dfs, base_map, materias)
 
-def inject_js_ping(interval_ms: int = 8000):
+
+def inject_js_ping(interval_ms: int = 8000) -> None:
+    """Inyecta JavaScript para hacer ping periódico a la API para chequeos de salud.
+    
+    Args:
+        interval_ms: Intervalo de ping en milisegundos
+    """
     api_url = os.getenv("API_URL", "http://127.0.0.1:5000").rstrip("/")
     components.html(
         f"""
@@ -318,6 +201,63 @@ def inject_js_ping(interval_ms: int = 8000):
         """,
         height=0, width=0
     )
+
+
+def main():
+
+    # ==================== CONFIGURACIÓN ====================
+    st.set_page_config(
+        page_title="Movilidad ESII",
+        layout="wide",
+        initial_sidebar_state="expanded"
+    )
+    inject_js_ping(8000)
+    
+    init_session_defaults()
+    
+    # ==================== VERIFICACIONES INICIALES ====================
+    # Verificar salud de la API (no bloqueante)
+    if not _check_api_health():
+        st.info("La API está iniciándose…", icon="🕒")
+    
+    # Manejar parámetros de consulta (puede desencadenar rerun)
+    _handle_query_params()
+    
+    # ==================== CONFIGURAR SIDEBAR ====================
+    setup_session()
+    config = st.session_state["config"]
+    
+    base_map, search_slot = sidebar_controls()
+    
+    # ==================== CARGAR DATOS ====================
+    global_sheet = st.session_state.get("global_sheet", None)
+    dfs, cfg_mtimes = _load_dataframes_with_cache(config, global_sheet)
+    
+    # Construir índice de búsqueda y renderizar caja de búsqueda
+    build_search_index(dfs)
+    if search_slot is not None:
+        render_search_box(parent=search_slot)
+    
+    # ==================== RENDERIZAR ====================
+    handle_open_pdf_query()
+    handle_open_excel_query()
+    
+    st.title("Visualizador de Movilidad ESII")
+    
+    # Verificar si tenemos datos
+    has_data = check_dataframes_have_data(dfs)
+    st.session_state["has_data"] = has_data
+    
+    if has_data:
+        materias = _load_materias_with_cache(config, cfg_mtimes)
+    else:
+        materias = {}
+        st.info("No hay datos disponibles para mostrar. Por favor, revisa la configuración o selecciona otra hoja.")
+        return
+    
+    # Renderizar la vista apropiada
+    _render_view(dfs, base_map, materias, config)
+
 
 if __name__ == "__main__":
     main()
