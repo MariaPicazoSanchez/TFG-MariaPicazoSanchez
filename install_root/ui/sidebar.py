@@ -301,9 +301,9 @@ def sidebar_controls() -> tuple[str | None, st.delta_generator.DeltaGenerator | 
         from domain import render_filters_stats
         render_filters_stats(available_courses)
     else:
-        # ================================
-        #  FILTROS (archivo filters.py)
-        # ================================
+        # ========
+        #  FILTROS
+        # ========
         st.sidebar.markdown(
             "<p style='font-size: 0.9rem; color: #6c757d;'>"
             "Utiliza los filtros para buscar estudiantes específicos en el mapa."

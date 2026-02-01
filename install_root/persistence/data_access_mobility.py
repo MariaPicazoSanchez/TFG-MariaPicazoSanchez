@@ -104,14 +104,15 @@ def haversine_distance(lat1: float, lon1: float, lat2: float, lon2: float) -> fl
 def cluster_coordinates(df: pd.DataFrame, max_distance_m: int = 150) -> pd.DataFrame:
     """
     Agrupa coordenadas que están muy cerca (clustering con Union-Find).
-    Si dos puntos están a menos de max_distance_m, se agrupan en uno.
+    Si dos puntos están a menos de max_distance_m, asignan las MISMAS coordenadas (promediadas).
+    Esto permite que el groupby posterior los agrupe correctamente sin perder filas.
     
     Args:
         df: DataFrame con columnas 'latitud' y 'longitud'
         max_distance_m: Distancia máxima en metros para agrupar (default: 150m)
     
     Returns:
-        DataFrame con coordenadas agrupadas y promedios calculados
+        DataFrame con coordenadas normalizadas (filas sin cambios, solo coordinadas)
     """
     if df.empty or "latitud" not in df.columns or "longitud" not in df.columns:
         return df
@@ -122,11 +123,10 @@ def cluster_coordinates(df: pd.DataFrame, max_distance_m: int = 150) -> pd.DataF
         return df
     
     # Reiniciar índices para tracking
-    df_reset = df.reset_index(drop=True).copy()
-    valid_indices = valid_mask.reset_index(drop=True)
+    df = df.reset_index(drop=True).copy()
     
     # Union-Find para agrupar índices
-    parent = list(range(len(df_reset)))
+    parent = list(range(len(df)))
     
     def find(x):
         if parent[x] != x:
@@ -139,47 +139,43 @@ def cluster_coordinates(df: pd.DataFrame, max_distance_m: int = 150) -> pd.DataF
             parent[px] = py
     
     # Construir clusters usando distancia Haversine
-    for i in range(len(df_reset)):
-        if not valid_indices.iloc[i]:
+    for i in range(len(df)):
+        if not valid_mask.iloc[i]:
             continue
-        lat1, lon1 = df_reset.iloc[i]["latitud"], df_reset.iloc[i]["longitud"]
+        lat1, lon1 = df.iloc[i]["latitud"], df.iloc[i]["longitud"]
         
-        for j in range(i + 1, len(df_reset)):
-            if not valid_indices.iloc[j]:
+        for j in range(i + 1, len(df)):
+            if not valid_mask.iloc[j]:
                 continue
-            lat2, lon2 = df_reset.iloc[j]["latitud"], df_reset.iloc[j]["longitud"]
+            lat2, lon2 = df.iloc[j]["latitud"], df.iloc[j]["longitud"]
             
             if haversine_distance(lat1, lon1, lat2, lon2) < max_distance_m:
                 union(i, j)
     
-    # Agrupar por cluster y promediar
+    # Agrupar por cluster y calcular promedios
     clusters_map = {}
-    for i in range(len(df_reset)):
-        if valid_indices.iloc[i]:
+    for i in range(len(df)):
+        if valid_mask.iloc[i]:
             root = find(i)
             if root not in clusters_map:
                 clusters_map[root] = []
             clusters_map[root].append(i)
     
-    # Crear DataFrame resultado
-    result_rows = []
+    # Crear mapa de índice -> coordenadas promediadas
+    new_coords = {}
     for cluster_id, indices in clusters_map.items():
-        cluster_data = df_reset.iloc[indices]
-        
-        # Usar la primera fila como base
-        new_row = cluster_data.iloc[0].copy()
-        
-        # Promediar coordenadas del cluster
-        new_row["latitud"] = cluster_data["latitud"].mean()
-        new_row["longitud"] = cluster_data["longitud"].mean()
-        
-        result_rows.append(new_row)
+        cluster_data = df.iloc[indices]
+        avg_lat = cluster_data["latitud"].mean()
+        avg_lon = cluster_data["longitud"].mean()
+        for idx in indices:
+            new_coords[idx] = (avg_lat, avg_lon)
     
-    # Agregar filas con coordenadas inválidas
-    invalid_rows = df_reset[~valid_mask].copy()
+    # Aplicar las nuevas coordenadas (mantener TODAS las filas)
+    for idx, (new_lat, new_lon) in new_coords.items():
+        df.iloc[idx, df.columns.get_loc("latitud")] = new_lat
+        df.iloc[idx, df.columns.get_loc("longitud")] = new_lon
     
-    result = pd.concat([pd.DataFrame(result_rows), invalid_rows], ignore_index=True)
-    return result
+    return df
 
 
 # ==============================
@@ -238,6 +234,8 @@ def load_erasmus_out(path: str, sheet_name: str | None = None) -> pd.DataFrame:
     # normalización campos "macro"
     df["universidad"] = df[c_dest] if c_dest else None
     df["pais"]        = df[c_pais] if c_pais else None
+    # Normalizar país a mayúsculas para consistencia
+    df["pais"] = df["pais"].str.upper() if c_pais else None
     df["ciudad"]      = df[c_ciudad] if c_ciudad else None
     df["link_LA"]     = df[c_la]   if c_la   else None
     df["link_plan"]   = df[c_plan] if c_plan else None
@@ -274,8 +272,7 @@ def load_erasmus_out(path: str, sheet_name: str | None = None) -> pd.DataFrame:
         return records
     
     groupby_cols = ["universidad", "ciudad", "latitud", "longitud", "pais"]
-    if "link_LA" in df.columns:
-        groupby_cols.append("link_LA")
+    # NO incluir 'link_LA' en el groupby porque varía entre estudiantes de la misma ubicación
     
     # Fase 4: Clustering de coordenadas - agrupar puntos cercanos
     df = cluster_coordinates(df, max_distance_m=150)

@@ -9,8 +9,6 @@ from constants import PROGRAM_ERASMUS_IN, PROGRAM_ERASMUS_OUT, PROGRAM_SICUE_OUT
 
 def add_points_to_map(m, df, nombre_capa, color):
     """Añade puntos de un DataFrame al mapa."""
-    import folium
-    import pandas as pd
     if {"latitud", "longitud"}.issubset(df.columns):
         for _, row in df.iterrows():
             nombre = row.get("nombre", "Sin nombre")
@@ -21,7 +19,7 @@ def add_points_to_map(m, df, nombre_capa, color):
                 icon_color=color
             )
 
-def group_rows_by_location(df, decimals=5):
+def group_rows_by_location(df, decimals=2):
     """
     Devuelve una lista de dicts con:
       {universidad, pais, latitud, longitud, estudiantes:[...]}
@@ -29,21 +27,26 @@ def group_rows_by_location(df, decimals=5):
     - Si df viene “en bruto”, agrupa por ubicación y construye la lista.
     """
     df = df.copy()
+    
     # Caso 1: df ya está agrupado (columna 'estudiantes' con listas de dicts)
+    # En este caso, solo hay que convertir a lista de dicts
     if "estudiantes" in df.columns and df["estudiantes"].apply(lambda v: isinstance(v, (list, tuple))).all():
         out = []
         for _, r in df.iterrows():
             if pd.isna(r.get("latitud")) or pd.isna(r.get("longitud")):
                 continue
+            ests = r.get("estudiantes") or []
             out.append({
                 "universidad": r.get("universidad", ""),
                 "pais": r.get("pais", ""),
                 "latitud": float(r["latitud"]),
                 "longitud": float(r["longitud"]),
-                "estudiantes": list(r["estudiantes"]) or []
+                "estudiantes": list(ests) or []
             })
         return out
 
+    # Caso 2: df viene "en bruto" (filas individuales de estudiantes)
+    # Necesitamos agrupar por ubicación
     df["latitud"]  = pd.to_numeric(df.get("latitud"), errors="coerce")
     df["longitud"] = pd.to_numeric(df.get("longitud"), errors="coerce")
     df = df.dropna(subset=["latitud","longitud"])
@@ -603,8 +606,25 @@ def show_map(dfs: dict, base_map, materias_in_por_estudiante=None, filtros_activ
             continue
 
         color = PROGRAM_COLORS.get(program, "blue")
-        # Agrupar filas por ubicación (considerar iguales si coinciden hasta 1 decimal)
-        grouped = group_rows_by_location(df, decimals=1)
+        
+        # Convertir df a lista de dicts agrupados
+        # El df ya viene agrupado de load_erasmus_out con columna 'estudiantes' como lista
+        if "estudiantes" in df.columns and df["estudiantes"].apply(lambda v: isinstance(v, (list, tuple))).all():
+            grouped = []
+            for _, row in df.iterrows():
+                if pd.isna(row.get("latitud")) or pd.isna(row.get("longitud")):
+                    continue
+                grouped.append({
+                    "universidad": row.get("universidad", ""),
+                    "pais": row.get("pais", ""),
+                    "ciudad": row.get("ciudad", ""),
+                    "latitud": float(row["latitud"]),
+                    "longitud": float(row["longitud"]),
+                    "estudiantes": list(row.get("estudiantes", [])) or []
+                })
+        else:
+            # Fallback si no viene agrupado (ej. datos custom)
+            grouped = group_rows_by_location(df, decimals=1)
 
         for row_index, row in enumerate(grouped):
             lat, lon = row.get("latitud"), row.get("longitud")
@@ -628,57 +648,21 @@ def show_map(dfs: dict, base_map, materias_in_por_estudiante=None, filtros_activ
             if program == PROGRAM_ERASMUS_IN:
                 angle = 180
 
-            # Si hay múltiples estudiantes, usar CircleMarker con número; si uno, usar Icon normal
-            if n > 1:
-                # CircleMarker con número de estudiantes
-                folium.CircleMarker(
-                    location=[lat, lon],
-                    radius=20 + min(n, 15),  # Tamaño dinámico según cantidad
-                    popup=popup,
-                    tooltip=f"{row.get('universidad','')} ({row.get('pais','') or row.get('ciudad','')}) · {n} alumno(s)",
-                    color=color,
-                    fill=True,
-                    fillColor=color,
-                    fillOpacity=0.7,
-                    weight=2,
-                ).add_to(m)
-                
-                # Agregar número de estudiantes en el círculo
-                folium.Marker(
-                    location=[lat, lon],
-                    icon=folium.DivIcon(html=f'''
-                        <div style="
-                            display: flex;
-                            align-items: center;
-                            justify-content: center;
-                            width: 40px;
-                            height: 40px;
-                            font-size: 16px;
-                            font-weight: bold;
-                            color: white;
-                            background-color: rgba(0,0,0,0.3);
-                            border-radius: 50%;
-                            text-shadow: 1px 1px 2px rgba(0,0,0,0.5);
-                        ">{n}</div>
-                    '''),
-                    popup=popup,
-                ).add_to(m)
-            else:
-                # Un solo estudiante: usar marcador normal con icono
-                icon = folium.Icon(
-                    color=color,
-                    icon_color='black',
-                    icon=marker_icon,
-                    prefix="fa",
-                    angle=angle
-                )
+            # Siempre usar Icon normal (pin) independientemente del número de estudiantes
+            icon = folium.Icon(
+                color=color,
+                icon_color='black',
+                icon=marker_icon,
+                prefix="fa",
+                angle=angle
+            )
 
-                folium.Marker(
-                    location=[lat, lon],
-                    popup=popup,
-                    tooltip=f"{row.get('universidad','')} ({row.get('pais','') or row.get('ciudad','')}) · {n} alumno(s)",
-                    icon=icon,
-                ).add_to(m)
+            folium.Marker(
+                location=[lat, lon],
+                popup=popup,
+                tooltip=f"{row.get('universidad','')} ({row.get('pais','') or row.get('ciudad','')}) · {n} alumno(s)",
+                icon=icon,
+            ).add_to(m)
 
 
     # Pasar el número de alumnos por tipo a la leyenda
