@@ -90,10 +90,11 @@ def render_map(m: folium.Map):
 
     st_folium(m, height=650, use_container_width=True, key="main_map")
 
-def show_map(dfs: dict, base_map, materias_in_por_estudiante=None, filtros_activos=None, only_no_la=False):
+def show_map(dfs: dict, base_map, materias_in_por_estudiante=None, filtros_activos=None, only_no_la=False, auto_zoom_bounds=None):
     """
     Muestra TODOS los programas disponibles en `dfs` sin filtrar.
     dfs: dict con posibles claves "Erasmus OUT", "Erasmus IN", "SICUE OUT" -> DataFrames agrupados
+    auto_zoom_bounds: tuple ((min_lat, min_lon), (max_lat, max_lon)) para hacer auto-zoom
     """
     import folium
     import pandas as pd
@@ -673,6 +674,13 @@ def show_map(dfs: dict, base_map, materias_in_por_estudiante=None, filtros_activ
 
 
     add_export_control(m)
+
+    # Aplicar auto-zoom si se proporciona bounds
+    if auto_zoom_bounds:
+        try:
+            m.fit_bounds(auto_zoom_bounds)
+        except Exception:
+            pass
 
     # 3) Render en Streamlit
     html_map = m.get_root().render()
