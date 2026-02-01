@@ -260,9 +260,12 @@ def main():
             st.info("Cargando datos y mapa…")
             st.stop()
         
-        # Calcular bounds para auto-zoom si hay búsqueda activa
+        # Calcular bounds para auto-zoom
         auto_zoom_bounds = None
-        if search_text and isinstance(dfs, dict):
+        
+        # Prioridad 1: Si hay búsqueda activa, zoom en los resultados de búsqueda
+        # Prioridad 2: Si hay filtros de programas activos, zoom según el programa
+        if isinstance(dfs, dict):
             all_lats = []
             all_lons = []
             for program, df in dfs.items():
@@ -277,9 +280,17 @@ def main():
             if all_lats and all_lons:
                 min_lat, max_lat = min(all_lats), max(all_lats)
                 min_lon, max_lon = min(all_lons), max(all_lons)
-                # Agregar margen generoso (40%) para ver el país completo, no solo los puntos
-                lat_margin = (max_lat - min_lat) * 0.4 if max_lat != min_lat else 2.0
-                lon_margin = (max_lon - min_lon) * 0.4 if max_lon != min_lon else 2.0
+                
+                # Determinar margen según si es búsqueda o filtro de programa
+                if search_text:
+                    # Búsqueda: margen generoso para ver el país/zona completa
+                    lat_margin = (max_lat - min_lat) * 0.4 if max_lat != min_lat else 2.0
+                    lon_margin = (max_lon - min_lon) * 0.4 if max_lon != min_lon else 2.0
+                else:
+                    # Filtro de programa: margen más pequeño (15%) para ver la región compactamente
+                    lat_margin = (max_lat - min_lat) * 0.05 if max_lat != min_lat else 2.0
+                    lon_margin = (max_lon - min_lon) * 0.05 if max_lon != min_lon else 2.0
+                
                 auto_zoom_bounds = [
                     (min_lat - lat_margin, min_lon - lon_margin),
                     (max_lat + lat_margin, max_lon + lon_margin)
