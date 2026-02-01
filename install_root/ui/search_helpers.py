@@ -158,8 +158,8 @@ def build_search_index(dfs: Dict[str, pd.DataFrame]) -> None:
 
 
 def render_search_box(parent=None) -> str:
-    parent = parent or st.sidebar
-    parent.markdown("**Buscar alumno, ciudad, universidad...**")
+    if parent is None:
+        parent = st
 
     all_opts = st.session_state.get("search_index_options", [("", "")])
     options = [(v, lbl) for (v, lbl) in all_opts if v]

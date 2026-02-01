@@ -316,6 +316,7 @@ def sidebar_controls() -> tuple[str | None, st.delta_generator.DeltaGenerator | 
         base_map = render_filters_map(unique_sheets)
 
         # Placeholder para el buscador debajo de los botones de filtros
+        st.sidebar.markdown("**Buscar alumno, ciudad, universidad...**")
         search_slot = st.sidebar.empty()
 
         st.sidebar.markdown("---")
