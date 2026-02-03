@@ -271,17 +271,37 @@ def load_erasmus_out(path: str, sheet_name: str | None = None) -> pd.DataFrame:
             records.append(record)
         return records
     
-    groupby_cols = ["universidad", "ciudad", "latitud", "longitud", "pais"]
-    # NO incluir 'link_LA' en el groupby porque varía entre estudiantes de la misma ubicación
-    
     # Fase 4: Clustering de coordenadas - agrupar puntos cercanos
-    df = cluster_coordinates(df, max_distance_m=150)
+    df = cluster_coordinates(df, max_distance_m=500)
     
+    # Redondear coordenadas para agrupar (2 decimales = ~1km de precisión)
+    df["_lat_r"] = df["latitud"].round(2)
+    df["_lon_r"] = df["longitud"].round(2)
+    
+    # Agrupar solo por coordenadas redondeadas
     grouped = (
-        df.groupby(groupby_cols, dropna=False)
+        df.groupby(["_lat_r", "_lon_r"], dropna=False)
           .apply(_to_records, include_groups=False)
           .reset_index(name="estudiantes")
     )
+    
+    # Restaurar info de ubicación (usar la media de las coordenadas originales del grupo)
+    for i, row in grouped.iterrows():
+        if row["estudiantes"]:
+            grupo_df = df[
+                (df["_lat_r"] == row["_lat_r"]) & 
+                (df["_lon_r"] == row["_lon_r"])
+            ]
+            # Usar coordenadas promedio del cluster
+            grouped.at[i, "latitud"] = grupo_df["latitud"].mean()
+            grouped.at[i, "longitud"] = grupo_df["longitud"].mean()
+            # Tomar info del estudiante más común o primero
+            grouped.at[i, "pais"] = grupo_df["pais"].mode()[0] if not grupo_df["pais"].mode().empty else grupo_df["pais"].iloc[0]
+            grouped.at[i, "ciudad"] = grupo_df["ciudad"].mode()[0] if not grupo_df["ciudad"].mode().empty else grupo_df["ciudad"].iloc[0]
+            grouped.at[i, "universidad"] = grupo_df["universidad"].mode()[0] if not grupo_df["universidad"].mode().empty else grupo_df["universidad"].iloc[0]
+    
+    # Limpiar columnas temporales
+    grouped = grouped.drop(columns=["_lat_r", "_lon_r"], errors="ignore")
     
     # Fase 3: Liberar memoria del DataFrame original tras agrupar
     del df
@@ -367,13 +387,33 @@ def load_erasmus_in(path: str, sheet_name: str | None = None) -> pd.DataFrame:
         return records
 
     # Fase 4: Clustering de coordenadas
-    df = cluster_coordinates(df, max_distance_m=150)
+    df = cluster_coordinates(df, max_distance_m=500)
+    
+    # Redondear coordenadas para agrupar (2 decimales = ~1km)
+    df["_lat_r"] = df["latitud"].round(2)
+    df["_lon_r"] = df["longitud"].round(2)
     
     grouped = (
-        df.groupby(["universidad","ciudad", "latitud", "longitud", "pais"], dropna=False)
+        df.groupby(["_lat_r", "_lon_r"], dropna=False)
           .apply(_to_records, include_groups=False)
           .reset_index(name="estudiantes")
     )
+    
+    # Restaurar info de ubicación
+    for i, row in grouped.iterrows():
+        if row["estudiantes"]:
+            grupo_df = df[
+                (df["_lat_r"] == row["_lat_r"]) & 
+                (df["_lon_r"] == row["_lon_r"])
+            ]
+            grouped.at[i, "latitud"] = grupo_df["latitud"].mean()
+            grouped.at[i, "longitud"] = grupo_df["longitud"].mean()
+            grouped.at[i, "pais"] = grupo_df["pais"].mode()[0] if not grupo_df["pais"].mode().empty else grupo_df["pais"].iloc[0]
+            grouped.at[i, "ciudad"] = grupo_df["ciudad"].mode()[0] if not grupo_df["ciudad"].mode().empty else grupo_df["ciudad"].iloc[0]
+            grouped.at[i, "universidad"] = grupo_df["universidad"].mode()[0] if not grupo_df["universidad"].mode().empty else grupo_df["universidad"].iloc[0]
+    
+    # Limpiar columnas temporales
+    grouped = grouped.drop(columns=["_lat_r", "_lon_r"], errors="ignore")
     
     # Fase 3: Liberar memoria
     del df
@@ -466,13 +506,32 @@ def load_sicue_out(path: str, sheet_name: str | None = None) -> pd.DataFrame:
         return records
 
     # Fase 4: Clustering de coordenadas
-    df = cluster_coordinates(df, max_distance_m=150)
+    df = cluster_coordinates(df, max_distance_m=500)
+    
+    # Redondear coordenadas para agrupar (2 decimales = ~1km)
+    df["_lat_r"] = df["latitud"].round(2)
+    df["_lon_r"] = df["longitud"].round(2)
     
     grouped = (
-        df.groupby(["universidad", "ciudad", "latitud", "longitud"], dropna=False)
+        df.groupby(["_lat_r", "_lon_r"], dropna=False)
           .apply(_to_records, include_groups=False)
           .reset_index(name="estudiantes")
     )
+    
+    # Restaurar info de ubicación
+    for i, row in grouped.iterrows():
+        if row["estudiantes"]:
+            grupo_df = df[
+                (df["_lat_r"] == row["_lat_r"]) & 
+                (df["_lon_r"] == row["_lon_r"])
+            ]
+            grouped.at[i, "latitud"] = grupo_df["latitud"].mean()
+            grouped.at[i, "longitud"] = grupo_df["longitud"].mean()
+            grouped.at[i, "ciudad"] = grupo_df["ciudad"].mode()[0] if not grupo_df["ciudad"].mode().empty else grupo_df["ciudad"].iloc[0]
+            grouped.at[i, "universidad"] = grupo_df["universidad"].mode()[0] if not grupo_df["universidad"].mode().empty else grupo_df["universidad"].iloc[0]
+    
+    # Limpiar columnas temporales y añadir país
+    grouped = grouped.drop(columns=["_lat_r", "_lon_r"], errors="ignore")
     grouped["pais"] = "España"
     grouped = grouped[["universidad", "pais", "ciudad", "latitud", "longitud", "estudiantes"]]
     
