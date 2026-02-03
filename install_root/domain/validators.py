@@ -345,7 +345,8 @@ class DataValidator:
     def validate_field(self, field_name: str, value: Any, 
                       validators: list[Validator] | Validator | None = None,
                       normalizers: list[Normalizer] | Normalizer | None = None,
-                      required: bool = False) -> bool:
+                      required: bool = False,
+                      normalizer: Normalizer | None = None) -> bool:
         """
         Valida un campo individual.
         
@@ -359,6 +360,10 @@ class DataValidator:
         Returns:
             True si válido, False si no
         """
+        # Compatibilidad: si se pasa `normalizer`, lo tratamos como `normalizers`
+        if normalizer is not None and normalizers is None:
+            normalizers = normalizer
+
         # Convertir a listas si es necesario
         if validators is None:
             validators = []
@@ -382,7 +387,12 @@ class DataValidator:
             # Si no es vacío (o requerido pero pasó vacío), ejecutar validadores
             if value or required:
                 for validator in validators:
-                    is_valid, msg = validator(value)
+                    result = validator(value)
+                    if isinstance(result, tuple):
+                        is_valid, msg = result
+                    else:
+                        is_valid = bool(result)
+                        msg = "Valor inválido" if not is_valid else ""
                     if not is_valid:
                         self._add_error(field_name, msg)
                         return False

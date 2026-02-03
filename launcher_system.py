@@ -269,6 +269,16 @@ def ensure_data_demo() -> None:
 
 def write_demo_config() -> None:
     """Escribe config.json desde config.demo.json reemplazando rutas de data_demo."""
+    # Si config.json ya existe y es válido, no regenerar
+    if CONFIG_PATH.exists():
+        try:
+            existing = json.loads(CONFIG_PATH.read_text(encoding="utf-8"))
+            if existing and "excel_path" in existing:
+                LOGGER.debug("config.json ya existe y es válido, omitiendo regeneración")
+                return
+        except Exception:
+            pass  # Si falla la lectura, regenerar
+    
     demo_path = ROOT / "config.demo.json"
     if not demo_path.exists():
         LOGGER.warning("config.demo.json no existe en %s", ROOT)
@@ -279,14 +289,6 @@ def write_demo_config() -> None:
     except Exception as exc:
         LOGGER.error("No se pudo leer config.demo.json: %s", exc)
         return
-    
-    # Si config.json ya existe y está mal, eliminarlo primero
-    if CONFIG_PATH.exists():
-        try:
-            CONFIG_PATH.unlink()
-            LOGGER.info("config.json anterior eliminado para regenerarlo")
-        except Exception as exc:
-            LOGGER.warning("No se pudo eliminar config.json anterior: %s", exc)
     
     new_config = {}
     for key, value in demo_config.items():
@@ -313,29 +315,25 @@ def write_demo_config() -> None:
 
 
 def ensure_installation() -> tuple[bool, str | None]:
-    py = get_runtime_python()
-
     installer_marker = APPDATA_DIR / ".installer_complete"
+    
+    # Si el instalador completó, confiar en que todo está OK (arranque rápido)
+    if installer_marker.exists():
+        LOGGER.debug("Instalación completa detectada, saltando verificación de dependencias.")
+        return True, None
+    
+    # Solo verificar si no hay marcador
+    py = get_runtime_python()
     LOGGER.debug("Verificando dependencias con %s", py)
     def _run_import(code: str) -> subprocess.CompletedProcess:
         return subprocess.run(
             [str(py), "-c", code],
             capture_output=True,
             text=True,
-            timeout=12,
+            timeout=5,
             creationflags=NO_WINDOW,
         )
     try:
-        if installer_marker.exists():
-            result = _run_import("import streamlit, flask")
-            if result.returncode != 0:
-                details = (result.stderr or result.stdout or "Sin detalles").strip()
-                raise RuntimeError(
-                    f"Faltan dependencias: {details}. "
-                    f"Consulta {PIP_LOG_PATH}."
-                )
-            LOGGER.debug("Dependencias garantizadas por el instalador.")
-            return True, None
         LOGGER.warning(".installer_complete ausente; asegurar dependencias mínimas.")
         result = _run_import("import streamlit")
     except Exception as exc:
@@ -418,11 +416,11 @@ def wait_for_health(url: str, timeout: float = 15.0) -> bool:
                     except Exception:
                         return True
         except Exception:
-            time.sleep(0.25)
+            time.sleep(0.15)
     return False
 
 
-def wait_for_http(url: str, timeout: float = 30.0) -> bool:
+def wait_for_http(url: str, timeout: float = 20.0) -> bool:
     start = time.time()
     while time.time() - start < timeout:
         try:
@@ -430,7 +428,7 @@ def wait_for_http(url: str, timeout: float = 30.0) -> bool:
                 if response.status in (200, 302):
                     return True
         except Exception:
-            time.sleep(0.25)
+            time.sleep(0.15)
     return False
 
 def has_active_streamlit_client(app_port: int) -> bool:
@@ -524,24 +522,16 @@ def start_processes(api_enabled: bool = True, api_disabled_reason: str | None = 
 
         url = f"http://127.0.0.1:{app_port}"
         (LOG_DIR / "last_url.txt").write_text(url, encoding="utf-8")
-        LOGGER.info("Esperando que Streamlit responda en %s", url)
-
-        if not wait_for_http(url, timeout=30.0):
-            LOGGER.error("Streamlit no respondió en %s", url)
-            notify_user(
-                "MovilidadESII - Streamlit",
-                "Streamlit no pudo arrancar. Consulta app.log en AppData."
-            )
-            raise RuntimeError("Streamlit no arrancó correctamente.")
-
+        
+        # Abrir navegador INMEDIATAMENTE (esperará a que Streamlit esté listo)
         LOGGER.info("Abriendo navegador en %s", url)
         subprocess.Popen(
             ["rundll32", "url.dll,FileProtocolHandler", url],
             creationflags=NO_WINDOW,
         )
 
+        # Arrancar API en paralelo si está habilitada
         api_ok_event = threading.Event()
-
         if api_enabled:
             LOGGER.info("Iniciando API en 127.0.0.1:%s", api_port)
             api_proc = subprocess.Popen(
@@ -552,18 +542,17 @@ def start_processes(api_enabled: bool = True, api_disabled_reason: str | None = 
                 stderr=api_log,
                 creationflags=NO_WINDOW,
             )
-
             PID_FILE.write_text(f"{api_proc.pid}\n{app_proc.pid}\n", encoding="utf-8")
 
             def _api_health_worker():
                 health_url = f"{api_url}/health"
-                ok = wait_for_health(health_url, timeout=20.0)
+                ok = wait_for_health(health_url, timeout=15.0)
                 if ok:
                     api_ok_event.set()
                     write_api_status(True, api_url)
                     LOGGER.info("API saludable en %s", api_url)
                 else:
-                    reason = "API no saludable tras 20s"
+                    reason = "API no saludable tras 15s"
                     write_api_status(False, api_url, reason=reason)
                     LOGGER.warning(reason)
                     notify_user(
@@ -574,13 +563,25 @@ def start_processes(api_enabled: bool = True, api_disabled_reason: str | None = 
                     )
 
             threading.Thread(target=_api_health_worker, daemon=True).start()
-        else:
+
+        # Verificar en segundo plano que Streamlit arrancó (sin bloquear)
+        def _streamlit_check():
+            if not wait_for_http(url, timeout=15.0):
+                LOGGER.error("Streamlit no respondió en %s", url)
+                notify_user(
+                    "MovilidadESII - Streamlit",
+                    "Streamlit tardó en arrancar. Si el navegador no carga, consulta app.log."
+                )
+        
+        threading.Thread(target=_streamlit_check, daemon=True).start()
+
+        if not api_enabled:
             reason = api_disabled_reason or "API deshabilitada."
             write_api_status(False, api_url, reason=reason)
             PID_FILE.write_text(f"{app_proc.pid}\n", encoding="utf-8")
             LOGGER.warning(reason)
 
-        GRACE_STARTUP = 20
+        GRACE_STARTUP = 10
         IDLE_TIMEOUT = 10
 
         start_time = time.time()
