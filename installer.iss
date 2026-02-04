@@ -28,7 +28,8 @@ Name: "{app}\data_demo"
 
 [Files]
 ; Copia todo install_root EXCEPTO thirdparty y data_demo (que van aparte)
-Source: "install_root\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs; Excludes: "thirdparty\*;data_demo\*"
+Source: "install_root\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs; Excludes: "thirdparty\*;data_demo\*;wheelhouse\*;requirements.*.txt;__pycache__\*;_internal\*"
+
 
 ; Python installer solo al temp (y se borra al terminar)
 Source: "install_root\thirdparty\{#PyInstallerExe}"; DestDir: "{tmp}"; Flags: deleteafterinstall
@@ -41,7 +42,8 @@ Source: "install_root\data_demo\*.xlsx"; DestDir: "{app}\data_demo"; Flags: igno
 
 ; wheelhouse + requirements (offline pip)
 Source: "install_root\wheelhouse\*"; DestDir: "{app}\wheelhouse"; Flags: ignoreversion recursesubdirs createallsubdirs
-Source: "install_root\requirements.txt"; DestDir: "{app}"; Flags: ignoreversion
+Source: "install_root\requirements.bootstrap.txt"; DestDir: "{app}"; Flags: ignoreversion
+Source: "install_root\requirements.runtime.txt";   DestDir: "{app}"; Flags: ignoreversion
 
 [Icons]
 Name: "{userdesktop}\MovilidadESII"; \
@@ -60,13 +62,11 @@ var
   TracePath: string;
   PipLogPath: string;
   BasePythonExe: string;
-  PySetupLogPath: string;
 
 function AppDataBase(): string;
 begin
-  Result := ExpandConstant('{app}');
+  Result := ExpandConstant('{localappdata}\MovilidadESII');
 end;
-
 
 function PyDir(): string;
 begin
@@ -135,7 +135,6 @@ begin
   ForceDirectories(AppDataBase() + '\logs');
   TracePath := AppDataBase() + '\logs\setup_trace.log';
   PipLogPath := AppDataBase() + '\logs\pip_install.log';
-  PySetupLogPath := AppDataBase() + '\logs\python_install.log';
   BasePythonExe := '';
 end;
 
@@ -173,6 +172,13 @@ begin
     exit;
   end;
 
+  if FindPython312ByPaths(FoundPy) then
+  begin
+    BasePythonExe := FoundPy;
+    LogLine('Python 3.12 encontrado en el sistema: ' + BasePythonExe);
+    exit;
+  end;
+
   InstallerPath := ExpandConstant('{tmp}\{#PyInstallerExe}');
   if not FileExists(InstallerPath) then
   begin
@@ -182,14 +188,9 @@ begin
 
   ForceDirectories(PyDir());
 
-  Params :=
-    '/quiet InstallAllUsers=0 PrependPath=0 Include_pip=1 ' +
-    'Include_launcher=0 Shortcuts=0 ' +
-    'TargetDir=' + PyDir() + ' ' +
-    'DefaultJustForMeTargetDir=' + PyDir() + ' ' +
-    '/log ' + Quote(PySetupLogPath);
-
+  Params := '/quiet InstallAllUsers=0 PrependPath=0 Include_pip=1 TargetDir=' + Quote(PyDir());
   LogLine('Instalando Python en: ' + PyDir());
+
   if (not ExecLogged(InstallerPath, Params, '', RC)) or (RC <> 0) then
   begin
     FailAndStop('Falló la instalación de Python (exit ' + IntToStr(RC) + ').');
@@ -206,16 +207,12 @@ begin
   if FindPython312ByPaths(FoundPy) then
   begin
     BasePythonExe := FoundPy;
-    LogLine('AVISO: Python no quedó en TargetDir. Usaré: ' + BasePythonExe);
+    LogLine('Python instalado/localizado fuera de TargetDir: ' + BasePythonExe);
     exit;
   end;
 
-  FailAndStop(
-    'Python se ejecutó (exit=0) pero no aparece ni en TargetDir ni en rutas típicas.' + #13#10 +
-    'Revisa: ' + PySetupLogPath
-  );
+  FailAndStop('Python se ejecutó (exit=0) pero no pude localizar python.exe.');
 end;
-
 
 procedure CreateVenvIfMissing();
 var
@@ -258,7 +255,7 @@ var
 begin
   Wheelhouse := ExpandConstant('{app}\wheelhouse');
 
-  Req := ExpandConstant('{app}\requirements.txt');
+  Req := ExpandConstant('{app}\requirements.runtime.txt');
 
   if not DirExists(Wheelhouse) then
   begin
@@ -344,6 +341,8 @@ begin
     LogLine('POSTINSTALL end OK');
   end;
 end;
+
+
 
 [Run]
 Filename: "{app}\venv\Scripts\pythonw.exe"; \

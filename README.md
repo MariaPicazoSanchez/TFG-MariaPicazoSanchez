@@ -59,7 +59,9 @@ pip install \
   ### 3.2. Crear/actualizar wheelhouse (offline)
 
   ```bash
-  py -m pip download -r requirements.lock.txt -d install_root/wheelhouse --prefer-binary
+  py -3.12 -m pip download -r requirements.bootstrap.txt -d wheelhouse --only-binary=:all:
+  py -3.12 -m pip download -r requirements.runtime.txt   -d wheelhouse --only-binary=:all:
+
   ```
   Nota: el wheelhouse puede ser muy grande. No se versiona (está en .gitignore) y se puede borrar tras generar el instalador.
 ---
