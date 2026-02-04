@@ -28,7 +28,7 @@ Name: "{app}\data_demo"
 
 [Files]
 ; Copia todo install_root EXCEPTO thirdparty y data_demo (que van aparte)
-Source: "install_root\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs; Excludes: "thirdparty\*;data_demo\*;__pycache__\*;_internal\*"
+Source: "install_root\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs; Excludes: "thirdparty\*;data_demo\*"
 
 ; Python installer solo al temp (y se borra al terminar)
 Source: "install_root\thirdparty\{#PyInstallerExe}"; DestDir: "{tmp}"; Flags: deleteafterinstall
@@ -216,22 +216,6 @@ begin
   );
 end;
 
-procedure RemoveThirdpartyIfPresent();
-var
-  ThirdpartyDir: string;
-begin
-  ThirdpartyDir := ExpandConstant('{app}\thirdparty');
-  if DirExists(ThirdpartyDir) then
-  begin
-    LogLine('Eliminando carpeta thirdparty: ' + ThirdpartyDir);
-    DelTree(ThirdpartyDir, True, True, True);
-  end
-  else
-  begin
-    LogLine('No existe carpeta thirdparty en app. No se elimina.');
-  end;
-end;
-
 
 procedure CreateVenvIfMissing();
 var
@@ -339,22 +323,6 @@ begin
   LogLine('Marker OK creado: ' + Marker);
 end;
 
-procedure RemoveWheelhouseIfPresent();
-var
-  WheelhouseDir: string;
-begin
-  WheelhouseDir := ExpandConstant('{app}\wheelhouse');
-  if DirExists(WheelhouseDir) then
-  begin
-    LogLine('Eliminando carpeta wheelhouse: ' + WheelhouseDir);
-    DelTree(WheelhouseDir, True, True, True);
-  end
-  else
-  begin
-    LogLine('No existe carpeta wheelhouse en app. No se elimina.');
-  end;
-end;
-
 procedure CurStepChanged(CurStep: TSetupStep);
 begin
   if CurStep = ssPostInstall then
@@ -366,14 +334,11 @@ begin
     LogLine('Python base seleccionado: ' + BasePythonExe);
     if (BasePythonExe = '') or (not FileExists(BasePythonExe)) then exit;
 
-    RemoveThirdpartyIfPresent();
-
     CreateVenvIfMissing();
     if not FileExists(VenvPy()) then exit;
 
     InstallDepsOffline();
     ValidateCriticalImports();
-    RemoveWheelhouseIfPresent();
     WriteMarkerOk();
 
     LogLine('POSTINSTALL end OK');
@@ -389,4 +354,3 @@ Filename: "{app}\venv\Scripts\pythonw.exe"; \
 [UninstallDelete]
 Type: filesandordirs; Name: "{app}"
 Type: filesandordirs; Name: "{localappdata}\MovilidadESII"
-
