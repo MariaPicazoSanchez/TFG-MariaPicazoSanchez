@@ -1,7 +1,7 @@
 #define AppName "MovilidadESII"
 #define AppVer  "1.0"
 #define AppExe  "MovilidadESII.exe"
-#define PyInstallerExe "python-3.12.6-amd64.exe"
+#define PyEmbedZip "python-3.12.6-embed-amd64.zip"
 
 [Setup]
 AppName={#AppName}
@@ -23,7 +23,6 @@ SetupIconFile=install_root\MovilidadESII.ico
 [Dirs]
 Name: "{app}\logs"
 Name: "{app}\python"
-Name: "{app}\venv"
 Name: "{app}\data_demo"
 
 [Files]
@@ -31,8 +30,8 @@ Name: "{app}\data_demo"
 Source: "install_root\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs; Excludes: "thirdparty\*;data_demo\*;wheelhouse\*;requirements.*.txt;__pycache__\*;_internal\*"
 
 
-; Python installer solo al temp (y se borra al terminar)
-Source: "install_root\thirdparty\{#PyInstallerExe}"; DestDir: "{tmp}"; Flags: deleteafterinstall
+; Python embebido (zip) al temp
+Source: "install_root\thirdparty\{#PyEmbedZip}"; DestDir: "{tmp}"; Flags: deleteafterinstall
 
 ; Icono
 Source: "install_root\MovilidadESII.ico"; DestDir: "{app}"; Flags: ignoreversion
@@ -78,14 +77,9 @@ begin
   Result := PyDir() + '\python.exe';
 end;
 
-function VenvDir(): string;
+function PipExe(): string;
 begin
-  Result := AppDataBase() + '\venv';
-end;
-
-function VenvPy(): string;
-begin
-  Result := VenvDir() + '\Scripts\python.exe';
+  Result := PyDir() + '\Scripts\pip.exe';
 end;
 
 function Quote(const S: string): string;
@@ -138,32 +132,11 @@ begin
   BasePythonExe := '';
 end;
 
-function FindPython312ByPaths(out PyPath: string): Boolean;
-begin
-  Result := False;
-  PyPath := '';
-
-  PyPath := PyExe();
-  if FileExists(PyPath) then begin Result := True; exit; end;
-
-  PyPath := ExpandConstant('{localappdata}\Programs\Python\Python312\python.exe');
-  if FileExists(PyPath) then begin Result := True; exit; end;
-
-  PyPath := ExpandConstant('{pf}\Python312\python.exe');
-  if FileExists(PyPath) then begin Result := True; exit; end;
-
-  PyPath := ExpandConstant('{pf32}\Python312\python.exe');
-  if FileExists(PyPath) then begin Result := True; exit; end;
-
-  PyPath := '';
-end;
-
 procedure InstallPythonIfMissing();
 var
   RC: Integer;
-  InstallerPath: string;
-  Params: string;
-  FoundPy: string;
+  ZipPath: string;
+  PthFile: string;
 begin
   if FileExists(PyExe()) then
   begin
@@ -172,77 +145,81 @@ begin
     exit;
   end;
 
-  if FindPython312ByPaths(FoundPy) then
+  ZipPath := ExpandConstant('{tmp}\{#PyEmbedZip}');
+  if not FileExists(ZipPath) then
   begin
-    BasePythonExe := FoundPy;
-    LogLine('Python 3.12 encontrado en el sistema: ' + BasePythonExe);
-    exit;
-  end;
-
-  InstallerPath := ExpandConstant('{tmp}\{#PyInstallerExe}');
-  if not FileExists(InstallerPath) then
-  begin
-    FailAndStop('No encuentro el instalador de Python en: ' + InstallerPath);
+    FailAndStop('No encuentro el zip de Python en: ' + ZipPath);
     exit;
   end;
 
   ForceDirectories(PyDir());
+  LogLine('Descomprimiendo Python embebido en: ' + PyDir());
 
-  Params := '/quiet InstallAllUsers=0 PrependPath=0 Include_pip=1 TargetDir=' + Quote(PyDir());
-  LogLine('Instalando Python en: ' + PyDir());
-
-  if (not ExecLogged(InstallerPath, Params, '', RC)) or (RC <> 0) then
+  { Descomprimir usando PowerShell }
+  if not ExecLogged(
+    'powershell.exe',
+    '-NoProfile -Command "Expand-Archive -Path ' + Quote(ZipPath) + ' -DestinationPath ' + Quote(PyDir()) + ' -Force"',
+    '',
+    RC
+  ) or (RC <> 0) then
   begin
-    FailAndStop('Falló la instalación de Python (exit ' + IntToStr(RC) + ').');
+    FailAndStop('Falló la descompresión de Python (exit ' + IntToStr(RC) + ').');
     exit;
   end;
 
-  if FileExists(PyExe()) then
+  if not FileExists(PyExe()) then
   begin
-    BasePythonExe := PyExe();
-    LogLine('Python instalado en TargetDir: ' + BasePythonExe);
+    FailAndStop('python.exe no encontrado después de descomprimir en: ' + PyExe());
     exit;
   end;
 
-  if FindPython312ByPaths(FoundPy) then
+  { Habilitar pip en Python embebido: descomentar import site en python312._pth }
+  PthFile := PyDir() + '\python312._pth';
+  if FileExists(PthFile) then
   begin
-    BasePythonExe := FoundPy;
-    LogLine('Python instalado/localizado fuera de TargetDir: ' + BasePythonExe);
-    exit;
+    DeleteFile(PthFile);
+    SaveStringToFile(PthFile, 'python312.zip' + #13#10 + '.' + #13#10 + 'import site' + #13#10, False);
+    LogLine('Habilitado site-packages en python312._pth');
   end;
 
-  FailAndStop('Python se ejecutó (exit=0) pero no pude localizar python.exe.');
+  BasePythonExe := PyExe();
+  LogLine('Python embebido instalado: ' + BasePythonExe);
 end;
 
-procedure CreateVenvIfMissing();
+procedure InstallGetPip();
 var
   RC: Integer;
+  GetPipUrl: string;
+  GetPipPath: string;
 begin
-  if FileExists(VenvPy()) then
+  if FileExists(PipExe()) then
   begin
-    LogLine('Venv ya existe: ' + VenvPy());
+    LogLine('pip ya está instalado');
     exit;
   end;
 
-  if (BasePythonExe = '') or (not FileExists(BasePythonExe)) then
+  LogLine('Instalando pip con get-pip.py...');
+  GetPipPath := ExpandConstant('{tmp}\get-pip.py');
+  GetPipUrl := 'https://bootstrap.pypa.io/get-pip.py';
+  
+  if not ExecLogged(
+    'powershell.exe',
+    '-NoProfile -Command "Invoke-WebRequest -Uri ' + GetPipUrl + ' -OutFile ' + Quote(GetPipPath) + '"',
+    '',
+    RC
+  ) or (RC <> 0) then
   begin
-    FailAndStop('No existe Python base usable. Python localizado: ' + BasePythonExe);
+    FailAndStop('Falló la descarga de get-pip.py (exit ' + IntToStr(RC) + ').');
     exit;
   end;
 
-  ForceDirectories(VenvDir());
-
-  if (not ExecLogged(BasePythonExe, '-m venv ' + Quote(VenvDir()), '', RC)) or (RC <> 0) then
+  if not ExecLogged(BasePythonExe, Quote(GetPipPath), '', RC) or (RC <> 0) then
   begin
-    FailAndStop('Falló la creación del venv (exit ' + IntToStr(RC) + ').');
+    FailAndStop('Falló la instalación de pip (exit ' + IntToStr(RC) + ').');
     exit;
   end;
 
-  if not FileExists(VenvPy()) then
-  begin
-    FailAndStop('El venv quedó incompleto: falta ' + VenvPy());
-    exit;
-  end;
+  LogLine('pip instalado correctamente');
 end;
 
 procedure InstallDepsOffline();
@@ -281,10 +258,9 @@ begin
     exit;
   end else FindClose(FR);
 
-  ExecLogged(VenvPy(), '-m ensurepip --upgrade', '', RC);
-  ExecLogged(VenvPy(), '-m pip install --upgrade pip', '', RC);
+  ExecLogged(BasePythonExe, '-m pip install --upgrade pip', '', RC);
 
-  Cmd := Quote(VenvPy()) + ' -m pip install --no-index --find-links ' + Quote(Wheelhouse) + ' pip setuptools wheel';
+  Cmd := Quote(BasePythonExe) + ' -m pip install --no-index --find-links ' + Quote(Wheelhouse) + ' pip setuptools wheel';
   RunCmdRedirect(Cmd, PipLogPath, RC);
   if RC <> 0 then
   begin
@@ -292,7 +268,7 @@ begin
     exit;
   end;
 
-  Cmd := Quote(VenvPy()) + ' -m pip install --no-index --find-links ' + Quote(Wheelhouse) + ' -r ' + Quote(Req);
+  Cmd := Quote(BasePythonExe) + ' -m pip install --no-index --find-links ' + Quote(Wheelhouse) + ' -r ' + Quote(Req);
   if (not RunCmdRedirect(Cmd, PipLogPath, RC)) or (RC <> 0) then
   begin
     FailAndStop('Falló la instalación de dependencias (pip). Mira pip_install.log.');
@@ -304,7 +280,7 @@ procedure ValidateCriticalImports();
 var
   RC: Integer;
 begin
-  if (not ExecLogged(VenvPy(), '-c "import streamlit, flask, pandas"', '', RC)) or (RC <> 0) then
+  if (not ExecLogged(BasePythonExe, '-c "import streamlit, flask, pandas"', '', RC)) or (RC <> 0) then
   begin
     FailAndStop('Fallo al validar imports (streamlit/flask/pandas). Revisa pip_install.log.');
     exit;
@@ -331,8 +307,7 @@ begin
     LogLine('Python base seleccionado: ' + BasePythonExe);
     if (BasePythonExe = '') or (not FileExists(BasePythonExe)) then exit;
 
-    CreateVenvIfMissing();
-    if not FileExists(VenvPy()) then exit;
+    InstallGetPip();
 
     InstallDepsOffline();
     ValidateCriticalImports();
@@ -345,8 +320,7 @@ end;
 
 
 [Run]
-Filename: "{app}\venv\Scripts\pythonw.exe"; \
-  Parameters: "-m streamlit run ""{app}\app.py"""; \
+Filename: "{app}\MovilidadESII.exe"; \
   Description: "Abrir {#AppName}"; \
   Flags: nowait postinstall skipifsilent
 

@@ -3,8 +3,15 @@ from flask_cors import CORS
 # from persistence import actualizar_excel_materias_para_estudiante, update_student_in_excel
 import json
 import os
+import sys
 import pandas as pd
 from functools import wraps
+
+# Asegurar que los módulos locales se encuentren (para cuando se ejecuta desde directorios diferentes)
+current_dir = os.path.dirname(os.path.abspath(__file__))
+if current_dir not in sys.path:
+    sys.path.insert(0, current_dir)
+
 from security import get_api_token
 import logging
 import warnings

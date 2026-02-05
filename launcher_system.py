@@ -22,12 +22,11 @@ def get_appdata_dir() -> Path:
 APPDATA_DIR = get_appdata_dir()
 LOG_DIR = APPDATA_DIR / "logs"
 DATA_DEMO_DIR = APPDATA_DIR / "data_demo"
-# Legacy: el instalador antiguo creaba un venv en AppData. Ya no lo usamos,
-# pero lo dejamos para no romper rutas en logs / mensajes.
-VENV_DIR = APPDATA_DIR / "venv"
+# Python embebido instalado por el installer (preferido)
+PYTHON_DIR = APPDATA_DIR / "python"
 
-# Python a usar para lanzar Streamlit y la API: se resuelve dinámicamente
-# desde el Python del sistema (PATH/py launcher/registro), no desde AppData.
+# Python a usar para lanzar Streamlit y la API: preferimos el embebido,
+# fallback al Python del sistema si el embebido no existe.
 _PYTHON_EXE: Path | None = None
 CONFIG_PATH = APPDATA_DIR / "config.json"
 API_STATUS_PATH = APPDATA_DIR / "api_status.json"
@@ -43,9 +42,14 @@ if os.name == "nt":
     NO_WINDOW = subprocess.CREATE_NO_WINDOW
 
 if getattr(sys, "frozen", False):
+    # Si está compilado con PyInstaller, estar en el directorio del ejecutable
     ROOT = Path(sys.executable).resolve().parent
 else:
-    ROOT = Path(__file__).resolve().parent
+    # En desarrollo, apuntar a install_root/ desde el directorio del launcher
+    ROOT = Path(__file__).resolve().parent / "install_root"
+    if not ROOT.exists():
+        # Fallback si no existe
+        ROOT = Path(__file__).resolve().parent
 
 LOGGER = logging.getLogger("movilidad_launcher")
 LOGGER.addHandler(logging.NullHandler())
@@ -114,11 +118,6 @@ def _registry_python312_candidates() -> list[Path]:
                 continue
     return out
 
-def _venv_python_exe() -> Path:
-    if os.name == "nt":
-        return VENV_DIR / "Scripts" / "python.exe"
-    return VENV_DIR / "bin" / "python"
-
 
 def _python_works(exe: Path) -> bool:
     try:
@@ -132,27 +131,27 @@ def _python_works(exe: Path) -> bool:
 
 def get_runtime_python() -> Path:
     """
-    Preferimos el venv si existe (porque ahí están las dependencias de la app).
+    Preferimos el Python embebido instalado por el installer.
     Si no existe o está roto, usamos Python del sistema.
     """
-    vpy = _venv_python_exe()
-    if _python_works(vpy):
-        LOGGER.debug("Python runtime seleccionado (venv): %s", vpy)
-        return vpy.resolve()
+    # Python embebido instalado por el installer
+    embedded_py = APPDATA_DIR / "python" / "python.exe"
+    if _python_works(embedded_py):
+        LOGGER.debug("Python runtime seleccionado (embebido): %s", embedded_py)
+        return embedded_py.resolve()
 
-    # fallback
+    # fallback al Python del sistema
     py = get_system_python()
     LOGGER.debug("Python runtime seleccionado (system): %s", py)
     return py
 
 
 def get_system_python() -> Path:
-    """Resuelve un Python 3.12.x del sistema (no el empaquetado en MovilidadESII)."""
+    """Resuelve un Python 3.12.x del sistema."""
     global _PYTHON_EXE
     if _PYTHON_EXE is not None:
         return _PYTHON_EXE
 
-    blocked_base = APPDATA_DIR  # no queremos usar python dentro de MovilidadESII
     candidates: list[Path] = []
 
     # 1) Python Launcher (py -3.12)
@@ -197,16 +196,13 @@ def get_system_python() -> Path:
         uniq.append(c)
 
     for exe in uniq:
-        # No usar el python instalado en la carpeta de la propia app
-        if _is_under(exe, blocked_base):
-            continue
         if _python_is_312(exe):
             _PYTHON_EXE = exe.resolve()
             LOGGER.debug("Python del sistema seleccionado: %s", _PYTHON_EXE)
             return _PYTHON_EXE
 
     raise RuntimeError(
-        "No se encontró Python 3.12 del sistema (fuera de MovilidadESII). "
+        "No se encontró Python 3.12 del sistema. "
         "Instala Python 3.12.x y marca 'Add to PATH' o instala el Python Launcher (py)."
     )
 
