@@ -22,13 +22,16 @@ SetupIconFile=install_root\MovilidadESII.ico
 
 [Dirs]
 Name: "{app}\logs"
-Name: "{app}\python"
-Name: "{app}\data_demo"
+Name: "{app}\app"
+Name: "{app}\runtime\python"
+Name: "{app}\data"
 
 [Files]
-; Copia todo install_root EXCEPTO thirdparty y data_demo (que van aparte)
-Source: "install_root\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs; Excludes: "thirdparty\*;data_demo\*;wheelhouse\*;requirements.*.txt;__pycache__\*;_internal\*"
+; Ejecutable compilado con PyInstaller (incluye todas sus dependencias)
+Source: "dist\MovilidadESII\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
 
+; Copia todo install_root EXCEPTO thirdparty, data_demo, wheelhouse (que van a subcarpetas)
+Source: "install_root\*"; DestDir: "{app}\app"; Flags: ignoreversion recursesubdirs createallsubdirs; Excludes: "thirdparty\*;data_demo\*;wheelhouse\*;requirements.*.txt;__pycache__\*;_internal\*"
 
 ; Python embebido (zip) al temp
 Source: "install_root\thirdparty\{#PyEmbedZip}"; DestDir: "{tmp}"; Flags: deleteafterinstall
@@ -36,13 +39,13 @@ Source: "install_root\thirdparty\{#PyEmbedZip}"; DestDir: "{tmp}"; Flags: delete
 ; Icono
 Source: "install_root\MovilidadESII.ico"; DestDir: "{app}"; Flags: ignoreversion
 
-; data_demo a AppData (4 excels)
-Source: "install_root\data_demo\*.xlsx"; DestDir: "{app}\data_demo"; Flags: ignoreversion
+; data_demo a app/data/
+Source: "install_root\data_demo\*.xlsx"; DestDir: "{app}\data"; Flags: ignoreversion
 
-; wheelhouse + requirements (offline pip)
-Source: "install_root\wheelhouse\*"; DestDir: "{app}\wheelhouse"; Flags: ignoreversion recursesubdirs createallsubdirs
-Source: "install_root\requirements.bootstrap.txt"; DestDir: "{app}"; Flags: ignoreversion
-Source: "install_root\requirements.runtime.txt";   DestDir: "{app}"; Flags: ignoreversion
+; wheelhouse + requirements a app/runtime/
+Source: "install_root\wheelhouse\*"; DestDir: "{app}\runtime\wheelhouse"; Flags: ignoreversion recursesubdirs createallsubdirs
+Source: "install_root\requirements.bootstrap.txt"; DestDir: "{app}\runtime"; Flags: ignoreversion
+Source: "install_root\requirements.runtime.txt";   DestDir: "{app}\runtime"; Flags: ignoreversion
 
 [Icons]
 Name: "{userdesktop}\MovilidadESII"; \
@@ -69,7 +72,17 @@ end;
 
 function PyDir(): string;
 begin
-  Result := AppDataBase() + '\python';
+  Result := AppDataBase() + '\runtime\python';
+end;
+
+function WheelhouseDir(): string;
+begin
+  Result := AppDataBase() + '\runtime\wheelhouse';
+end;
+
+function DataDir(): string;
+begin
+  Result := AppDataBase() + '\data';
 end;
 
 function PyExe(): string;
@@ -230,9 +243,9 @@ var
   Cmd: string;
   FR: TFindRec;
 begin
-  Wheelhouse := ExpandConstant('{app}\wheelhouse');
+  Wheelhouse := WheelhouseDir();
 
-  Req := ExpandConstant('{app}\requirements.runtime.txt');
+  Req := AppDataBase() + '\runtime\requirements.runtime.txt';
 
   if not DirExists(Wheelhouse) then
   begin
@@ -242,7 +255,7 @@ begin
 
   if not FileExists(Req) then
   begin
-    FailAndStop('No existe requirements.runtime/lock/txt en: ' + Req);
+    FailAndStop('No existe requirements.runtime.txt en: ' + Req);
     exit;
   end;
 

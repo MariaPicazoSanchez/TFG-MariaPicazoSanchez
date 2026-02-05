@@ -21,9 +21,9 @@ def get_appdata_dir() -> Path:
 
 APPDATA_DIR = get_appdata_dir()
 LOG_DIR = APPDATA_DIR / "logs"
-DATA_DEMO_DIR = APPDATA_DIR / "data_demo"
+DATA_DEMO_DIR = APPDATA_DIR / "data"
 # Python embebido instalado por el installer (preferido)
-PYTHON_DIR = APPDATA_DIR / "python"
+PYTHON_DIR = APPDATA_DIR / "runtime" / "python"
 
 # Python a usar para lanzar Streamlit y la API: preferimos el embebido,
 # fallback al Python del sistema si el embebido no existe.
@@ -42,8 +42,12 @@ if os.name == "nt":
     NO_WINDOW = subprocess.CREATE_NO_WINDOW
 
 if getattr(sys, "frozen", False):
-    # Si está compilado con PyInstaller, estar en el directorio del ejecutable
-    ROOT = Path(sys.executable).resolve().parent
+    # Si está compilado con PyInstaller, el ejecutable está en la raíz de MovilidadESII
+    # El código está en MovilidadESII/app/
+    ROOT = Path(sys.executable).resolve().parent / "app"
+    if not ROOT.exists():
+        # Fallback a la raíz si app/ no existe
+        ROOT = Path(sys.executable).resolve().parent
 else:
     # En desarrollo, apuntar a install_root/ desde el directorio del launcher
     ROOT = Path(__file__).resolve().parent / "install_root"
@@ -135,7 +139,7 @@ def get_runtime_python() -> Path:
     Si no existe o está roto, usamos Python del sistema.
     """
     # Python embebido instalado por el installer
-    embedded_py = APPDATA_DIR / "python" / "python.exe"
+    embedded_py = APPDATA_DIR / "runtime" / "python" / "python.exe"
     if _python_works(embedded_py):
         LOGGER.debug("Python runtime seleccionado (embebido): %s", embedded_py)
         return embedded_py.resolve()
