@@ -59,7 +59,6 @@ pip install \
   ### 3.2. Crear/actualizar wheelhouse (offline)
 
   ```bash
-  py -3.12 -m pip download -r requirements.bootstrap.txt -d wheelhouse --only-binary=:all:
   py -3.12 -m pip download -r requirements.runtime.txt   -d wheelhouse --only-binary=:all:
 
   ```

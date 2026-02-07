@@ -44,7 +44,6 @@ Source: "install_root\data_demo\*.xlsx"; DestDir: "{app}\data"; Flags: ignorever
 
 ; wheelhouse + requirements a app/runtime/
 Source: "install_root\wheelhouse\*"; DestDir: "{app}\runtime\wheelhouse"; Flags: ignoreversion recursesubdirs createallsubdirs
-Source: "install_root\requirements.bootstrap.txt"; DestDir: "{app}\runtime"; Flags: ignoreversion
 Source: "install_root\requirements.runtime.txt";   DestDir: "{app}\runtime"; Flags: ignoreversion
 
 [Icons]
