@@ -30,7 +30,6 @@ PYTHON_DIR = APPDATA_DIR / "runtime" / "python"
 _PYTHON_EXE: Path | None = None
 CONFIG_PATH = APPDATA_DIR / "config.json"
 API_STATUS_PATH = APPDATA_DIR / "api_status.json"
-PID_FILE = APPDATA_DIR / ".pids"
 LAUNCHER_LOG_PATH = LOG_DIR / "launcher.log"
 APP_LOG_PATH = LOG_DIR / "app.log"
 API_LOG_PATH = LOG_DIR / "api.log"
@@ -437,32 +436,39 @@ def has_active_streamlit_client(app_port: int) -> bool:
     En Windows lo detectamos con netstat.
     """
     if os.name != "nt":
-        return True  # en otros SO no apagamos por este criterio
+        return False  # en otros SO cerramos si no hay clientes
 
     try:
         out = subprocess.check_output(
             ["netstat", "-ano", "-p", "TCP"],
             text=True,
             creationflags=NO_WINDOW,
+            timeout=3,
         )
-    except Exception:
-        return True  # si falla netstat, no cerramos
+    except Exception as e:
+        LOGGER.debug("netstat falló (%s), asumiendo sin clientes", e)
+        return False
 
-    needle = f":{app_port}"
+    # Buscar líneas con el puerto local de Streamlit y estado ESTABLISHED
+    port_str = f":{app_port}"
+    count = 0
     for line in out.splitlines():
-        line = line.strip()
-        if not line.startswith("TCP"):
+        if "ESTABLISHED" not in line:
             continue
+        # Verificar que el puerto está en la dirección local
         parts = line.split()
-        # Formato típico: TCP 127.0.0.1:8501 127.0.0.1:xxxxx ESTABLISHED PID
-        if len(parts) < 4:
-            continue
-        local_addr = parts[1]
-        state = parts[3].upper()
-        if local_addr.endswith(needle) and state == "ESTABLISHED":
-            return True
-
-    return False
+        if len(parts) >= 4:
+            local_addr = parts[1]  # Primera dirección es la local
+            if port_str in local_addr and "127.0.0.1" in local_addr:
+                count += 1
+                LOGGER.debug("Cliente %d detectado: %s", count, line.strip())
+    
+    if count > 0:
+        LOGGER.info("Clientes activos detectados: %d", count)
+        return True
+    else:
+        LOGGER.debug("No hay clientes activos en el puerto %d", app_port)
+        return False
 
 
 def get_last_ping_ts(api_port: int) -> float | None:
@@ -542,7 +548,6 @@ def start_processes(api_enabled: bool = True, api_disabled_reason: str | None = 
                 stderr=api_log,
                 creationflags=NO_WINDOW,
             )
-            PID_FILE.write_text(f"{api_proc.pid}\n{app_proc.pid}\n", encoding="utf-8")
 
             def _api_health_worker():
                 health_url = f"{api_url}/health"
@@ -578,40 +583,49 @@ def start_processes(api_enabled: bool = True, api_disabled_reason: str | None = 
         if not api_enabled:
             reason = api_disabled_reason or "API deshabilitada."
             write_api_status(False, api_url, reason=reason)
-            PID_FILE.write_text(f"{app_proc.pid}\n", encoding="utf-8")
             LOGGER.warning(reason)
 
         GRACE_STARTUP = 10
         IDLE_TIMEOUT = 10
+        CHECK_INTERVAL = 2
 
         start_time = time.time()
-        last_seen = time.time()
-        seen_client_once = False
+        last_seen_client = time.time()
 
-        LOGGER.info("Monitor: cerrar cuando se cierre la pestaña (sin conexiones).")
+        LOGGER.info("Monitor: cerrar cuando no haya clientes por %ds.", IDLE_TIMEOUT)
 
         while True:
+            # Verificar si Streamlit terminó
             if app_proc.poll() is not None:
                 LOGGER.info("Streamlit finalizó.")
                 break
 
             now = time.time()
+            elapsed = now - start_time
 
-            # No empezamos a cerrar hasta que:
-            # 1) haya pasado el arranque
-            # 2) y hayamos visto al menos una conexión real de navegador alguna vez
-            if now - start_time > GRACE_STARTUP:
-                active = has_active_streamlit_client(app_port)
+            # Periodo de gracia inicial (dar tiempo a que arranque todo)
+            if elapsed <= GRACE_STARTUP:
+                remaining = GRACE_STARTUP - elapsed
+                LOGGER.debug("Periodo de gracia inicial, restantes %.1fs", remaining)
+                time.sleep(CHECK_INTERVAL)
+                continue
 
-                if active:
-                    last_seen = now
-                    seen_client_once = True
-                else:
-                    if seen_client_once and (now - last_seen > IDLE_TIMEOUT):
-                        LOGGER.info("Sin pestañas conectadas durante %ss, cerrando.", IDLE_TIMEOUT)
-                        break
+            # Después del periodo de gracia, monitorear clientes
+            active = has_active_streamlit_client(app_port)
 
-            time.sleep(2)
+            if active:
+                # Hay clientes conectados, actualizar timestamp
+                last_seen_client = now
+            else:
+                # No hay clientes, verificar cuánto tiempo sin ellos
+                idle_time = now - last_seen_client
+                LOGGER.info("Sin clientes: %.1fs (límite: %ds)", idle_time, IDLE_TIMEOUT)
+                
+                if idle_time > IDLE_TIMEOUT:
+                    LOGGER.info("Sin clientes durante %ds, cerrando aplicación.", IDLE_TIMEOUT)
+                    break
+
+            time.sleep(CHECK_INTERVAL)
 
 
     except Exception as exc:
@@ -619,27 +633,64 @@ def start_processes(api_enabled: bool = True, api_disabled_reason: str | None = 
         LOGGER.exception("Error iniciando procesos: %s", exc)
         raise
     finally:
+        LOGGER.info("Deteniendo procesos...")
+        
+        # Recopilar PIDs para matar
+        pids_to_kill = []
         for proc in (app_proc, api_proc):
-            if proc is None:
-                continue
-            try:
-                proc.terminate()
-            except Exception:
-                pass
-        time.sleep(1)
+            if proc and proc.poll() is None:
+                pids_to_kill.append(proc.pid)
+                try:
+                    LOGGER.debug("Terminando proceso PID %s con terminate()", proc.pid)
+                    proc.terminate()
+                except Exception as e:
+                    LOGGER.debug("Error en terminate() PID %s: %s", proc.pid, e)
+        
+        # Esperar a que terminen gracefully
+        if pids_to_kill:
+            LOGGER.debug("Esperando 2s a que terminen los procesos...")
+            time.sleep(2)
+        
+        # Verificar y forzar cierre si aún están vivos
         for proc in (app_proc, api_proc):
-            if proc is None:
-                continue
-            try:
-                if proc.poll() is None:
+            if proc and proc.poll() is None:
+                try:
+                    LOGGER.warning("Proceso PID %s no terminó, usando kill()...", proc.pid)
                     proc.kill()
-            except Exception:
-                pass
+                    proc.wait(timeout=1)
+                except Exception as e:
+                    LOGGER.error("Error en kill() PID %s: %s", proc.pid, e)
+        
+        # En Windows, usar taskkill como respaldo para asegurar que se maten
+        if os.name == "nt" and pids_to_kill:
+            time.sleep(1)
+            for pid in pids_to_kill:
+                try:
+                    # Verificar si sigue vivo
+                    result = subprocess.run(
+                        ["tasklist", "/FI", f"PID eq {pid}"],
+                        capture_output=True,
+                        text=True,
+                        creationflags=NO_WINDOW,
+                        timeout=2
+                    )
+                    if str(pid) in result.stdout:
+                        LOGGER.warning("PID %s aún vivo, usando taskkill /F", pid)
+                        subprocess.run(
+                            ["taskkill", "/F", "/PID", str(pid)],
+                            creationflags=NO_WINDOW,
+                            timeout=2
+                        )
+                except Exception as e:
+                    LOGGER.debug("Error verificando/matando PID %s: %s", pid, e)
+        
+        # Cerrar archivos de log
         for logfile in (app_log, api_log):
             try:
                 logfile.close()
             except Exception:
                 pass
+        
         LOGGER.info("Procesos detenidos.")
 
 

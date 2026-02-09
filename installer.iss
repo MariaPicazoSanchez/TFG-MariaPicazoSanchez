@@ -28,7 +28,7 @@ Name: "{app}\data"
 
 [Files]
 ; Ejecutable compilado con PyInstaller (incluye todas sus dependencias)
-Source: "dist\MovilidadESII\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
+Source: "dist\MovilidadESII\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs; Excludes: "thirdparty\*;data_demo\*;wheelhouse\*"
 
 ; Copia todo install_root EXCEPTO thirdparty, data_demo, wheelhouse (que van a subcarpetas)
 Source: "install_root\*"; DestDir: "{app}\app"; Flags: ignoreversion recursesubdirs createallsubdirs; Excludes: "thirdparty\*;data_demo\*;wheelhouse\*;requirements.*.txt;__pycache__\*;_internal\*"
@@ -39,12 +39,12 @@ Source: "install_root\thirdparty\{#PyEmbedZip}"; DestDir: "{tmp}"; Flags: delete
 ; Icono
 Source: "install_root\MovilidadESII.ico"; DestDir: "{app}"; Flags: ignoreversion
 
-; data_demo a app/data/
+; data_demo a app/data/ (solo archivos, sin carpeta data_demo)
 Source: "install_root\data_demo\*.xlsx"; DestDir: "{app}\data"; Flags: ignoreversion
 
 ; wheelhouse + requirements a app/runtime/
 Source: "install_root\wheelhouse\*"; DestDir: "{app}\runtime\wheelhouse"; Flags: ignoreversion recursesubdirs createallsubdirs
-Source: "install_root\requirements.runtime.txt";   DestDir: "{app}\runtime"; Flags: ignoreversion
+Source: "install_root\requirements.txt";   DestDir: "{app}\runtime"; Flags: ignoreversion
 
 [Icons]
 Name: "{userdesktop}\MovilidadESII"; \
@@ -82,6 +82,21 @@ end;
 function DataDir(): string;
 begin
   Result := AppDataBase() + '\data';
+end;
+
+function BaseConfigPath(): string;
+begin
+  Result := AppDataBase() + '\config.json';
+end;
+
+function AppConfigPath(): string;
+begin
+  Result := AppDataBase() + '\app\config.json';
+end;
+
+function DemoConfigPath(): string;
+begin
+  Result := AppDataBase() + '\app\config.demo.json';
 end;
 
 function PyExe(): string;
@@ -142,6 +157,34 @@ begin
   TracePath := AppDataBase() + '\logs\setup_trace.log';
   PipLogPath := AppDataBase() + '\logs\pip_install.log';
   BasePythonExe := '';
+end;
+
+procedure EnsureBaseConfig();
+var
+  ConfigContent: string;
+  DataPath: string;
+begin
+  if FileExists(BaseConfigPath()) then
+  begin
+    LogLine('config.json ya existe en base');
+    exit;
+  end;
+
+  DataPath := AppDataBase() + '\data';
+  { Reemplazar \ por \\ para JSON válido }
+  StringChangeEx(DataPath, '\', '\\', True);
+  
+  ConfigContent := '{' + #13#10 +
+    '    "SICUE OUT": "' + DataPath + '\\SICUE OUT.xlsx",' + #13#10 +
+    '    "Erasmus IN": "' + DataPath + '\\ERASMUS IN.xlsx",' + #13#10 +
+    '    "Erasmus OUT": "' + DataPath + '\\ERASMUS OUT.xlsx",' + #13#10 +
+    '    "Materias IN": "' + DataPath + '\\Cuentas por Asignatura.xlsx"' + #13#10 +
+    '}';
+
+  if SaveStringToFile(BaseConfigPath(), ConfigContent, False) then
+    LogLine('config.json creado con rutas absolutas')
+  else
+    LogLine('No se pudo crear config.json');
 end;
 
 procedure InstallPythonIfMissing();
@@ -244,7 +287,7 @@ var
 begin
   Wheelhouse := WheelhouseDir();
 
-  Req := AppDataBase() + '\runtime\requirements.runtime.txt';
+  Req := AppDataBase() + '\runtime\requirements.txt';
 
   if not DirExists(Wheelhouse) then
   begin
@@ -254,7 +297,7 @@ begin
 
   if not FileExists(Req) then
   begin
-    FailAndStop('No existe requirements.runtime.txt en: ' + Req);
+    FailAndStop('No existe requirements.txt en: ' + Req);
     exit;
   end;
 
@@ -308,12 +351,59 @@ begin
   LogLine('Marker OK creado: ' + Marker);
 end;
 
+procedure CleanupInstallArtifacts();
+var
+  Wheelhouse: string;
+  Req: string;
+  AppDataDemo: string;
+  AppThirdParty: string;
+  AppWheelhouse: string;
+begin
+  Wheelhouse := WheelhouseDir();
+  Req := AppDataBase() + '\runtime\requirements.txt';
+  AppDataDemo := AppDataBase() + '\app\data_demo';
+  AppThirdParty := AppDataBase() + '\app\thirdparty';
+  AppWheelhouse := AppDataBase() + '\app\wheelhouse';
+
+  if DirExists(Wheelhouse) then
+  begin
+    DelTree(Wheelhouse, True, True, True);
+    LogLine('Limpieza: wheelhouse eliminado');
+  end;
+
+  if FileExists(Req) then
+  begin
+    DeleteFile(Req);
+    LogLine('Limpieza: requirements.txt eliminado');
+  end;
+
+  if DirExists(AppDataDemo) then
+  begin
+    DelTree(AppDataDemo, True, True, True);
+    LogLine('Limpieza: app\\data_demo eliminado');
+  end;
+
+  if DirExists(AppThirdParty) then
+  begin
+    DelTree(AppThirdParty, True, True, True);
+    LogLine('Limpieza: app\\thirdparty eliminado');
+  end;
+
+  if DirExists(AppWheelhouse) then
+  begin
+    DelTree(AppWheelhouse, True, True, True);
+    LogLine('Limpieza: app\\wheelhouse eliminado');
+  end;
+end;
+
 procedure CurStepChanged(CurStep: TSetupStep);
 begin
   if CurStep = ssPostInstall then
   begin
     EnsureLogs();
     LogLine('POSTINSTALL start');
+
+    EnsureBaseConfig();
 
     InstallPythonIfMissing();
     LogLine('Python base seleccionado: ' + BasePythonExe);
@@ -324,6 +414,7 @@ begin
     InstallDepsOffline();
     ValidateCriticalImports();
     WriteMarkerOk();
+    CleanupInstallArtifacts();
 
     LogLine('POSTINSTALL end OK');
   end;
