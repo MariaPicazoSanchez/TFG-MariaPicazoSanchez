@@ -432,11 +432,18 @@ def wait_for_http(url: str, timeout: float = 20.0) -> bool:
 
 def has_active_streamlit_client(app_port: int) -> bool:
     """
-    True si hay alguna conexión TCP ESTABLISHED hacia el puerto de Streamlit.
-    En Windows lo detectamos con netstat.
+    True si hay alguna conexión TCP ESTABLISHED hacia el puerto de Streamlit
+    Y además el servidor está respondiendo activamente a peticiones.
+    
+    Verificamos:
+    1. Conexiones TCP ESTABLISHED en netstat
+    2. Que el servidor responde a peticiones HTTP (heartbeat)
+    
+    El servidor de Streamlit responde aunque el usuario esté inactivo,
+    while hay connections TCP ESTABLISHED.
     """
     if os.name != "nt":
-        return False  # en otros SO cerramos si no hay clientes
+        return False
 
     try:
         out = subprocess.check_output(
@@ -449,26 +456,36 @@ def has_active_streamlit_client(app_port: int) -> bool:
         LOGGER.debug("netstat falló (%s), asumiendo sin clientes", e)
         return False
 
-    # Buscar líneas con el puerto local de Streamlit y estado ESTABLISHED
     port_str = f":{app_port}"
-    count = 0
+    tcp_count = 0
     for line in out.splitlines():
-        if "ESTABLISHED" not in line:
-            continue
-        # Verificar que el puerto está en la dirección local
         parts = line.split()
-        if len(parts) >= 4:
-            local_addr = parts[1]  # Primera dirección es la local
-            if port_str in local_addr and "127.0.0.1" in local_addr:
-                count += 1
-                LOGGER.debug("Cliente %d detectado: %s", count, line.strip())
+        if len(parts) < 4:
+            continue
+        
+        local_addr = parts[1]
+        state = parts[3] if len(parts) > 3 else ""
+        
+        if port_str in local_addr and "127.0.0.1" in local_addr and state == "ESTABLISHED":
+            tcp_count += 1
     
-    if count > 0:
-        LOGGER.info("Clientes activos detectados: %d", count)
-        return True
-    else:
-        LOGGER.debug("No hay clientes activos en el puerto %d", app_port)
+    if tcp_count == 0:
+        LOGGER.debug("No hay conexiones TCP en puerto %d", app_port)
         return False
+    
+    # Si hay conexiones TCP, verificar que el servidor responde
+    # (no sean conexiones fantasma que netstat aún no ha limpiado)
+    try:
+        with urllib.request.urlopen(f"http://127.0.0.1:{app_port}/_stcore/health", timeout=2) as r:
+            if r.status in (200, 401):
+                LOGGER.debug("Clientes activos: %d conexiones TCP, servidor respondiendo", tcp_count)
+                return True
+    except Exception:
+        pass
+    
+    # Si el servidor no responde a _stcore/health, no hay clientes
+    LOGGER.debug("Puerto %d tiene %d conexiones TCP pero servidor no responde", app_port, tcp_count)
+    return False
 
 
 def get_last_ping_ts(api_port: int) -> float | None:
@@ -586,22 +603,47 @@ def start_processes(api_enabled: bool = True, api_disabled_reason: str | None = 
             LOGGER.warning(reason)
 
         GRACE_STARTUP = 10
-        IDLE_TIMEOUT = 10
-        CHECK_INTERVAL = 2
+        IDLE_TIMEOUT = 3  # Cerrar después de 3s sin clientes TCP
+        CHECK_INTERVAL = 1  # Verificar cada 1 segundo
+        MAX_RUNTIME = 8 * 60 * 60  # 8 horas máximo de ejecución total
 
         start_time = time.time()
         last_seen_client = time.time()
 
-        LOGGER.info("Monitor: cerrar cuando no haya clientes por %ds.", IDLE_TIMEOUT)
+        LOGGER.info("=" * 60)
+        LOGGER.info("Monitor configurado:")
+        LOGGER.info("  - Periodo de gracia inicial: %ds", GRACE_STARTUP)
+        LOGGER.info("  - Timeout sin clientes TCP: %ds", IDLE_TIMEOUT)
+        LOGGER.info("  - Tiempo máximo de ejecución: %ds (%.1f horas)", MAX_RUNTIME, MAX_RUNTIME / 3600)
+        LOGGER.info("  - Intervalo de verificación: %ds", CHECK_INTERVAL)
+        LOGGER.info("  - API habilitada: %s", api_enabled)
+        LOGGER.info("  - NOTA: La aplicación se mantendrá abierta mientras haya navegadores conectados")
+        LOGGER.info("  - Para cerrar manualmente: crear archivo %s/.shutdown", APPDATA_DIR)
+        LOGGER.info("=" * 60)
 
         while True:
             # Verificar si Streamlit terminó
             if app_proc.poll() is not None:
                 LOGGER.info("Streamlit finalizó.")
                 break
+            
+            # Mecanismo de apagado manual (archivo de señal)
+            shutdown_file = APPDATA_DIR / ".shutdown"
+            if shutdown_file.exists():
+                LOGGER.info("Archivo de apagado detectado, cerrando aplicación.")
+                try:
+                    shutdown_file.unlink()
+                except Exception:
+                    pass
+                break
 
             now = time.time()
             elapsed = now - start_time
+
+            # Timeout máximo absoluto (seguridad - aplicación ejecutándose demasiado tiempo)
+            if elapsed > MAX_RUNTIME:
+                LOGGER.info("Tiempo máximo de ejecución alcanzado (%.1fs), cerrando.", elapsed)
+                break
 
             # Periodo de gracia inicial (dar tiempo a que arranque todo)
             if elapsed <= GRACE_STARTUP:
@@ -610,19 +652,24 @@ def start_processes(api_enabled: bool = True, api_disabled_reason: str | None = 
                 time.sleep(CHECK_INTERVAL)
                 continue
 
-            # Después del periodo de gracia, monitorear clientes
+            # Lógica simple: verificar si hay clientes TCP activos
             active = has_active_streamlit_client(app_port)
 
             if active:
-                # Hay clientes conectados, actualizar timestamp
+                # Hay clientes TCP y actividad en logs → la ventana está abierta
                 last_seen_client = now
+                # Log cada 30s para no saturar
+                elapsed_since_start_mod = int(elapsed) % 30
+                if elapsed_since_start_mod == 0:
+                    LOGGER.info("Aplicación activa, navegador conectado.")
             else:
-                # No hay clientes, verificar cuánto tiempo sin ellos
+                # NO hay clientes activos → la ventana está cerrada
                 idle_time = now - last_seen_client
-                LOGGER.info("Sin clientes: %.1fs (límite: %ds)", idle_time, IDLE_TIMEOUT)
                 
-                if idle_time > IDLE_TIMEOUT:
-                    LOGGER.info("Sin clientes durante %ds, cerrando aplicación.", IDLE_TIMEOUT)
+                if idle_time < IDLE_TIMEOUT:
+                    LOGGER.debug("Sin clientes: %.1fs (límite: %ds)", idle_time, IDLE_TIMEOUT)
+                else:
+                    LOGGER.info("Sin clientes TCP durante %.1fs, cerrando aplicación.", idle_time)
                     break
 
             time.sleep(CHECK_INTERVAL)
@@ -646,24 +693,13 @@ def start_processes(api_enabled: bool = True, api_disabled_reason: str | None = 
                 except Exception as e:
                     LOGGER.debug("Error en terminate() PID %s: %s", proc.pid, e)
         
-        # Esperar a que terminen gracefully
+        # Esperar a que terminen gracefully (2 segundos)
         if pids_to_kill:
             LOGGER.debug("Esperando 2s a que terminen los procesos...")
             time.sleep(2)
         
-        # Verificar y forzar cierre si aún están vivos
-        for proc in (app_proc, api_proc):
-            if proc and proc.poll() is None:
-                try:
-                    LOGGER.warning("Proceso PID %s no terminó, usando kill()...", proc.pid)
-                    proc.kill()
-                    proc.wait(timeout=1)
-                except Exception as e:
-                    LOGGER.error("Error en kill() PID %s: %s", proc.pid, e)
-        
-        # En Windows, usar taskkill como respaldo para asegurar que se maten
+        # En Windows, usar taskkill para asegurar que se maten (más fiable que kill())
         if os.name == "nt" and pids_to_kill:
-            time.sleep(1)
             for pid in pids_to_kill:
                 try:
                     # Verificar si sigue vivo
@@ -675,14 +711,27 @@ def start_processes(api_enabled: bool = True, api_disabled_reason: str | None = 
                         timeout=2
                     )
                     if str(pid) in result.stdout:
-                        LOGGER.warning("PID %s aún vivo, usando taskkill /F", pid)
+                        LOGGER.warning("Proceso PID %s aún vivo, usando taskkill /F /PID ...", pid)
                         subprocess.run(
                             ["taskkill", "/F", "/PID", str(pid)],
                             creationflags=NO_WINDOW,
                             timeout=2
                         )
+                        LOGGER.info("PID %s matado con taskkill.", pid)
                 except Exception as e:
-                    LOGGER.debug("Error verificando/matando PID %s: %s", pid, e)
+                    LOGGER.debug("Error matando PID %s: %s", pid, e)
+        
+        # Fallback: intentar kill() en Python para procesos que aún estén vivos
+        for proc in (app_proc, api_proc):
+            if proc:
+                try:
+                    if proc.poll() is None:  # Aún vivo
+                        LOGGER.warning("Proceso PID %s sigue vivo, usando kill()...", proc.pid)
+                        proc.kill()
+                        proc.wait(timeout=1)
+                        LOGGER.info("PID %s matado con kill().", proc.pid)
+                except Exception as e:
+                    LOGGER.debug("Error en kill() PID %s: %s", proc.pid, e)
         
         # Cerrar archivos de log
         for logfile in (app_log, api_log):
