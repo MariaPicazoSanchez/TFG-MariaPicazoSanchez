@@ -68,23 +68,65 @@ def check_dataframes_have_data(dfs: Dict[str, pd.DataFrame]) -> bool:
 
 
 def filter_out_no_la(dfs: Dict[str, pd.DataFrame], program: str) -> Dict[str, pd.DataFrame]:
-    """Filter Erasmus OUT program to exclude LA records (empty link_LA).
+    """Filter Erasmus OUT program to keep only students WITHOUT LA.
+    
+    Filtra a nivel de ESTUDIANTE, no de registro.
+    Mantiene solo estudiantes que NO tienen link_LA válido.
     
     Args:
         dfs: Dictionary of program -> DataFrame
         program: Program key to filter (typically PROGRAM_ERASMUS_OUT)
     
     Returns:
-        Modified dfs dictionary with filtered program
+        Modified dfs dictionary with filtered program (only students WITHOUT LA)
     """
     if program not in dfs:
         return dfs
     
     df = dfs[program]
-    if "link_LA" not in df.columns:
+    
+    # Si existe columna 'link_LA' a nivel de fila, usarla
+    if "link_LA" in df.columns:
+        mask = df["link_LA"].isna() | (df["link_LA"].astype(str).str.strip() == "")
+        dfs[program] = df[mask].copy()
         return dfs
     
-    mask = df["link_LA"].isna() | (df["link_LA"].astype(str).str.strip() == "")
-    dfs[program] = df[mask]
+    # Si no, filtrar dentro de 'estudiantes'
+    if "estudiantes" not in df.columns:
+        return dfs
+    
+    # Función para filtrar estudiantes de una lista
+    def filter_students_without_la(students):
+        """Mantiene solo estudiantes que NO tienen link_LA válido"""
+        if not students or not isinstance(students, list):
+            return []
+        
+        filtered = []
+        for student in students:
+            if isinstance(student, dict):
+                link_la = student.get('link_LA', None)
+                # Si NO tiene link_LA válido, mantenerlo
+                if not link_la or str(link_la).strip() == '' or str(link_la).lower() == 'nan':
+                    filtered.append(student)
+        
+        return filtered
+    
+    # Aplicar filtro a cada registro: mantener solo estudiantes sin LA
+    # Descartar registros que queden vacíos
+    filtered_rows = []
+    for idx, row in df.iterrows():
+        estudiantes = row.get('estudiantes', [])
+        filtered_students = filter_students_without_la(estudiantes)
+        
+        # Solo mantener el registro si tiene estudiantes después del filtro
+        if filtered_students:
+            row_copy = row.copy()
+            row_copy['estudiantes'] = filtered_students
+            filtered_rows.append(row_copy)
+    
+    if filtered_rows:
+        dfs[program] = pd.DataFrame(filtered_rows)
+    else:
+        dfs[program] = pd.DataFrame()  # DataFrame vacío si no hay estudiantes sin LA
     
     return dfs

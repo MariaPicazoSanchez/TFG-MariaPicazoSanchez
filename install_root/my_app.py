@@ -140,6 +140,7 @@ def _render_map_view(dfs, base_map, materias):
     
     # Aplicar filtro sin-LA si es necesario
     only_no_la = st.session_state.get("only_erasmus_out_no_LA", False)
+    
     if only_no_la:
         dfs = filter_out_no_la(dfs, PROGRAM_ERASMUS_OUT)
     

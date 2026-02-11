@@ -296,9 +296,10 @@ def load_erasmus_out(path: str, sheet_name: str | None = None) -> pd.DataFrame:
             grouped.at[i, "latitud"] = grupo_df["latitud"].mean()
             grouped.at[i, "longitud"] = grupo_df["longitud"].mean()
             # Tomar info del estudiante más común o primero
-            grouped.at[i, "pais"] = grupo_df["pais"].mode()[0] if not grupo_df["pais"].mode().empty else grupo_df["pais"].iloc[0]
-            grouped.at[i, "ciudad"] = grupo_df["ciudad"].mode()[0] if not grupo_df["ciudad"].mode().empty else grupo_df["ciudad"].iloc[0]
-            grouped.at[i, "universidad"] = grupo_df["universidad"].mode()[0] if not grupo_df["universidad"].mode().empty else grupo_df["universidad"].iloc[0]
+            # Convertir a string para evitar FutureWarning
+            grouped.at[i, "pais"] = str(grupo_df["pais"].mode()[0] if not grupo_df["pais"].mode().empty else grupo_df["pais"].iloc[0])
+            grouped.at[i, "ciudad"] = str(grupo_df["ciudad"].mode()[0] if not grupo_df["ciudad"].mode().empty else grupo_df["ciudad"].iloc[0])
+            grouped.at[i, "universidad"] = str(grupo_df["universidad"].mode()[0] if not grupo_df["universidad"].mode().empty else grupo_df["universidad"].iloc[0])
     
     # Limpiar columnas temporales
     grouped = grouped.drop(columns=["_lat_r", "_lon_r"], errors="ignore")
@@ -408,9 +409,10 @@ def load_erasmus_in(path: str, sheet_name: str | None = None) -> pd.DataFrame:
             ]
             grouped.at[i, "latitud"] = grupo_df["latitud"].mean()
             grouped.at[i, "longitud"] = grupo_df["longitud"].mean()
-            grouped.at[i, "pais"] = grupo_df["pais"].mode()[0] if not grupo_df["pais"].mode().empty else grupo_df["pais"].iloc[0]
-            grouped.at[i, "ciudad"] = grupo_df["ciudad"].mode()[0] if not grupo_df["ciudad"].mode().empty else grupo_df["ciudad"].iloc[0]
-            grouped.at[i, "universidad"] = grupo_df["universidad"].mode()[0] if not grupo_df["universidad"].mode().empty else grupo_df["universidad"].iloc[0]
+            # Convertir a string para evitar FutureWarning
+            grouped.at[i, "pais"] = str(grupo_df["pais"].mode()[0] if not grupo_df["pais"].mode().empty else grupo_df["pais"].iloc[0])
+            grouped.at[i, "ciudad"] = str(grupo_df["ciudad"].mode()[0] if not grupo_df["ciudad"].mode().empty else grupo_df["ciudad"].iloc[0])
+            grouped.at[i, "universidad"] = str(grupo_df["universidad"].mode()[0] if not grupo_df["universidad"].mode().empty else grupo_df["universidad"].iloc[0])
     
     # Limpiar columnas temporales
     grouped = grouped.drop(columns=["_lat_r", "_lon_r"], errors="ignore")
