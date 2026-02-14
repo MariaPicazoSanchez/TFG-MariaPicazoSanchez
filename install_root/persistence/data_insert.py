@@ -31,6 +31,17 @@ def _pick_col(df: pd.DataFrame, *aliases):
         cand = [real for norm, real in norm_map.items() if na in norm or norm in na]
         if len(cand) == 1:
             return cand[0]
+    # Si no se encuentra, buscar por coincidencia parcial (por ejemplo, 'apellidos' en 'APELLIDOS ')
+    for a in aliases:
+        if not a:
+            continue
+        na = _norm(a)
+        for norm, real in norm_map.items():
+            if na in norm:
+                return real
+    # Si sigue sin encontrarse, advertir en consola
+    if aliases:
+        print(f"[WARN] No se encontró columna para alias: {aliases} en columnas: {list(df.columns)}")
     return None
 
 def _sheet_exists(xlsx_path: str, sheet_name: str) -> bool:
@@ -65,6 +76,9 @@ def append_user_to_excel(xlsx_path: str, tipo: str, row_data: dict, sheet_name: 
     # ── Hoja NO existe → crear con columnas estándar ────────────────────────────
     if not _sheet_exists(xlsx_path, target_sheet):
         need_cols = COMMON_COLS + (SPEC_COLS.get(tipo) or [])
+        # Asegurar que 'Apellidos' esté siempre en las columnas
+        if "Apellidos" not in need_cols:
+            need_cols = need_cols + ["Apellidos"]
         # Si el payload incluye ciudad, añadirla a las columnas de la nueva hoja
         if (row_data.get("ciudad") or row_data.get("ciudad_sicue")) and "Ciudad" not in need_cols:
             need_cols = need_cols + ["Ciudad"]
@@ -89,9 +103,6 @@ def append_user_to_excel(xlsx_path: str, tipo: str, row_data: dict, sheet_name: 
             # ciudad (campo opcional en IN)
             if row_data.get("ciudad"):
                 new.update({"Ciudad": row_data.get("ciudad")})
-            c_univ = _pick_col(df, "Destino", "Universidad Destino", "universidad destino", "Universidad")
-            if c_univ:  new_row[c_univ]  = row_data.get("destino_origen") or row_data.get("universidad_origen") or row_data.get("destino")
-
         else:  # SICUE OUT
             new.update({"LA": row_data.get("la"), "EstadoFirmas": row_data.get("estado_firmas"), "PlanEstudios": row_data.get("plan_estudios")})
 
@@ -152,12 +163,17 @@ def append_user_to_excel(xlsx_path: str, tipo: str, row_data: dict, sheet_name: 
     if c_nombre: new_row[c_nombre] = row_data.get("nombre")
 
     apes = (row_data.get("apellidos") or "").strip()
+    # Lógica de apellidos según columnas disponibles
     if c_apellidos:
         new_row[c_apellidos] = apes
-    else:
+    elif c_ap1 and c_ap2:
+        # Repartir: primer token a Apellido1, resto a Apellido2
         parts = apes.split()
-        if c_ap1: new_row[c_ap1] = parts[0] if parts else ""
-        if c_ap2: new_row[c_ap2] = " ".join(parts[1:]) if len(parts) > 1 else ""
+        new_row[c_ap1] = parts[0] if parts else ""
+        new_row[c_ap2] = " ".join(parts[1:]) if len(parts) > 1 else ""
+    elif c_ap1:
+        # Solo Apellido1: poner todos los apellidos juntos
+        new_row[c_ap1] = apes
 
     if c_email: new_row[c_email] = row_data.get("email")
     if c_univ:  new_row[c_univ]  = row_data.get("destino_origen")
