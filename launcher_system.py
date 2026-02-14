@@ -211,7 +211,7 @@ def get_system_python() -> Path:
 
 
 def prepare_appdata_dirs() -> None:
-    for folder in (APPDATA_DIR, LOG_DIR, APPDATA_DIR / "cache", DATA_DEMO_DIR):
+    for folder in (APPDATA_DIR, LOG_DIR, DATA_DEMO_DIR):
         folder.mkdir(parents=True, exist_ok=True)
 
 
