@@ -132,7 +132,7 @@ def file_picker_button(label: str, text_input_key: str, button_id: str, help: st
     if clicked:
         if USE_LOCAL_PICKER:
             current_val = st.session_state.get(text_input_key, "")
-            path = pick_local_file(current_val, filetypes=[("Todos", "*.*")])
+            path = pick_local_file(current_val)
             if path:
                 st.session_state[text_input_key] = path
         else:

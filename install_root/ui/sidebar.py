@@ -79,47 +79,31 @@ def _unique_sheets_from_config_or_files(cfg: dict) -> list[str]:
                 names.add(str(name))
     return sorted(names)
 
-def pick_local_file(initial_path: str | None = None, filetypes: list[tuple[str, str]] = [("Excel/CSV", "*.xlsx *.xls"), ("Todos", "*.*")]) -> str | None:
-    """Abre el diálogo nativo del SO y devuelve la ruta seleccionada (o None). Solo en local."""
-    import os
+def pick_local_file(initial_path: str | None = None) -> str | None:
+    """Abre el explorador de archivos usando PowerShell y devuelve la ruta seleccionada (solo Windows)."""
+    import subprocess
+    script = r"""
+Add-Type -AssemblyName System.Windows.Forms
+$form = New-Object System.Windows.Forms.Form
+$form.TopMost = $true
+$form.WindowState = 'Minimized'
+$form.Show()
+$dialog = New-Object System.Windows.Forms.OpenFileDialog
+$dialog.Filter = 'Excel Files (*.xlsx;*.xls)|*.xlsx;*.xls|CSV Files (*.csv)|*.csv|All Files (*.*)|*.*'
+if ($dialog.ShowDialog($form) -eq 'OK') {
+    Write-Output $dialog.FileName
+}
+$form.Close()
+"""
     try:
-        import tkinter as tk
-        from tkinter import filedialog as fd
+        result = subprocess.run([
+            "powershell", "-Command", script
+        ], capture_output=True, text=True)
+        path = result.stdout.strip()
+        return path if path else None
     except Exception as e:
-        st.sidebar.error(f"Tkinter no disponible: {e}")
+        st.sidebar.error(f"PowerShell OpenFileDialog error: {e}")
         return None
-
-    # Si el input ya tiene algo, intenta abrir en esa carpeta
-    initdir = None
-    if initial_path:
-        cand = os.path.dirname(initial_path)
-        if os.path.isdir(cand):
-            initdir = cand
-
-    root = tk.Tk()
-    root.withdraw()
-    try:
-        root.update_idletasks()
-        root.lift()
-        root.attributes("-topmost", True)   # trae al frente
-        root.after(0, root.focus_force)
-    except Exception:
-        pass
-
-    try:
-        path = fd.askopenfilename(
-            parent=root,
-            initialdir=initdir if initdir else None,
-            title="Selecciona un archivo",
-            filetypes=filetypes
-        )
-    finally:
-        try:
-            root.destroy()
-        except Exception:
-            pass
-
-    return path or None
 
 def load_config():
     """Carga las rutas guardadas desde config.json, si existe."""
@@ -222,19 +206,16 @@ def route_editor(config: dict) -> None:
             placeholder=get_placeholder(config, key)
         )
 
-        # 4) Botón 📁: abrir selector del SO y SOLO poner la ruta en el input
+        # 4) Botón 📁: abrir selector PowerShell y poner la ruta en el input
         col_btn.text("")  # espacio para que no suba el boton
-        col_btn.text("") 
+        col_btn.text("")
 
         if col_btn.button("📁", key=btn_key, help="Seleccionar archivo del equipo"):
-            if USE_LOCAL_PICKER:
-                current_val = st.session_state.get(text_key, "")
-                path = pick_local_file(current_val)
-                if path:
-                    st.session_state[buf_key] = path
-                    st.rerun()
-            else:
-                st.sidebar.warning("Ejecuta la app en local para seleccionar rutas del equipo.")
+            current_val = st.session_state.get(text_key, "")
+            path = pick_local_file(current_val)
+            if path:
+                st.session_state[buf_key] = path
+                st.rerun()
 
 
         # 5) Al construir la nueva config, conservar lo previo si el input está vacío

@@ -223,7 +223,9 @@ def append_user_to_excel(xlsx_path: str, tipo: str, row_data: dict, sheet_name: 
         if c_ciudad and row_data.get("ciudad"):
             new_row[c_ciudad] = row_data.get("ciudad")
 
-    out = pd.concat([df, pd.DataFrame([new_row])], ignore_index=True).reindex(columns=cols_order)
+    # Filtrar columnas completamente vacías en new_row para evitar FutureWarning de pandas
+    filtered_row = {k: v for k, v in new_row.items() if v is not None and v != ""}
+    out = pd.concat([df, pd.DataFrame([{**new_row, **filtered_row}])], ignore_index=True).reindex(columns=cols_order)
 
     # Si faltan coordenadas, intentar calcularlas automáticamente para cualquier movilidad
     last_row_idx = len(out) - 1
@@ -312,6 +314,7 @@ def export_materias_in_excel(dfs, config):
 
 
 def handle_save_student_query():
+    from ui.popup_helpers import _normalize_estudiantes  # Importación local para evitar ciclos
     params = st.query_params
     if "save_student" not in params:
         return
@@ -462,7 +465,14 @@ def handle_save_student_query():
     fila_idx = df[mask].index[0]
 
     est_raw = df.at[fila_idx, "estudiantes"]
-    lista_est = _normalize_estudiantes(est_raw)
+    # Robustez: si est_raw es None, vacío o mal formado, convertir a lista vacía
+    if est_raw is None or (isinstance(est_raw, str) and not est_raw.strip()):
+        lista_est = []
+    else:
+        try:
+            lista_est = _normalize_estudiantes(est_raw)
+        except Exception:
+            lista_est = []
 
     if not (0 <= idx < len(lista_est)):
         st.error(f"Índice de estudiante {idx} fuera de rango.")
