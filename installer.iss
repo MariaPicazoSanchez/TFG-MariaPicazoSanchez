@@ -400,6 +400,9 @@ procedure CurStepChanged(CurStep: TSetupStep);
 begin
   if CurStep = ssPostInstall then
   begin
+    WizardForm.StatusLabel.Caption :=
+      'Preparando el entorno de la aplicación... Esto puede tardar unos minutos.';
+    WizardForm.StatusLabel.Update;
     EnsureLogs();
     LogLine('POSTINSTALL start');
 
