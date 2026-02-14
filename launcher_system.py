@@ -457,34 +457,55 @@ def has_active_streamlit_client(app_port: int) -> bool:
         return False
 
     port_str = f":{app_port}"
-    tcp_count = 0
+    tcp_pids = set()
     for line in out.splitlines():
         parts = line.split()
-        if len(parts) < 4:
+        if len(parts) < 5:
             continue
-        
         local_addr = parts[1]
         state = parts[3] if len(parts) > 3 else ""
-        
+        pid = parts[4]
         if port_str in local_addr and "127.0.0.1" in local_addr and state == "ESTABLISHED":
-            tcp_count += 1
-    
-    if tcp_count == 0:
+            tcp_pids.add(pid)
+
+    if not tcp_pids:
         LOGGER.debug("No hay conexiones TCP en puerto %d", app_port)
         return False
-    
-    # Si hay conexiones TCP, verificar que el servidor responde
-    # (no sean conexiones fantasma que netstat aún no ha limpiado)
+
+    # Refuerzo: comprobar que al menos un PID corresponde a un navegador conocido
+    browser_names = ["chrome.exe", "msedge.exe", "firefox.exe", "brave.exe", "opera.exe", "vivaldi.exe"]
+    browser_found = False
+    try:
+        tasklist = subprocess.check_output(["tasklist", "/FO", "CSV", "/NH"], text=True, creationflags=NO_WINDOW, timeout=3)
+        for line in tasklist.splitlines():
+            for bname in browser_names:
+                if f'"{bname}"' in line:
+                    # CSV: "imagename","pid",...
+                    fields = line.split(",")
+                    if len(fields) > 1:
+                        pid = fields[1].strip('"')
+                        if pid in tcp_pids:
+                            browser_found = True
+                            break
+            if browser_found:
+                break
+    except Exception as e:
+        LOGGER.debug("tasklist falló (%s), asumiendo sin browser", e)
+
+    if not browser_found:
+        LOGGER.debug("No hay navegador asociado a conexiones TCP en puerto %d", app_port)
+        return False
+
+    # Si hay conexiones TCP y navegador, verificar que el servidor responde
     try:
         with urllib.request.urlopen(f"http://127.0.0.1:{app_port}/_stcore/health", timeout=2) as r:
             if r.status in (200, 401):
-                LOGGER.debug("Clientes activos: %d conexiones TCP, servidor respondiendo", tcp_count)
+                LOGGER.debug("Clientes activos: navegador detectado y servidor respondiendo")
                 return True
     except Exception:
         pass
-    
-    # Si el servidor no responde a _stcore/health, no hay clientes
-    LOGGER.debug("Puerto %d tiene %d conexiones TCP pero servidor no responde", app_port, tcp_count)
+
+    LOGGER.debug("Puerto %d tiene conexiones TCP y navegador, pero servidor no responde", app_port)
     return False
 
 
