@@ -1,3 +1,4 @@
+
 import os
 import re
 from typing import Iterable, Tuple, Optional
@@ -11,6 +12,20 @@ from constants import PROGRAM_ERASMUS_OUT, PROGRAM_ERASMUS_IN, PROGRAM_SICUE_OUT
 # ==============================
 # Helpers comunes
 # ==============================
+def filter_students_with_coords(df: pd.DataFrame, tipo: str) -> pd.DataFrame:
+    """
+    Filtra filas sin coordenadas y muestra advertencia por cada alumno y tipo.
+    Devuelve el DataFrame filtrado.
+    """
+    import streamlit as st
+    mask_coords = df["latitud"].notna() & df["longitud"].notna()
+    if not mask_coords.all():
+        for idx, row in df[~mask_coords].iterrows():
+            nombre = row.get("estudiante", "(sin nombre)")
+            st.warning(f"El alumno '{nombre}' de {tipo} no tiene coordenadas y no se mostrará en el mapa.")
+    df = df[mask_coords].copy()
+    return df
+
 def _norm_colname(s: str) -> str:
     """Normaliza un nombre de columna para comparaciones relajadas."""
     return re.sub(r"\s+", " ", str(s).strip().lower())
@@ -273,42 +288,54 @@ def load_erasmus_out(path: str, sheet_name: str | None = None) -> pd.DataFrame:
     
     # Fase 4: Clustering de coordenadas - agrupar puntos cercanos
     df = cluster_coordinates(df, max_distance_m=500)
-    
+
     # Redondear coordenadas para agrupar (2 decimales = ~1km de precisión)
     df["_lat_r"] = df["latitud"].round(2)
     df["_lon_r"] = df["longitud"].round(2)
-    
-    # Agrupar solo por coordenadas redondeadas
+
+    df = filter_students_with_coords(df, "Erasmus OUT")
+
+    if df.empty:
+        import streamlit as st
+        st.warning("No hay alumnos de Erasmus OUT con coordenadas válidas para mostrar en el mapa.")
+        return pd.DataFrame(columns=["universidad", "pais", "ciudad", "latitud", "longitud", "estudiantes"])
+
     grouped = (
         df.groupby(["_lat_r", "_lon_r"], dropna=False)
           .apply(_to_records, include_groups=False)
           .reset_index(name="estudiantes")
     )
-    
-    # Restaurar info de ubicación (usar la media de las coordenadas originales del grupo)
+
+    if grouped.empty:
+        import streamlit as st
+        st.warning("No hay grupos válidos de Erasmus OUT para mostrar en el mapa.")
+        return pd.DataFrame(columns=["universidad", "pais", "ciudad", "latitud", "longitud", "estudiantes"])
+
+    # Restaurar info de ubicación solo si hay filas
     for i, row in grouped.iterrows():
         if row["estudiantes"]:
             grupo_df = df[
                 (df["_lat_r"] == row["_lat_r"]) & 
                 (df["_lon_r"] == row["_lon_r"])
             ]
-            # Usar coordenadas promedio del cluster
-            grouped.at[i, "latitud"] = grupo_df["latitud"].mean()
-            grouped.at[i, "longitud"] = grupo_df["longitud"].mean()
-            # Tomar info del estudiante más común o primero
-            # Convertir a string para evitar FutureWarning
-            grouped.at[i, "pais"] = str(grupo_df["pais"].mode()[0] if not grupo_df["pais"].mode().empty else grupo_df["pais"].iloc[0])
-            grouped.at[i, "ciudad"] = str(grupo_df["ciudad"].mode()[0] if not grupo_df["ciudad"].mode().empty else grupo_df["ciudad"].iloc[0])
-            grouped.at[i, "universidad"] = str(grupo_df["universidad"].mode()[0] if not grupo_df["universidad"].mode().empty else grupo_df["universidad"].iloc[0])
-    
+            if not grupo_df.empty:
+                grouped.at[i, "latitud"] = grupo_df["latitud"].mean()
+                grouped.at[i, "longitud"] = grupo_df["longitud"].mean()
+                if not grupo_df["pais"].isna().all():
+                    grouped.at[i, "pais"] = str(grupo_df["pais"].mode()[0] if not grupo_df["pais"].mode().empty else grupo_df["pais"].iloc[0])
+                if not grupo_df["ciudad"].isna().all():
+                    grouped.at[i, "ciudad"] = str(grupo_df["ciudad"].mode()[0] if not grupo_df["ciudad"].mode().empty else grupo_df["ciudad"].iloc[0])
+                if not grupo_df["universidad"].isna().all():
+                    grouped.at[i, "universidad"] = str(grupo_df["universidad"].mode()[0] if not grupo_df["universidad"].mode().empty else grupo_df["universidad"].iloc[0])
+
     # Limpiar columnas temporales
     grouped = grouped.drop(columns=["_lat_r", "_lon_r"], errors="ignore")
-    
+
     # Fase 3: Liberar memoria del DataFrame original tras agrupar
     del df
     import gc
     gc.collect()
-    
+
     return grouped
 
 
@@ -389,39 +416,54 @@ def load_erasmus_in(path: str, sheet_name: str | None = None) -> pd.DataFrame:
 
     # Fase 4: Clustering de coordenadas
     df = cluster_coordinates(df, max_distance_m=500)
-    
+
     # Redondear coordenadas para agrupar (2 decimales = ~1km)
     df["_lat_r"] = df["latitud"].round(2)
     df["_lon_r"] = df["longitud"].round(2)
-    
+
+    df = filter_students_with_coords(df, "Erasmus IN")
+
+    if df.empty:
+        import streamlit as st
+        st.warning("No hay alumnos de Erasmus IN con coordenadas válidas para mostrar en el mapa.")
+        return pd.DataFrame(columns=["universidad", "pais", "ciudad", "latitud", "longitud", "estudiantes"])
+
     grouped = (
         df.groupby(["_lat_r", "_lon_r"], dropna=False)
           .apply(_to_records, include_groups=False)
           .reset_index(name="estudiantes")
     )
-    
-    # Restaurar info de ubicación
+
+    if grouped.empty:
+        import streamlit as st
+        st.warning("No hay grupos válidos de Erasmus IN para mostrar en el mapa.")
+        return pd.DataFrame(columns=["universidad", "pais", "ciudad", "latitud", "longitud", "estudiantes"])
+
+    # Restaurar info de ubicación solo si hay filas
     for i, row in grouped.iterrows():
         if row["estudiantes"]:
             grupo_df = df[
                 (df["_lat_r"] == row["_lat_r"]) & 
                 (df["_lon_r"] == row["_lon_r"])
             ]
-            grouped.at[i, "latitud"] = grupo_df["latitud"].mean()
-            grouped.at[i, "longitud"] = grupo_df["longitud"].mean()
-            # Convertir a string para evitar FutureWarning
-            grouped.at[i, "pais"] = str(grupo_df["pais"].mode()[0] if not grupo_df["pais"].mode().empty else grupo_df["pais"].iloc[0])
-            grouped.at[i, "ciudad"] = str(grupo_df["ciudad"].mode()[0] if not grupo_df["ciudad"].mode().empty else grupo_df["ciudad"].iloc[0])
-            grouped.at[i, "universidad"] = str(grupo_df["universidad"].mode()[0] if not grupo_df["universidad"].mode().empty else grupo_df["universidad"].iloc[0])
-    
+            if not grupo_df.empty:
+                grouped.at[i, "latitud"] = grupo_df["latitud"].mean()
+                grouped.at[i, "longitud"] = grupo_df["longitud"].mean()
+                if not grupo_df["pais"].isna().all():
+                    grouped.at[i, "pais"] = str(grupo_df["pais"].mode()[0] if not grupo_df["pais"].mode().empty else grupo_df["pais"].iloc[0])
+                if not grupo_df["ciudad"].isna().all():
+                    grouped.at[i, "ciudad"] = str(grupo_df["ciudad"].mode()[0] if not grupo_df["ciudad"].mode().empty else grupo_df["ciudad"].iloc[0])
+                if not grupo_df["universidad"].isna().all():
+                    grouped.at[i, "universidad"] = str(grupo_df["universidad"].mode()[0] if not grupo_df["universidad"].mode().empty else grupo_df["universidad"].iloc[0])
+
     # Limpiar columnas temporales
     grouped = grouped.drop(columns=["_lat_r", "_lon_r"], errors="ignore")
-    
+
     # Fase 3: Liberar memoria
     del df
     import gc
     gc.collect()
-    
+
     return grouped
 
 
@@ -509,39 +551,60 @@ def load_sicue_out(path: str, sheet_name: str | None = None) -> pd.DataFrame:
 
     # Fase 4: Clustering de coordenadas
     df = cluster_coordinates(df, max_distance_m=500)
-    
+
     # Redondear coordenadas para agrupar (2 decimales = ~1km)
     df["_lat_r"] = df["latitud"].round(2)
     df["_lon_r"] = df["longitud"].round(2)
-    
+
+    df = filter_students_with_coords(df, "SICUE OUT")
+
+    if df.empty:
+        import streamlit as st
+        st.warning("No hay alumnos de SICUE OUT con coordenadas válidas para mostrar en el mapa.")
+        return pd.DataFrame(columns=["universidad", "pais", "ciudad", "latitud", "longitud", "estudiantes"])
+
+    # Si tras filtrar no hay filas, no intentar agrupar
+    if len(df) == 0:
+        import streamlit as st
+        st.warning("No hay datos válidos de SICUE OUT para agrupar.")
+        return pd.DataFrame(columns=["universidad", "pais", "ciudad", "latitud", "longitud", "estudiantes"])
+
     grouped = (
         df.groupby(["_lat_r", "_lon_r"], dropna=False)
           .apply(_to_records, include_groups=False)
           .reset_index(name="estudiantes")
     )
-    
-    # Restaurar info de ubicación
+
+    if grouped.empty:
+        import streamlit as st
+        st.warning("No hay grupos válidos de SICUE OUT para mostrar en el mapa.")
+        return pd.DataFrame(columns=["universidad", "pais", "ciudad", "latitud", "longitud", "estudiantes"])
+
+    # Restaurar info de ubicación solo si hay filas
     for i, row in grouped.iterrows():
         if row["estudiantes"]:
             grupo_df = df[
                 (df["_lat_r"] == row["_lat_r"]) & 
                 (df["_lon_r"] == row["_lon_r"])
             ]
-            grouped.at[i, "latitud"] = grupo_df["latitud"].mean()
-            grouped.at[i, "longitud"] = grupo_df["longitud"].mean()
-            grouped.at[i, "ciudad"] = grupo_df["ciudad"].mode()[0] if not grupo_df["ciudad"].mode().empty else grupo_df["ciudad"].iloc[0]
-            grouped.at[i, "universidad"] = grupo_df["universidad"].mode()[0] if not grupo_df["universidad"].mode().empty else grupo_df["universidad"].iloc[0]
-    
+            if not grupo_df.empty:
+                grouped.at[i, "latitud"] = grupo_df["latitud"].mean()
+                grouped.at[i, "longitud"] = grupo_df["longitud"].mean()
+                if not grupo_df["ciudad"].isna().all():
+                    grouped.at[i, "ciudad"] = grupo_df["ciudad"].mode()[0] if not grupo_df["ciudad"].mode().empty else grupo_df["ciudad"].iloc[0]
+                if not grupo_df["universidad"].isna().all():
+                    grouped.at[i, "universidad"] = grupo_df["universidad"].mode()[0] if not grupo_df["universidad"].mode().empty else grupo_df["universidad"].iloc[0]
+
     # Limpiar columnas temporales y añadir país
     grouped = grouped.drop(columns=["_lat_r", "_lon_r"], errors="ignore")
     grouped["pais"] = "España"
     grouped = grouped[["universidad", "pais", "ciudad", "latitud", "longitud", "estudiantes"]]
-    
+
     # Fase 3: Liberar memoria
     del df
     import gc
     gc.collect()
-    
+
     return grouped
 
 
@@ -625,6 +688,12 @@ def load_all_dataframes(config: dict, global_sheet: str, programs_to_load: list[
                 dfs[type_name] = df
 
         except Exception as e:
-            st.warning(f"⚠️ No se pudo cargar {type_name}: {e}")
+            # Si es SICUE OUT y el error es de indexación, no mostrar el mensaje genérico
+            if type_name == PROGRAM_SICUE_OUT and (
+                'single positional indexer is out-of-bounds' in str(e) or 'indexer' in str(e)):
+                # Ya se muestran advertencias personalizadas en load_sicue_out
+                pass
+            else:
+                st.warning(f"⚠️ No se pudo cargar {type_name}: {e}")
 
     return dfs
