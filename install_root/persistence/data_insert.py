@@ -225,6 +225,23 @@ def append_user_to_excel(xlsx_path: str, tipo: str, row_data: dict, sheet_name: 
 
     out = pd.concat([df, pd.DataFrame([new_row])], ignore_index=True).reindex(columns=cols_order)
 
+    # Si faltan coordenadas, intentar calcularlas automáticamente para cualquier movilidad
+    last_row_idx = len(out) - 1
+    coords_cols = [c for c in out.columns if str(c).strip().lower() in ("coordenadas", "latitud", "latitude", "longitud", "longitude")]
+    needs_coords = False
+    if coords_cols:
+        # Considera que faltan si todas están vacías o nulas
+        vals = [out.at[last_row_idx, c] for c in coords_cols]
+        if all(pd.isna(v) or v in (None, "", "nan", "None") for v in vals):
+            needs_coords = True
+
+    if needs_coords:
+        try:
+            from persistence.excel_update import _recalculate_coords
+            _recalculate_coords(out, last_row_idx)
+        except Exception as e:
+            print(f"[coords] Error al recalcular coordenadas: {e}")
+
     try:
         with pd.ExcelWriter(xlsx_path, engine="openpyxl", mode="a", if_sheet_exists="replace") as w:
             out.to_excel(w, sheet_name=target_sheet, index=False)
