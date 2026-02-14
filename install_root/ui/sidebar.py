@@ -139,6 +139,7 @@ def setup_session() -> None:
 def open_routes_editor() -> None:
     """Callback: muestra el editor de rutas."""
     st.session_state["show_routes"] = True
+    st.rerun()
 
 
 def close_routes_editor(new_config: dict | None = None) -> None:
