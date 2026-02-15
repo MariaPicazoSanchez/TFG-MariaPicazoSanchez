@@ -204,6 +204,34 @@ def inject_js_ping(interval_ms: int = 8000) -> None:
     )
 
 
+def inject_js_shutdown():
+        """Inyecta JavaScript para enviar señal de apagado al launcher al cerrar la ventana/pestaña."""
+        control_port = os.getenv("CONTROL_PORT")
+        shutdown_token = os.getenv("SHUTDOWN_TOKEN")
+        if not control_port or not shutdown_token:
+                return
+        shutdown_url = f"http://127.0.0.1:{control_port}/shutdown?token={shutdown_token}"
+        components.html(f"""
+<script>
+(function() {{
+    const url = "{shutdown_url}";
+    function sendShutdown() {{
+        try {{
+            if (navigator.sendBeacon) {{
+                navigator.sendBeacon(url, "");
+                return;
+            }}
+        }} catch (e) {{}}
+        try {{
+            fetch(url, {{ method: 'POST', mode: 'no-cors', keepalive: true }}).catch(() => {{}});
+        }} catch (e) {{}}
+    }}
+    window.addEventListener("beforeunload", sendShutdown);
+}})();
+</script>
+""", height=0)
+
+
 def main():
 
     # ==================== CONFIGURACIÓN ====================
@@ -213,6 +241,7 @@ def main():
         initial_sidebar_state="expanded"
     )
     inject_js_ping(8000)
+    inject_js_shutdown()
     
     init_session_defaults()
     
