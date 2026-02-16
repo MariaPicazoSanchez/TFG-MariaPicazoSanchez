@@ -3,23 +3,73 @@ import threading
 from http.server import BaseHTTPRequestHandler, HTTPServer
 from urllib.parse import urlparse, parse_qs
 def start_control_server(port: int, token: str, shutdown_event: threading.Event):
+
+    import time
+    import logging
+    open_tabs = set()
+    pending_close = dict()  # tab_id -> timestamp de cierre programado
+    last_close_ts = [0.0]  # mutable para acceso desde handler
+    CLOSE_DEBOUNCE = 1.0  # cierre casi inmediato
+    PENDING_CLOSE_GRACE = 1.0  # cierre casi inmediato
+    LOGGER = logging.getLogger("movilidad_launcher")
+
     class Handler(BaseHTTPRequestHandler):
+
         def do_POST(self):
             u = urlparse(self.path)
-            if u.path != "/shutdown":
-                self.send_response(404); self.end_headers(); return
             qs = parse_qs(u.query)
             if qs.get("token", [""])[0] != token:
                 self.send_response(403); self.end_headers(); return
-            shutdown_event.set()
-            self.send_response(200); self.end_headers()
+            now = time.time()
+            if u.path == "/open":
+                tab_id = qs.get("id", [""])[0]
+                if tab_id:
+                    open_tabs.add(tab_id)
+                    # Si estaba pendiente de cierre, cancelar
+                    if tab_id in pending_close:
+                        del pending_close[tab_id]
+                        LOGGER.info(f"/open cancela pending_close: {tab_id}")
+                    LOGGER.info(f"/open recibido: {tab_id}. Pestañas abiertas: {len(open_tabs)}")
+                self.send_response(200); self.end_headers(); return
+            elif u.path == "/close":
+                tab_id = qs.get("id", [""])[0]
+                if tab_id and tab_id in open_tabs:
+                    # No eliminar inmediatamente, marcar como pendiente
+                    pending_close[tab_id] = now + PENDING_CLOSE_GRACE
+                    LOGGER.info(f"/close recibido: {tab_id}. Marcado como pending_close hasta {pending_close[tab_id]:.1f}")
+                else:
+                    LOGGER.info(f"/close recibido para id desconocido: {tab_id}")
+                last_close_ts[0] = now + CLOSE_DEBOUNCE
+                self.send_response(200); self.end_headers(); return
+            elif u.path == "/shutdown":
+                shutdown_event.set()
+                LOGGER.info("/shutdown recibido")
+                self.send_response(200); self.end_headers(); return
+            else:
+                self.send_response(404); self.end_headers(); return
 
         def log_message(self, *args):  # silenciar logs del HTTPServer
             pass
 
+    def cleanup_pending():
+        while True:
+            now = time.time()
+            to_remove = [tid for tid, ts in pending_close.items() if ts <= now]
+            for tid in to_remove:
+                if tid in open_tabs:
+                    open_tabs.remove(tid)
+                    LOGGER.info(f"pending_close ejecutado: {tid}. Pestañas abiertas: {len(open_tabs)}")
+                del pending_close[tid]
+            time.sleep(2)
+
     httpd = HTTPServer(("127.0.0.1", port), Handler)
+    httpd.open_tabs = open_tabs
+    httpd.last_close_ts = last_close_ts
+    httpd.CLOSE_DEBOUNCE = CLOSE_DEBOUNCE
     t = threading.Thread(target=httpd.serve_forever, daemon=True)
     t.start()
+    t2 = threading.Thread(target=cleanup_pending, daemon=True)
+    t2.start()
     return httpd
 import ctypes
 import json
@@ -688,7 +738,7 @@ def start_processes(api_enabled: bool = True, api_disabled_reason: str | None = 
             write_api_status(False, api_url, reason=reason)
             LOGGER.warning(reason)
 
-        GRACE_STARTUP = 10
+        GRACE_STARTUP = 20
         IDLE_TIMEOUT = 20 * 60  # 20 minutos de inactividad (fallback)
         CHECK_INTERVAL = 1  # Verificar cada 1 segundo
         MAX_RUNTIME = 8 * 60 * 60  # 8 horas máximo de ejecución total
@@ -708,6 +758,7 @@ def start_processes(api_enabled: bool = True, api_disabled_reason: str | None = 
         LOGGER.info("=" * 60)
 
         while True:
+
             # 1. Shutdown explícito desde el navegador
             if shutdown_event.is_set():
                 LOGGER.info("Shutdown recibido desde el navegador, cerrando aplicación.")
@@ -743,21 +794,15 @@ def start_processes(api_enabled: bool = True, api_disabled_reason: str | None = 
                 time.sleep(CHECK_INTERVAL)
                 continue
 
-            # 6. Fallback: cerrar por inactividad prolongada (por si el navegador crashea)
-            active = has_active_streamlit_client(app_port)
-            if active:
-                last_seen_client = now
-                elapsed_since_start_mod = int(elapsed) % 30
-                if elapsed_since_start_mod == 0:
-                    LOGGER.info("Aplicación activa, navegador conectado.")
-            else:
-                idle_time = now - last_seen_client
-                if idle_time < IDLE_TIMEOUT:
-                    LOGGER.debug("Sin clientes: %.1fs (límite: %ds)", idle_time, IDLE_TIMEOUT)
-                else:
-                    LOGGER.info("Sin clientes TCP durante %.1fs, cerrando aplicación (fallback).", idle_time)
-                    break
 
+            # 6. Nunca cerrar por pestañas abiertas/cerradas
+            open_tabs = getattr(control_httpd, "open_tabs", set())
+            LOGGER.debug(f"Pestañas registradas vía /open: {len(open_tabs)}. Los procesos seguirán vivos.")
+            last_seen_client = now
+            time.sleep(CHECK_INTERVAL)
+            continue
+
+            # 7. Eliminar timeout por inactividad TCP: solo cerrar si no hay pestañas abiertas
             time.sleep(CHECK_INTERVAL)
 
 

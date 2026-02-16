@@ -204,44 +204,57 @@ def inject_js_ping(interval_ms: int = 8000) -> None:
     )
 
 
-def inject_js_shutdown():
-        """Inyecta JavaScript para enviar señal de apagado al launcher al cerrar la ventana/pestaña."""
-        control_port = os.getenv("CONTROL_PORT")
-        shutdown_token = os.getenv("SHUTDOWN_TOKEN")
-        if not control_port or not shutdown_token:
-                return
-        shutdown_url = f"http://127.0.0.1:{control_port}/shutdown?token={shutdown_token}"
-        components.html(f"""
-<script>
-(function() {{
-    const url = "{shutdown_url}";
-    function sendShutdown() {{
-        try {{
-            if (navigator.sendBeacon) {{
-                navigator.sendBeacon(url, "");
-                return;
-            }}
-        }} catch (e) {{}}
-        try {{
-            fetch(url, {{ method: 'POST', mode: 'no-cors', keepalive: true }}).catch(() => {{}});
-        }} catch (e) {{}}
-    }}
-    window.addEventListener("beforeunload", sendShutdown);
-}})();
-</script>
-""", height=0)
 
 
 def main():
 
     # ==================== CONFIGURACIÓN ====================
+    # --- Notificación de pestaña abierta/cerrada al launcher (persistente por pestaña) ---
+    import uuid
+    control_port = os.getenv("CONTROL_PORT")
+    shutdown_token = os.getenv("SHUTDOWN_TOKEN")
+    if control_port and shutdown_token:
+        js = f"""
+        <script>
+        (function() {{
+            // Usa localStorage para persistir un id de pestaña único
+            let tabId = localStorage.getItem('movilidad_tab_id');
+            if (!tabId) {{
+                // Generar un UUID v4 en JS puro (no depende de Python)
+                tabId = ([1e7]+-1e3+-4e3+-8e3+-1e11).replace(/[018]/g, c =>
+                    (c ^ crypto.getRandomValues(new Uint8Array(1))[0] & 15 >> c / 4).toString(16)
+                );
+                localStorage.setItem('movilidad_tab_id', tabId);
+                console.log("Nuevo tabId generado:", tabId);
+            }} else {{
+                console.log("tabId persistente:", tabId);
+            }}
+            window.__movilidad_tab_id = tabId;
+            const token = '{shutdown_token}';
+            const urlOpen = 'http://127.0.0.1:{control_port}/open?id=' + tabId + '&token=' + token;
+            const urlClose = 'http://127.0.0.1:{control_port}/close?id=' + tabId + '&token=' + token;
+            // Notificar apertura (en cada recarga)
+            fetch(urlOpen, {{method: 'POST'}}).then(() => {{
+                console.log("/open enviado:", urlOpen);
+            }}).catch((e) => {{
+                console.error("/open error:", e);
+            }});
+            // Notificar cierre solo al cerrar la pestaña
+            window.addEventListener('beforeunload', function() {{
+                navigator.sendBeacon(urlClose);
+                console.log("/close enviado:", urlClose);
+            }});
+        }})();
+        </script>
+        """
+        import streamlit as st
+        st.markdown(js, unsafe_allow_html=True)
     st.set_page_config(
         page_title="Movilidad ESII",
         layout="wide",
         initial_sidebar_state="expanded"
     )
     inject_js_ping(8000)
-    inject_js_shutdown()
     
     init_session_defaults()
     
@@ -272,19 +285,34 @@ def main():
     handle_open_pdf_query()
     handle_open_excel_query()
     
+
     st.title("Visualizador de Movilidad ESII")
-    
+
+    # Botón de cierre manual
+    if control_port and shutdown_token:
+        if st.button("Cerrar aplicación", key="shutdown_btn"):
+            shutdown_url = f"http://127.0.0.1:{control_port}/shutdown?token={shutdown_token}"
+            try:
+                import requests
+                resp = requests.post(shutdown_url)
+                if resp.status_code == 200:
+                    st.success("La aplicación se ha cerrado correctamente.")
+                else:
+                    st.error(f"Error al cerrar: {resp.status_code}")
+            except Exception as e:
+                st.error(f"Error al cerrar: {e}")
+
     # Verificar si tenemos datos
     has_data = check_dataframes_have_data(dfs)
     st.session_state["has_data"] = has_data
-    
+
     if has_data:
         materias = _load_materias_with_cache(config, cfg_mtimes)
     else:
         materias = {}
         st.info("No hay datos disponibles para mostrar. Por favor, revisa la configuración o selecciona otra hoja.")
         return
-    
+
     # Renderizar la vista apropiada
     _render_view(dfs, base_map, materias, config)
 
