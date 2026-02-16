@@ -19,6 +19,7 @@ ArchitecturesAllowed=x64
 ArchitecturesInstallIn64BitMode=x64
 SetupLogging=yes
 SetupIconFile=install_root\MovilidadESII.ico
+DisableDirPage=yes
 
 [Dirs]
 Name: "{app}\logs"
