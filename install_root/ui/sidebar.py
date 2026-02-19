@@ -184,7 +184,9 @@ def route_editor(config: dict) -> None:
         ("Materias IN", "📑 Materias IN"),
     ]
 
-    new_config = config.copy()
+
+    # Inicializar new_config con los valores actuales de todos los campos
+    new_config = {}
     for key, label in entries:
         col_text, col_btn = st.sidebar.columns([8, 2])
 
@@ -218,10 +220,12 @@ def route_editor(config: dict) -> None:
                 st.session_state[buf_key] = path
                 st.rerun()
 
-
-        # 5) Al construir la nueva config, conservar lo previo si el input está vacío
-        val = st.session_state.get(text_key, "")
-        new_config[key] = val if val.strip() != "" else config.get(key, "")
+        # 5) Al construir la nueva config, usar el valor del input si existe, si no, el valor previo
+        val = st.session_state.get(text_key, None)
+        if val is not None and val.strip() != "":
+            new_config[key] = val
+        else:
+            new_config[key] = config.get(key, "")
 
 
     col1, col2 = st.sidebar.columns(2)
