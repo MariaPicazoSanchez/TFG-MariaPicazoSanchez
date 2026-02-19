@@ -88,7 +88,7 @@ def render_map(m: folium.Map):
     </script>
     """))
 
-    st_folium(m, height=650, use_container_width=True, key="main_map")
+    st_folium(m, height=900, use_container_width=True, key="main_map")
 
 def show_map(dfs: dict, base_map, materias_in_por_estudiante=None, filtros_activos=None, only_no_la=False, auto_zoom_bounds=None):
     """
@@ -688,4 +688,4 @@ def show_map(dfs: dict, base_map, materias_in_por_estudiante=None, filtros_activ
     # Guardamos el HTML completo del mapa para poder descargarlo luego
     st.session_state["last_map_html"] = html_map
 
-    st.components.v1.html(html_map, height=750, scrolling=True)
+    st.components.v1.html(html_map, height=1080, scrolling=True)

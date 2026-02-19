@@ -130,51 +130,52 @@ def add_program_legend(
     legend_inner_html_js = json.dumps(legend_inner_html)
 
     # --- 4. CSS + definición de window.__PROGRAM_LEGEND_HTML__ ---
-    legend_html = f"""
-    <style>
-    .map-legend {{
-        position: absolute;
-        bottom: 18px;
-        right: 18px;
-        z-index: 9999;
-        background: rgba(255, 255, 255, 0.85); /* fondo blanco semitransparente */
-        padding: 10px 14px;
-        border-radius: 8px;
-        box-shadow: 0 2px 6px rgba(0,0,0,0.25);
-        font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-        font-size: 12px;
-        color: #222;
-    }}
-    .map-legend-title {{
-        margin: 0 0 6px 0;
-        font-size: 13px;
-        font-weight: 600;
-    }}
-    .map-legend-row {{
-        display: flex;
-        align-items: center;
-        gap: 6px;
-        margin-bottom: 4px;
-    }}
-    .map-legend-row:last-child {{
-        margin-bottom: 0;
-    }}
-    .map-legend-color {{
-        width: 14px;
-        height: 14px;
-        border-radius: 3px;
-        border: 1px solid rgba(0,0,0,0.4);
-        opacity: 0.75;   /* colores más suaves que el original del mapa */
-    }}
-    </style>
-
-    <script>
-    (function () {{
-        // HTML completo de la leyenda que usará html2canvas en el clon
-        window.__PROGRAM_LEGEND_HTML__ = {legend_inner_html_js};
-    }})();
-    </script>
-    """
+    legend_html = (
+        '<style>'
+        '.map-legend {'
+        '    position: absolute;'
+        '    bottom: 18px;'
+        '    right: 18px;'
+        '    z-index: 9999;'
+        '    background: rgba(255, 255, 255, 0.85); /* fondo blanco semitransparente */'
+        '    padding: 10px 14px;'
+        '    border-radius: 8px;'
+        '    /* box-shadow eliminado para evitar sombra sin leyenda */'
+        '    font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;'
+        '    font-size: 12px;'
+        '    color: #222;'
+        '}'
+        '.map-legend-title {'
+        '    margin: 0 0 6px 0;'
+        '    font-size: 13px;'
+        '    font-weight: 600;'
+        '}'
+        '.map-legend-row {'
+        '    display: flex;'
+        '    align-items: center;'
+        '    gap: 6px;'
+        '    margin-bottom: 4px;'
+        '}'
+        '.map-legend-row:last-child {'
+        '    margin-bottom: 0;'
+        '}'
+        '.map-legend-color {'
+        '    width: 14px;'
+        '    height: 14px;'
+        '    border-radius: 3px;'
+        '    border: 1px solid rgba(0,0,0,0.4);'
+        '    opacity: 0.75;   /* colores más suaves que el original del mapa */'
+        '}'
+        '</style>'
+        f"""
+        <script>
+        (function () {{
+            // HTML completo de la leyenda que usará html2canvas en el clon
+            window.__PROGRAM_LEGEND_HTML__ = {legend_inner_html_js};
+        }})();
+        </script>
+        """
+    )
 
     m.get_root().html.add_child(folium.Element(legend_html))
 

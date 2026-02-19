@@ -11,10 +11,10 @@ DefaultDirName={localappdata}\{#AppName}
 DefaultGroupName={#AppName}
 DisableProgramGroupPage=yes
 OutputDir=output
-OutputBaseFilename=MovilidadESII_Installer_ConData
+OutputBaseFilename=MovilidadESII_Installer_SinData
 Compression=lzma
 SolidCompression=yes
-PrivilegesRequired=lowest
+PrivilegesRequired=admin
 ArchitecturesAllowed=x64
 ArchitecturesInstallIn64BitMode=x64
 SetupLogging=yes
@@ -25,23 +25,20 @@ DisableDirPage=yes
 Name: "{app}\logs"
 Name: "{app}\app"
 Name: "{app}\runtime\python"
-Name: "{app}\data"
 
 [Files]
-; Ejecutable compilado con PyInstaller (incluye todas sus dependencias)
-Source: "dist\MovilidadESII\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs; Excludes: "thirdparty\*;data_demo\*;wheelhouse\*"
 
-; Copia todo install_root EXCEPTO thirdparty, data_demo, wheelhouse (que van a subcarpetas)
-Source: "install_root\*"; DestDir: "{app}\app"; Flags: ignoreversion recursesubdirs createallsubdirs; Excludes: "thirdparty\*;data_demo\*;wheelhouse\*;requirements.*.txt;__pycache__\*;_internal\*"
+; Ejecutable compilado con PyInstaller (incluye todas sus dependencias)
+Source: "dist\MovilidadESII\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs; Excludes: "thirdparty\*;wheelhouse\*"
+
+; Copia todo install_root EXCEPTO thirdparty y wheelhouse (que van a subcarpetas)
+Source: "install_root\*"; DestDir: "{app}\app"; Flags: ignoreversion recursesubdirs createallsubdirs; Excludes: "thirdparty\*;wheelhouse\*;requirements.*.txt;__pycache__\*;_internal\*"
 
 ; Python embebido (zip) al temp
 Source: "install_root\thirdparty\{#PyEmbedZip}"; DestDir: "{tmp}"; Flags: deleteafterinstall
 
 ; Icono
 Source: "install_root\MovilidadESII.ico"; DestDir: "{app}"; Flags: ignoreversion
-
-; data_demo a app/data/ (solo archivos, sin carpeta data_demo)
-Source: "install_root\data_demo\*.xlsx"; DestDir: "{app}\data"; Flags: ignoreversion
 
 ; wheelhouse + requirements a app/runtime/
 Source: "install_root\wheelhouse\*"; DestDir: "{app}\runtime\wheelhouse"; Flags: ignoreversion recursesubdirs createallsubdirs
@@ -78,26 +75,6 @@ end;
 function WheelhouseDir(): string;
 begin
   Result := AppDataBase() + '\runtime\wheelhouse';
-end;
-
-function DataDir(): string;
-begin
-  Result := AppDataBase() + '\data';
-end;
-
-function BaseConfigPath(): string;
-begin
-  Result := AppDataBase() + '\config.json';
-end;
-
-function AppConfigPath(): string;
-begin
-  Result := AppDataBase() + '\app\config.json';
-end;
-
-function DemoConfigPath(): string;
-begin
-  Result := AppDataBase() + '\app\config.demo.json';
 end;
 
 function PyExe(): string;
@@ -158,34 +135,6 @@ begin
   TracePath := AppDataBase() + '\logs\setup_trace.log';
   PipLogPath := AppDataBase() + '\logs\pip_install.log';
   BasePythonExe := '';
-end;
-
-procedure EnsureBaseConfig();
-var
-  ConfigContent: string;
-  DataPath: string;
-begin
-  if FileExists(BaseConfigPath()) then
-  begin
-    LogLine('config.json ya existe en base');
-    exit;
-  end;
-
-  DataPath := AppDataBase() + '\data';
-  { Reemplazar \ por \\ para JSON válido }
-  StringChangeEx(DataPath, '\', '\\', True);
-  
-  ConfigContent := '{' + #13#10 +
-    '    "SICUE OUT": "' + DataPath + '\\SICUE OUT.xlsx",' + #13#10 +
-    '    "Erasmus IN": "' + DataPath + '\\ERASMUS IN.xlsx",' + #13#10 +
-    '    "Erasmus OUT": "' + DataPath + '\\ERASMUS OUT.xlsx",' + #13#10 +
-    '    "Materias IN": "' + DataPath + '\\Cuentas por Asignatura.xlsx"' + #13#10 +
-    '}';
-
-  if SaveStringToFile(BaseConfigPath(), ConfigContent, False) then
-    LogLine('config.json creado con rutas absolutas')
-  else
-    LogLine('No se pudo crear config.json');
 end;
 
 procedure InstallPythonIfMissing();
@@ -356,13 +305,11 @@ procedure CleanupInstallArtifacts();
 var
   Wheelhouse: string;
   Req: string;
-  AppDataDemo: string;
   AppThirdParty: string;
   AppWheelhouse: string;
 begin
   Wheelhouse := WheelhouseDir();
   Req := AppDataBase() + '\runtime\requirements.txt';
-  AppDataDemo := AppDataBase() + '\app\data_demo';
   AppThirdParty := AppDataBase() + '\app\thirdparty';
   AppWheelhouse := AppDataBase() + '\app\wheelhouse';
 
@@ -378,11 +325,6 @@ begin
     LogLine('Limpieza: requirements.txt eliminado');
   end;
 
-  if DirExists(AppDataDemo) then
-  begin
-    DelTree(AppDataDemo, True, True, True);
-    LogLine('Limpieza: app\\data_demo eliminado');
-  end;
 
   if DirExists(AppThirdParty) then
   begin
@@ -406,8 +348,6 @@ begin
     WizardForm.StatusLabel.Update;
     EnsureLogs();
     LogLine('POSTINSTALL start');
-
-    EnsureBaseConfig();
 
     InstallPythonIfMissing();
     LogLine('Python base seleccionado: ' + BasePythonExe);

@@ -22,6 +22,10 @@ def filter_students_with_coords(df: pd.DataFrame, tipo: str) -> pd.DataFrame:
     if not mask_coords.all():
         for idx, row in df[~mask_coords].iterrows():
             nombre = row.get("estudiante", "(sin nombre)")
+            # No mostrar aviso si el nombre es NaN, vacío, igual a 'nan' o '0'
+            nombre_str = str(nombre).strip().lower()
+            if pd.isna(nombre) or nombre_str == "" or nombre_str == "nan" or nombre_str == "0":
+                continue
             st.warning(f"El alumno '{nombre}' de {tipo} no tiene coordenadas y no se mostrará en el mapa.")
     df = df[mask_coords].copy()
     return df

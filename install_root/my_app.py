@@ -286,8 +286,7 @@ def main():
     handle_open_excel_query()
     
 
-    st.title("Visualizador de Movilidad ESII")
-
+    st.title("Visualización de Movilidad ESII")
     # Botón de cierre manual
     if control_port and shutdown_token:
         if st.button("Cerrar aplicación", key="shutdown_btn"):

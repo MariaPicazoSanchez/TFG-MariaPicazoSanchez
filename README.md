@@ -78,8 +78,15 @@ Y luego la aplicación:
 python -m streamlit run my_app.py
 ```
 Compilar el sistema
+
+### Compilar versión CON datos demo
 ```bash
 py -3.12 -m PyInstaller --onedir --noconsole --clean --noconfirm --icon=./install_root/MovilidadESII.ico --name MovilidadESII launcher_system.py
+```
+
+### Compilar versión SIN datos demo
+```bash
+py -3.12 -m PyInstaller --onedir --noconsole --clean --noconfirm --icon=./install_root/MovilidadESII.ico --name MovilidadESII launcher_system_sindata.py
 ```
 
 ---
