@@ -249,6 +249,7 @@ def main():
         """
         import streamlit as st
         st.markdown(js, unsafe_allow_html=True)
+    import streamlit as st
     st.set_page_config(
         page_title="Movilidad ESII",
         layout="wide",
