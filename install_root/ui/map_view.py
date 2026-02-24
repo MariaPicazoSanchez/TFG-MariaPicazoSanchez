@@ -98,22 +98,20 @@ def show_map(dfs: dict, base_map, materias_in_por_estudiante=None, filtros_activ
     """
     import folium
     import pandas as pd
+    import streamlit as st
 
     if materias_in_por_estudiante is None:
         materias_in_por_estudiante = {}
+
+    # Selector de tipo de mapa base
+    selected_tile = "CartoDB Voyager"
 
     # 1) Mapa base
     if hasattr(base_map, "add_child"):
         m = base_map
     else:
-        tile_map = {
-            "CartoDB.Positron": "CartoDB positron",
-            "CartoDB.PositronNoLabels": "CartoDB positron",
-        }
-        tiles = base_map if isinstance(base_map, str) else "CartoDB positron"
-        tiles = tile_map.get(tiles, tiles)
         try:
-            m = folium.Map(location=(40.4168, -3.7038), zoom_start=4, tiles=tiles)
+            m = folium.Map(location=(40.4168, -3.7038), zoom_start=4, tiles=selected_tile)
         except Exception:
             m = folium.Map(location=(40.4168, -3.7038), zoom_start=4, tiles="OpenStreetMap")
 
@@ -138,13 +136,16 @@ def show_map(dfs: dict, base_map, materias_in_por_estudiante=None, filtros_activ
                 return str
                     .replace(/&/g, "&amp;")
                     .replace(/</g, "&lt;")
-                    .replace(/>/g, "&gt;")
-                    .replace(/"/g, "&quot;")
-                    .replace(/'/g, "&#39;");
-                }
-                function refreshMateriasView() {
-                    var blocks = document.querySelectorAll(".materias-block");
-                    for (var b = 0; b < blocks.length; b++) {
+            tile_options = {
+                "Político (CartoDB Voyager)": "CartoDB Voyager",
+            }
+            default_tile = "Político (CartoDB Voyager)"
+            selected_tile_label = st.sidebar.selectbox(
+                "Tipo de mapa base:",
+                list(tile_options.keys()),
+                index=0
+            )
+            selected_tile = tile_options[selected_tile_label]
                         var block = blocks[b];
 
                         // Leemos las materias actuales de la parte editable
