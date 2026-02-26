@@ -51,7 +51,6 @@ def render_filters_map(unique_sheets: list[str]) -> str:
     """
     Pinta los filtros de la barra lateral.
     - unique_sheets: lista de hojas disponibles (cursos)
-    Devuelve el tipo de mapa base (por compatibilidad con tu sidebar_controls).
     """
     # --- ESTADO DE PROGRAMAS SELECCIONADOS ---
     if "selected_programs" not in st.session_state:

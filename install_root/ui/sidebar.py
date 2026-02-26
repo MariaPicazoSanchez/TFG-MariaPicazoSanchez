@@ -181,7 +181,7 @@ def route_editor(config: dict) -> None:
         (PROGRAM_SICUE_OUT, "📘 SICUE OUT"),
         (PROGRAM_ERASMUS_IN, "🌍 Erasmus IN"),
         (PROGRAM_ERASMUS_OUT, "✈️ Erasmus OUT"),
-        ("Materias IN", "📑 Materias IN"),
+        ("Materias IN", "📑 Asignaturas - Erasmus IN"),
     ]
 
 
@@ -287,9 +287,9 @@ def sidebar_controls() -> tuple[str | None, st.delta_generator.DeltaGenerator | 
         from domain import render_filters_stats
         render_filters_stats(available_courses)
     else:
-        # ========
+        # ==========
         #  FILTROS
-        # ========
+        # ==========
         st.sidebar.markdown(
             "<p style='font-size: 0.9rem; color: #6c757d;'>"
             "Utiliza los filtros para buscar estudiantes específicos en el mapa."

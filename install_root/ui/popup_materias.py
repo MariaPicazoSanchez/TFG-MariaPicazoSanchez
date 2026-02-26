@@ -27,6 +27,7 @@ def build_materias_blocks(e, programa: str, row_index_attr: str, idx_attr: str):
     lines = []   # "Asignatura | Cuat | x"
     materias_items = []  # filas <li> editables
 
+    import pandas as pd
     for j, m in enumerate(materias):
       if not isinstance(m, dict):
         continue
@@ -35,19 +36,18 @@ def build_materias_blocks(e, programa: str, row_index_attr: str, idx_attr: str):
       if not asig:
         continue
 
-      cuat = _clean(m.get("cuat") or m.get("cuatrimestre"))
+      # Mostrar el valor tal cual esté, sin filtrar ni comprobar NA
+      cuat_val = m.get("cuat")
+      if cuat_val is None:
+        cuat_val = m.get("cuatrimestre")
+      cuat = _clean(cuat_val)
 
       firmado_raw = str(m.get("firmado", "")).strip().lower()
       firmado_flag = "x" if firmado_raw in ("x", "1", "s", "si", "sí", "true", "t") else ""
 
-      trozos = [asig]
-      if cuat:
-        trozos.append(f"Cuatri: {cuat}")
-      trozos.append("Firmado" if firmado_flag == "x" else "No firmado")
-      display_txt = " · ".join(trozos)
 
-      pills.append(f"<li class='mitem'>{html.escape(display_txt)}</li>")
-      lines.append(f"{asig} | {cuat} | {firmado_flag}")
+      pills.append(f"<li class='mitem'>{html.escape(asig)}</li>")
+      lines.append(f"{asig}")
 
       mid = f"{row_index_attr}-{idx_attr}-mat-{j}"
       mindex = len(materias_items)
@@ -61,9 +61,7 @@ def build_materias_blocks(e, programa: str, row_index_attr: str, idx_attr: str):
         <li class="{clase}"
           data-mindex="{mindex}"
           data-nombre="{html.escape(asig, quote=True)}"
-          data-cuat="{html.escape(cuat or '', quote=True)}"
-          data-firmado="{html.escape(firmado_flag, quote=True)}">
-          <span class="materia-name">{html.escape(display_txt)}</span>
+          <span class="materia-name">{html.escape(asig)}</span>
           <span class="materia-actions">
             <button type="button" class="icon-btn materia-edit" title="Editar" data-mid="{mid}">✏️</button>
             <button type="button" class="icon-btn materia-delete" title="Eliminar" data-mid="{mid}">🗑️</button>
@@ -76,9 +74,9 @@ def build_materias_blocks(e, programa: str, row_index_attr: str, idx_attr: str):
     # ---- 2) Bloque de VISTA ----
     if pills:
         materias_view_html = (
-            "<details class='mat' role='group'>"
-            f"<summary>📚 Materias ({len(pills)})</summary>"
-            "<ul class='mlist'>" + "".join(pills) + "</ul></details>"
+          "<details class='mat' role='group'>"
+          f"<summary>📚 Materias ({len(pills)})</summary>"
+          "<ul class='mlist'>" + "".join(pills) + "<li style='height:0.5rem;'></li></ul></details>"
         )
     else:
         materias_view_html = "<div class='no-mat'>Sin asignaturas asignadas</div>"
@@ -93,6 +91,7 @@ def build_materias_blocks(e, programa: str, row_index_attr: str, idx_attr: str):
 
         <ul class="materias-list">
           {materias_items_html}
+          <li style="height:0.5rem;"></li>
           <li class="materia-row add-row">
             <button type="button" class="icon-btn materia-add"> Añadir asignatura</button>
           </li>
@@ -105,26 +104,14 @@ def build_materias_blocks(e, programa: str, row_index_attr: str, idx_attr: str):
           </div>
 
           <div class="materia-editor-row">
-            <div class="field">
-              <label>Cuatrimestre</label>
-              <select name="mat_cuat" class="slim-select">
-                <option value="">-</option>
-                <option value="1">1</option>
-                <option value="2">2</option>
-              </select>
-            </div>
-
-            <div class="field field-firmado">
-              <label class="firmado-toggle">
-                <input type="checkbox" name="mat_firmado">
-                <span class="firmado-pill">Firmado</span>
-              </label>
-            </div>
+            <!-- Campos cuatrimestre y firmado eliminados para nuevas asignaturas -->
           </div>
 
-          <div class="field acciones-materia">
-            <button type="button" class="materia-save">Guardar</button>
-            <button type="button" class="materia-cancel">Cancelar</button>
+          <div class="field acciones-materia" style="display:flex; justify-content:space-between; align-items:center; gap:1rem;">
+            <div style="display:flex; flex-direction:row; gap:1rem; width:100%; justify-content:space-between; align-items:center;">
+              <button type="button" class="materia-cancel" style="flex:1 1 0;">Cancelar</button>
+              <button type="button" class="materia-save" style="flex:1 1 0;">Guardar</button>
+            </div>
           </div>
         </div>
         <!-- Representación “raw” en texto, para enviar en el form -->

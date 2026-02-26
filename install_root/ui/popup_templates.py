@@ -55,7 +55,21 @@ def generate_dynamic_popup(row, programa: str, row_index: int) -> str:
     excel_path = config.get(programa)
     materias_excel_path = config.get(f"{programa}_MATERIAS")
 
+    import pandas as pd
     estudiantes = _normalize_estudiantes(row.get("estudiantes", []))
+    # Filtrar estudiantes con nombre NA, nan, null, 0 o vacío
+    estudiantes_filtrados = []
+    for e in estudiantes:
+      nombre = str(e.get("estudiante", "")).strip().lower()
+      val = e.get("estudiante")
+      try:
+        is_na = pd.isna(val)
+      except Exception:
+        is_na = False
+      if is_na or nombre in ("", "nan", "0") or val is None:
+        continue
+      estudiantes_filtrados.append(e)
+    estudiantes = estudiantes_filtrados
     n = len(estudiantes)
 
     # Subtítulo: Programa · País (para todos los tipos de movilidad)
@@ -275,24 +289,36 @@ def generate_dynamic_popup(row, programa: str, row_index: int) -> str:
 
             # Erasmus IN: nombre, email, cuatrimestre, LA, origen, país, ciudad
             elif "ERASMUS IN" == prog_upper:
-                grid_fields += [cuatri_field, la_field, origen_field, pais_field, ciudad_field]
+              grid_fields = [nombre_field]
+              grid_fields += [cuatri_field, la_field, origen_field, pais_field]
+              materias = e.get("materias_in") if isinstance(e, dict) else []
+              firmado_val = ""
+              firmado_label = "No firmado"
+              firmado_color = "#e0e0e0"
+              if materias and isinstance(materias, list):
+                firmado_raw = str(materias[0].get("firmado", "")).strip().lower()
+                firmado_val = "x" if firmado_raw in ("x", "1", "s", "si", "sí", "true", "t") else ""
+                if firmado_val == "x":
+                  firmado_label = "Firmado"
+                  firmado_color = "#4caf50"
+              firmado_field = f'''
+                              <div class="field">
+                                <label>Firmado</label>
+                                <button type="button" class="toggle-btn{' active' if firmado_val == 'x' else ''}"
+                                  style="width:100%;height:2.5rem;font-size:1.25rem;font-weight:500;border-radius:8px;border:1px solid #ddd;background:{firmado_color};color:{'#fff' if firmado_val == 'x' else '#333'};transition:background 0.2s;display:flex;align-items:center;justify-content:center;gap:0.5rem;flex:1;min-width:0;"
+                                  onclick="this.classList.toggle('active'); this.style.background = this.classList.contains('active') ? '#4caf50' : '#e0e0e0'; this.style.color = this.classList.contains('active') ? '#fff' : '#333'; this.querySelector('span').textContent = this.classList.contains('active') ? 'Firmado' : 'No firmado';">
+                                  <span>{firmado_label}</span>
+                                </button>
+                              </div>'''
+              grid_fields += [firmado_field]
 
-            # Cualquier otro (fallback): todo
-            else:
-                grid_fields += [
-                    curso_field, cuatri_field, dur_field,
-                    gest_field, coord_field,
-                    la_field, tor_field, acta_field, plan_field,
-                    ciudad_field
-                ]
 
-            # === BLOQUES DE VISTA SEGÚN TIPO DE PROGRAMA ===
-            view_small = []
-            view_extras = []
+              # === BLOQUES DE VISTA SEGÚN TIPO DE PROGRAMA ===
+              view_small = []
+              view_extras = []
 
-            view_small.append(_view_line("Email", email_val))
-
-            if "SICUE" in prog_upper:
+              if "SICUE" in prog_upper:
+                view_small.append(_view_line("Email", email_val))
                 view_small.append(_view_line("Duración (meses)", dur_val))
                 view_small.append(_view_line("Destino", destino_val))
                 view_small.append(_view_line("Ciudad", ciudad_val))
@@ -301,7 +327,8 @@ def generate_dynamic_popup(row, programa: str, row_index: int) -> str:
                 view_small.append(_view_link("Learning Agreement", la_val, open_in_system=True))
                 view_small.append(_view_link("Propuesta Alumno LA", plan_val, open_in_system=True))
 
-            elif "ERASMUS OUT" == prog_upper:
+              elif "ERASMUS OUT" == prog_upper:
+                view_small.append(_view_line("Email", email_val))
                 view_small.append(_view_line("Curso", curso_val))
                 view_small.append(_view_line("Duración (meses)", dur_val))
                 view_small.append(_view_line("Ciudad", ciudad_val))
@@ -312,16 +339,24 @@ def generate_dynamic_popup(row, programa: str, row_index: int) -> str:
                 view_small.append(_view_link("ToR", tor_val, open_in_system=True))
                 view_small.append(_view_line("Responsable", responsable_val))
 
-            elif "ERASMUS IN" == prog_upper:
+              elif "ERASMUS IN" == prog_upper:
                 view_small.append(_view_line("Cuatrimestre", cuatri_val))
                 view_small.append(_view_line("Origen", origen_val))
                 view_small.append(_view_line("País", pais_val))
-                view_small.append(_view_line("Ciudad", ciudad_val))
-                view_small.append(_view_link("Learning Agreement", la_val, open_in_system=True))
+                # Mostrar enlace de LA y estado de firmado
+                firmado_status = "No firmado"
+                if has_materias and isinstance(materias, list) and materias:
+                  firmado_raw = str(materias[0].get("firmado", "")).strip().lower()
+                  if firmado_raw in ("x", "1", "s", "si", "sí", "true", "t"):
+                    firmado_status = "Firmado"
+                la_html = _view_link("Learning Agreement", la_val, open_in_system=True)
+                firmado_html = f'<span style="margin-left:0.5em;font-weight:600;">· {firmado_status}</span>'
+                view_small.append(f'<span style="display:inline-flex;align-items:center;gap:0.5em;">{la_html}{firmado_html}</span>')
                 if has_materias and materias_view_html:
-                    view_extras.append(materias_view_html)
+                  view_extras.append(materias_view_html)
 
-            else:
+              else:
+                view_small.append(_view_line("Email", email_val))
                 view_small.append(_view_line("Curso", curso_val))
                 view_small.append(_view_line("Cuatrimestre", cuatri_val))
                 view_small.append(_view_line("Duración (meses)", dur_val))
@@ -336,85 +371,85 @@ def generate_dynamic_popup(row, programa: str, row_index: int) -> str:
                 if has_materias and materias_view_html:
                     view_extras.append(materias_view_html)
 
-            view_small_html = "".join(view_small)
-            view_extras_html = "".join(view_extras)
-            edit_fields_html = "\n".join(grid_fields)
+              view_small_html = "".join(view_small)
+              view_extras_html = "".join(view_extras)
+              edit_fields_html = "\n".join(grid_fields)
 
-            items_html.append(f"""
-            <li class="pitem">
-              <details class="pdetails">
-                <summary>
-                  <div class="summary-row">
-                    <div class="avatar">{html.escape((nombre_raw or ' ').strip()[:1].upper())}</div>
-                    <div class="meta">
-                      <div class="pname">{nombre}</div>
-                    </div>
-                  </div>
-                </summary>
-
-                <div class="pcontent">
-                  <input type="checkbox" id="{toggle_id}" class="edit-toggle">
-
-                  <div class="block view-block">
-                    <div class="small">
-                      {view_small_html}
-                    </div>
-                    <div class="extras">
-                      {view_extras_html}
-                    </div>
-                    <div class="view-actions">
-                      <label for="{toggle_id}" class="btn-icon edit-btn" title="Editar">
-                        ✏️ <span>Editar</span>
-                      </label>
-                    </div>
-                  </div>
-
-                  <div class="block edit-block">
-                    <form
-                      id="edit-form-{row_index_attr}-{idx_attr}"
-                      class="edit-form"
-                      action="{FORM_ACTION}"
-                      method="POST"
-                      target="opener"
-                    >
-                      <!-- identificadores -->
-                      <iframe name="opener" style="display:none;width:0;height:0;border:0;"></iframe>
-                      <input type="hidden" name="token" value="{API_TOKEN}">
-                      <input type="hidden" name="row_index" value="{row_index_attr}">
-                      <input type="hidden" name="save_student" value="1">
-                      <input type="hidden" name="programa" value="{prog_attr}">
-                      <input type="hidden" name="idx" value="{idx_attr}">
-                      <!--  mandamos también la ruta del Excel  y las materias-->
-                      <input type="hidden" name="excel_path" value="{str(excel_path or '').replace('"', '&quot;')}">
-                      <input type="hidden" name="materias_excel_path" value="{str(materias_excel_path or '').replace('"', '&quot;')}">
-                      <input type="hidden" name="old_email" value="{html.escape(str(email_val or ''), quote=True)}">
-                      <input type="hidden" name="old_nombre" value="{html.escape(str(nombre_raw or ''), quote=True)}">
-
-
-                      <div class="edit-panel-inner">
-                        <div class="form-grid">
-                          {edit_fields_html}
-                        </div>
-
-                        {materias_edit_block}
-
-                        <div class="edit-actions">
-                          <label for="{toggle_id}" class="btn-icon cancel-btn" title="Cancelar">✖</label>
-                          <button type="submit" class="btn save-btn" title="Guardar" onclick="this.textContent='⏳ Guardando...';">Guardar</button>
-                        </div>
-                        <div class="recarga-toast">
-                          ⚠️ Recarga la página para ver los cambios actualizados.
-                        </div>
-                        <div class="hint">
-                          Los cambios se guardan en el Excel de {html.escape(programa)}. 
-                        </div>
+              items_html.append(f"""
+              <li class="pitem">
+                <details class="pdetails">
+                  <summary>
+                    <div class="summary-row">
+                      <div class="avatar">{html.escape((nombre_raw or ' ').strip()[:1].upper())}</div>
+                      <div class="meta">
+                        <div class="pname">{nombre}</div>
                       </div>
-                    </form>
-                  </div> <!-- edit-block -->
-                </div> <!-- pcontent -->
-              </details>
-            </li>
-            """)
+                    </div>
+                  </summary>
+
+                  <div class="pcontent">
+                    <input type="checkbox" id="{toggle_id}" class="edit-toggle">
+
+                    <div class="block view-block">
+                      <div class="small">
+                        {view_small_html}
+                      </div>
+                      <div class="extras">
+                        {view_extras_html}
+                      </div>
+                      <div class="view-actions">
+                        <label for="{toggle_id}" class="btn-icon edit-btn" title="Editar">
+                          ✏️ <span>Editar</span>
+                        </label>
+                      </div>
+                    </div>
+
+                    <div class="block edit-block">
+                      <form
+                        id="edit-form-{row_index_attr}-{idx_attr}"
+                        class="edit-form"
+                        action="{FORM_ACTION}"
+                        method="POST"
+                        target="opener"
+                      >
+                        <!-- identificadores -->
+                        <iframe name="opener" style="display:none;width:0;height:0;border:0;"></iframe>
+                        <input type="hidden" name="token" value="{API_TOKEN}">
+                        <input type="hidden" name="row_index" value="{row_index_attr}">
+                        <input type="hidden" name="save_student" value="1">
+                        <input type="hidden" name="programa" value="{prog_attr}">
+                        <input type="hidden" name="idx" value="{idx_attr}">
+                        <!--  mandamos también la ruta del Excel  y las materias-->
+                        <input type="hidden" name="excel_path" value="{str(excel_path or '').replace('"', '&quot;')}">
+                        <input type="hidden" name="materias_excel_path" value="{str(materias_excel_path or '').replace('"', '&quot;')}">
+                        <input type="hidden" name="old_email" value="{html.escape(str(email_val or ''), quote=True)}">
+                        <input type="hidden" name="old_nombre" value="{html.escape(str(nombre_raw or ''), quote=True)}">
+
+
+                        <div class="edit-panel-inner">
+                          <div class="form-grid">
+                            {edit_fields_html}
+                          </div>
+
+                          {materias_edit_block}
+
+                          <div class="edit-actions">
+                            <label for="{toggle_id}" class="btn-icon cancel-btn" title="Cancelar">✖</label>
+                            <button type="submit" class="btn save-btn" title="Guardar" onclick="this.textContent='⏳ Guardando...';">Guardar</button>
+                          </div>
+                          <div class="recarga-toast">
+                            ⚠️ Recarga la página para ver los cambios actualizados.
+                          </div>
+                          <div class="hint">
+                            Los cambios se guardan en el Excel de {html.escape(programa)}. 
+                          </div>
+                        </div>
+                      </form>
+                    </div> <!-- edit-block -->
+                  </div> <!-- pcontent -->
+                </details>
+              </li>
+              """)
 
     html_out = f"""
     <div class="al-popup">

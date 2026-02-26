@@ -15,6 +15,12 @@ from ui import (
     show_map, render_stats_view, build_search_index, render_search_box,
     filter_dataframes_by_search
 )
+
+# --- INYECTAR EL SCRIPT DE MATERIAS EDITOR EN TODA LA APP ---
+import pathlib
+js_path = pathlib.Path(__file__).parent / "static" / "materias_editor.js"
+if js_path.exists():
+    st.markdown(f'<script src="/static/materias_editor.js?ts={os.path.getmtime(js_path)}"></script>', unsafe_allow_html=True)
 from utils import handle_open_pdf_query, handle_open_excel_query
 from utils.app_config import (
     init_session_defaults, get_query_param, get_config_mtimes,
@@ -247,9 +253,8 @@ def main():
         }})();
         </script>
         """
-        import streamlit as st
         st.markdown(js, unsafe_allow_html=True)
-    import streamlit as st
+    
     st.set_page_config(
         page_title="Movilidad ESII",
         layout="wide",

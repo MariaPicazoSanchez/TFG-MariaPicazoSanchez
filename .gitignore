@@ -5,6 +5,7 @@ config.json
 build/
 dist/
 output/
+.vscode/
 MovilidadESII.spec
 icono.png
 
