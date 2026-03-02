@@ -306,15 +306,19 @@ POPUP_STYLES = """
 
 .save-toast {
   position: fixed;
-  top: 20px;
-  right: 20px;
-  padding: 16px 24px;
-  border-radius: 8px;
-  font-weight: 600;
-  font-size: 14px;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%) scale(0.9);
+  padding: 28px 40px;
+  border-radius: 12px;
+  font-weight: 700;
+  font-size: 1.1rem;
+  text-align: center;
   z-index: 999999;
-  animation: slideIn 0.3s ease-out;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.25);
+  min-width: 280px;
+  max-width: 480px;
+  animation: toastPop 0.25s ease-out forwards;
 }
 
 .save-toast-loading {
@@ -323,37 +327,46 @@ POPUP_STYLES = """
 }
 
 .save-toast-success {
-  background: #10b981;
-  color: white;
-  animation: slideIn 0.3s ease-out, slideOut 0.3s ease-out 2.7s forwards;
+  background: #dcfce7;
+  color: #14532d;
+  border: 2px solid #16a34a;
+  animation: toastPop 0.25s ease-out forwards;
+  cursor: pointer;
+}
+
+.save-toast-success small {
+  display: block;
+  font-size: 1.1rem;
+  font-weight: 400;
+  opacity: 0.75;
+  margin-top: 6px;
 }
 
 .save-toast-error {
-  background: #ef4444;
-  color: white;
-  animation: slideIn 0.3s ease-out, slideOut 0.3s ease-out 2.7s forwards;
+  background: #fee2e2;
+  color: #7f1d1d;
+  border: 2px solid #dc2626;
+  animation: toastPop 0.25s ease-out forwards;
+  cursor: pointer;
 }
 
-@keyframes slideIn {
-  from {
-    transform: translateX(400px);
-    opacity: 0;
-  }
-  to {
-    transform: translateX(0);
-    opacity: 1;
-  }
+.save-toast-error::after {
+  display: block;
+  content: "Haz clic para cerrar";
+  font-size: 1.1rem;
+  font-weight: 400;
+  opacity: 0.6;
+  margin-top: 8px;
 }
 
-@keyframes slideOut {
-  from {
-    transform: translateX(0);
-    opacity: 1;
-  }
-  to {
-    transform: translateX(400px);
-    opacity: 0;
-  }
+@keyframes toastPop {
+  from { opacity: 0; transform: translate(-50%, -50%) scale(0.85); }
+  to   { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+}
+
+@keyframes toastFade {
+  from { opacity: 1; }
+  to   { opacity: 0; pointer-events: none; }
 }
 
 .al-popup .materias-list {
@@ -557,5 +570,30 @@ POPUP_STYLES = """
   font-size: 1rem;
   text-align: center;
   border: 1px solid #ffeeba;
+}
+
+.save-status-toast {
+  display: none;
+  padding: 10px 16px;
+  border-radius: 6px;
+  margin: 10px 0 4px 0;
+  font-size: 1rem;
+  font-weight: 600;
+  text-align: center;
+  word-break: break-word;
+}
+
+.save-status-toast.toast-success {
+  display: block;
+  background: #dcfce7;
+  color: #166534;
+  border: 1px solid #86efac;
+}
+
+.save-status-toast.toast-error {
+  display: block;
+  background: #fee2e2;
+  color: #991b1b;
+  border: 1px solid #fca5a5;
 }
 """

@@ -467,7 +467,8 @@ def generate_dynamic_popup(row, programa: str, row_index: int) -> str:
 
                           <div class="edit-actions">
                             <label for="{toggle_id}" class="btn-icon cancel-btn" title="Cancelar">✖</label>
-                            <button type="submit" class="btn save-btn" title="Guardar" onclick="this.textContent='⏳ Guardando...';">Guardar</button>
+                            <button type="submit" class="btn save-btn" title="Guardar"
+                              onclick="var b=this; window._saveBtnRef=b; setTimeout(function(){{b.disabled=true; b.textContent='\u23f3 Guardando...';}},0);">Guardar</button>
                           </div>
                           <div class="recarga-toast">
                             ⚠️ Recarga la página para ver los cambios actualizados.

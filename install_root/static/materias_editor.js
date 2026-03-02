@@ -213,15 +213,100 @@
     initAllBlocks();
     console.log("[materias] Editor de materias inicializado");
 
-    // Escucha mensajes de la API y muestra errores
+    // Toast flotante inyectado en window.top (sobrevive re-renders de Streamlit)
+    function getTopDoc() {
+        try { return window.top.document; } catch(e) { return document; }
+    }
+
+    function ensureToastStyles() {
+        var topDoc = getTopDoc();
+        if (topDoc.getElementById("save-toast-styles")) return;
+        var s = topDoc.createElement("style");
+        s.id = "save-toast-styles";
+        s.textContent = [
+            ".st-save-toast{position:fixed;top:50%;left:50%;transform:translate(-50%,-50%) scale(1);",
+            "padding:28px 40px;border-radius:12px;font-weight:700;font-size:1.1rem;text-align:center;",
+            "z-index:9999999;box-shadow:0 8px 32px rgba(0,0,0,0.25);min-width:280px;max-width:480px;",
+            "cursor:pointer;font-family:sans-serif;}",
+            ".st-save-toast-success{background:#dcfce7;color:#14532d;border:2px solid #16a34a;}",
+            ".st-save-toast-error{background:#fee2e2;color:#7f1d1d;border:2px solid #dc2626;}",
+            ".st-save-toast small{display:block;font-size:0.75rem;font-weight:400;opacity:0.7;margin-top:6px;}"
+        ].join("");
+        topDoc.head.appendChild(s);
+    }
+
+    function getGlobalToast() {
+        var topDoc = getTopDoc();
+        ensureToastStyles();
+        var t = topDoc.getElementById("global-save-toast");
+        if (!t) {
+            t = topDoc.createElement("div");
+            t.id = "global-save-toast";
+            topDoc.body.appendChild(t);
+        }
+        return t;
+    }
+
+    function showSaveToast(ok, messages) {
+        // Resetear botón
+        var btn = window._saveBtnRef;
+        if (btn) {
+            btn.textContent = "Guardar";
+            btn.disabled = false;
+        }
+
+        var topDoc = getTopDoc();
+
+        // Eliminar toast y overlay anteriores si existen
+        var old = topDoc.getElementById("global-save-toast");
+        if (old && old.parentNode) old.parentNode.removeChild(old);
+        var oldOverlay = topDoc.getElementById("global-save-overlay");
+        if (oldOverlay && oldOverlay.parentNode) oldOverlay.parentNode.removeChild(oldOverlay);
+
+        ensureToastStyles();
+
+        // Guardar removeToast en window.top para que sobreviva si el iframe se destruye
+        window.top._stRemoveToast = function() {
+            var topDoc = window.top.document;
+            var t = topDoc.getElementById("global-save-toast");
+            if (t && t.parentNode) t.parentNode.removeChild(t);
+            var ov = topDoc.getElementById("global-save-overlay");
+            if (ov && ov.parentNode) ov.parentNode.removeChild(ov);
+            window.top._stRemoveToast = null;
+        };
+
+        // Overlay invisible: cualquier clic cierra el toast
+        var overlay = topDoc.createElement("div");
+        overlay.id = "global-save-overlay";
+        overlay.style.cssText = "position:fixed;top:0;left:0;width:100%;height:100%;z-index:9999998;cursor:pointer;";
+        overlay.setAttribute("onclick", "window._stRemoveToast && window._stRemoveToast()");
+        topDoc.body.appendChild(overlay);
+
+        var toast = topDoc.createElement("div");
+        toast.id = "global-save-toast";
+        toast.setAttribute("onclick", "window._stRemoveToast && window._stRemoveToast()");
+
+        if (ok) {
+            toast.className = "st-save-toast st-save-toast-success";
+            toast.innerHTML = "Guardado correctamente.<br><small>Recarga la p\u00e1gina para ver los cambios actualizados. Clic para cerrar.</small>";
+        } else {
+            var msgs = Array.isArray(messages) ? messages : [];
+            var displayMsg = msgs.length ? msgs.join(" ") : "Error al guardar.";
+            toast.className = "st-save-toast st-save-toast-error";
+            toast.innerHTML = "<strong>Error:</strong> " + displayMsg + "<br><small>Clic para cerrar</small>";
+        }
+
+        topDoc.body.appendChild(toast);
+    }
+
+    // Escucha mensajes de la API
     window.addEventListener("message", function(event) {
         var data = event.data || {};
         if (typeof data === "string") {
             try { data = JSON.parse(data); } catch (e) { return; }
         }
-        if (data.type === "saveStatus" && data.ok === false && Array.isArray(data.messages)) {
-            var msg = data.messages.join("\n");
-            alert(msg);
+        if (data.type === "saveStatus") {
+            showSaveToast(data.ok, data.messages || []);
         }
     });
 })();

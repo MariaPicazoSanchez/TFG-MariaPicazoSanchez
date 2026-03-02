@@ -315,7 +315,7 @@ def update_student():
             ok_main = update_student_in_excel(excel_path, row_index_str, idx, form, old_email=old_email, old_nombre=old_nombre)
 
         if ok_main:
-            messages.append("Datos del estudiante actualizados correctamente.")
+            # messages.append("Datos del estudiante actualizados correctamente.")
             # 2) Procesar materias_raw
             materias_raw = form.get("materias_raw", "")
             logf(f"[API] materias_raw (primeros 200 chars) = {repr((materias_raw or '')[:200])}")
@@ -380,13 +380,16 @@ def update_student():
             if materias_path and materias_in and est.get("estudiante"):
                 try:
                     actualizar_excel_materias_para_estudiante(materias_in, est, materias_path)
-                    messages.append("Asignaturas actualizadas correctamente en el Excel de materias.")
+                except PermissionError:
+                    ok_global = False
+                    logf(f"[API] PermissionError al guardar el Excel de materias ({materias_path}): archivo abierto")
+                    messages.append("No se puede guardar: el archivo Excel de materias está abierto en otro programa. Ciérralo e inténtalo de nuevo.")
                 except Exception as e:
                     ok_global = False
                     logf(f"[API] Error al actualizar el Excel de materias ({materias_path}): {e}")
                     import traceback
                     traceback.print_exc()
-                    messages.append(f"Error al actualizar el Excel de materias ({materias_path}): {e}")
+                    messages.append(f"Error al actualizar el Excel de materias: {e}")
             elif materias_in and not materias_path:
                 ok_global = False
                 logf("[API] No se ha podido obtener la ruta del Excel de materias desde config.json (clave 'Materias IN').")
@@ -400,12 +403,17 @@ def update_student():
                 f"No se han podido guardar los datos en el Excel principal ({excel_path}). "
                 "Puede que el archivo esté abierto en Excel o protegido."
             )
+    except PermissionError:
+        import traceback
+        traceback.print_exc()
+        ok_global = False
+        messages.append("No se puede guardar: el archivo Excel principal está abierto en otro programa. Ciérralo e inténtalo de nuevo.")
     except Exception as e:
         import traceback
         print(f"Error al actualizar el Excel principal ({excel_path}): {e}")
         traceback.print_exc()
         ok_global = False
-        messages.append(f"Error al actualizar el Excel principal ({excel_path}): {e}")
+        messages.append(f"Error al actualizar el Excel principal: {e}")
     
     
     
