@@ -130,6 +130,7 @@ def parse_materias_raw(materias_raw: str):
                         "asignatura": asig,
                         "cuat": cuat,
                         "firmado": firmado,
+                        "link_la": str(item.get("link_la") or item.get("la") or "").strip(),
                     })
                 return materias
         except Exception as e:
@@ -156,6 +157,7 @@ def parse_materias_raw(materias_raw: str):
             "asignatura": asig,
             "cuat": cuat,
             "firmado": firmado,
+            "link_la": "",
         })
 
     return materias
@@ -301,8 +303,16 @@ def update_student():
 
     # 1) Actualizar Excel principal (alumnos)
     try:
-        # Firma real: (excel_path: str, row_index: str, idx: int, data: dict)
-        ok_main = update_student_in_excel(excel_path, row_index_str, idx, form, old_email=old_email, old_nombre=old_nombre)
+        # Para Erasmus IN no existe tabla de alumnos separada: los datos del alumno
+        # están en el Excel de materias. Se salta update_student_in_excel y se va
+        # directamente al guardado de materias.
+        es_erasmus_in = programa.lower() in ("erasmus in",)
+        if es_erasmus_in:
+            logf("[API] Programa Erasmus IN: se omite update_student_in_excel (no hay tabla de alumnos separada).")
+            ok_main = True
+        else:
+            # Firma real: (excel_path: str, row_index: str, idx: int, data: dict)
+            ok_main = update_student_in_excel(excel_path, row_index_str, idx, form, old_email=old_email, old_nombre=old_nombre)
 
         if ok_main:
             messages.append("Datos del estudiante actualizados correctamente.")
@@ -340,6 +350,11 @@ def update_student():
                 ).strip(),
 
                 "ciudad": (form.get("ciudad") or "").strip(),
+
+                # Campos globales del alumno (mismos para todas sus filas en el Excel de materias)
+                "cuat": (form.get("cuatrimestre") or "").strip(),
+                "firmado": (form.get("firmado") or "").strip().lower(),
+                "link_la": (form.get("link_la") or "").strip(),
             }
 
             # 3) Obtener la ruta del Excel de materias SIEMPRE desde config.json ("Materias IN")

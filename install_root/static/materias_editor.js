@@ -8,9 +8,7 @@
         var nombre = m.nombre != null ? m.nombre : m.asignatura;
         return {
             nombre: (nombre || "").toString(),
-            asignatura: (nombre || "").toString(),
-            cuat: (m.cuat || "").toString(),
-            firmado: !!m.firmado
+            asignatura: (nombre || "").toString()
         };
     }
     function normalizeMaterias(arr) {
@@ -25,9 +23,7 @@
         for (var i = 0; i < rows.length; i++) {
             var row = rows[i];
             var nombre = row.getAttribute("data-nombre") || "";
-            var cuat = row.getAttribute("data-cuat") || "";
-            var firmado = (row.getAttribute("data-firmado") || "").toUpperCase() === "X";
-            result.push(normalizeMateria({ nombre, cuat, firmado }));
+            result.push(normalizeMateria({ nombre: nombre }));
         }
         return result;
     }
@@ -45,11 +41,8 @@
             li.className = "materia-row";
             li.setAttribute("data-mindex", String(j));
             li.setAttribute("data-nombre", m.nombre || "");
-            li.setAttribute("data-cuat", m.cuat || "");
-            li.setAttribute("data-firmado", m.firmado ? "x" : "");
-            var displayTxt = m.nombre + (m.cuat ? " · Cuatri: " + m.cuat : "") + " · " + (m.firmado ? "Firmado" : "No firmado");
             li.innerHTML =
-                '<span class="materia-name">' + displayTxt + '</span>' +
+                '<span class="materia-name">' + (m.nombre || "") + '</span>' +
                 '<span class="materia-actions">' +
                 '<button type="button" class="icon-btn materia-edit" title="Editar">✏️</button>' +
                 '<button type="button" class="icon-btn materia-delete" title="Eliminar">🗑️</button>' +
@@ -163,9 +156,7 @@
                 return;
             }
             var idxS = parseInt(editor.getAttribute("data-edit-index") || "-1", 10);
-            var nueva = normalizeMateria({
-                nombre: (nombreInput2.value || "").trim()
-            });
+            var nueva = normalizeMateria({ nombre: (nombreInput2.value || "").trim() });
             if (!nueva.nombre) {
                 alert("La asignatura debe tener nombre.");
                 return;

@@ -110,6 +110,7 @@ MATERIAS_HEADER_ALIASES = {
     "universidad_origen": {"universidad de origen", "universidad origen", "centro", "universidadorigen"},
     "cuat": {"cuat", "cuatrimestre", "cuatri"},
     "firmado": {"firmado", "firma"},
+    "link_la": {"link la", "linkla", "la", "learning agreement", "link_la"},
 }
 MATERIAS_REQUIRED = {"asignatura", "estudiante"}
 
@@ -631,6 +632,11 @@ def actualizar_excel_materias_para_estudiante(materias_in, est, materias_path: s
         or ""
     ).strip()
 
+    # Campos globales del alumno (mismos en todas sus filas)
+    cuat_default  = str(est.get("cuat") or "").strip()
+    firmado_default = _normalize_firmado(est.get("firmado", ""))
+    la_default    = str(est.get("link_la") or "").strip()
+
     if not nombre_nuevo and not nombre_antiguo:
         raise ValueError("No hay nombre de estudiante para actualizar materias.")
 
@@ -666,6 +672,7 @@ def actualizar_excel_materias_para_estudiante(materias_in, est, materias_path: s
             "universidad_origen": item_uni if item_uni else uni_default,
             "cuat": str(m.get("cuat") or "").strip(),
             "firmado": _normalize_firmado(m.get("firmado", "")),
+            "link_la": str(m.get("link_la") or m.get("la") or "").strip(),
             "_origen_explicit": bool(item_origen),
             "_uni_explicit": bool(item_uni),
         })
@@ -712,6 +719,7 @@ def actualizar_excel_materias_para_estudiante(materias_in, est, materias_path: s
 
         c_cuat = table_info.cols.get("cuat")
         c_fir  = table_info.cols.get("firmado")
+        c_la   = table_info.cols.get("link_la")
 
         # ---- buscar filas existentes del alumno (primero old_nombre, luego nuevo) ----
         rows_student = []
@@ -743,10 +751,12 @@ def actualizar_excel_materias_para_estudiante(materias_in, est, materias_path: s
                 ws.cell(row=r, column=c_asig).value = fila["asignatura"]
             if c_est:
                 ws.cell(row=r, column=c_est).value = fila["estudiante"]
-            if c_cuat:
-                ws.cell(row=r, column=c_cuat).value = fila["cuat"]
+            if c_cuat and cuat_default:
+                ws.cell(row=r, column=c_cuat).value = cuat_default
             if c_fir:
-                ws.cell(row=r, column=c_fir).value = fila["firmado"]
+                ws.cell(row=r, column=c_fir).value = firmado_default
+            if c_la and la_default:
+                ws.cell(row=r, column=c_la).value = la_default
 
             # Origen (país): solo si hay valor no vacío; si no, conservar
             if c_ori:
@@ -770,8 +780,23 @@ def actualizar_excel_materias_para_estudiante(materias_in, est, materias_path: s
 
             print(f"[materias] Editada fila {r}: {fila['asignatura']}")
 
-
-        # ---- añadir nuevas (debajo del final real de la tabla de asignaturas) ----
+        # ---- actualizar filas sobrantes del alumno (todos los campos del alumno) ----
+        if len(rows_student) > len(nuevas):
+            sobrantes = rows_student[len(nuevas):]
+            for r in sobrantes:
+                if c_est and nombre_nuevo:
+                    ws.cell(row=r, column=c_est).value = nombre_nuevo
+                if c_ori and origen_default:
+                    ws.cell(row=r, column=c_ori).value = origen_default
+                if c_uni and uni_default:
+                    ws.cell(row=r, column=c_uni).value = uni_default
+                if c_cuat and cuat_default:
+                    ws.cell(row=r, column=c_cuat).value = cuat_default
+                if c_fir:
+                    ws.cell(row=r, column=c_fir).value = firmado_default
+                if c_la and la_default:
+                    ws.cell(row=r, column=c_la).value = la_default
+                print(f"[materias] Actualizada fila sobrante {r}: nombre={nombre_nuevo}, cuat={cuat_default}, firmado={firmado_default}")
         if len(nuevas) > len(rows_student):
             pendientes = nuevas[len(rows_student):]
             # Buscar la última fila con valor en la columna de asignatura
@@ -812,14 +837,10 @@ def actualizar_excel_materias_para_estudiante(materias_in, est, materias_path: s
                     print(f"[materias] DEBUG: Escribiendo universidad en fila {r}, col {c_uni}: {valor_uni}")
                 else:
                     print(f"[materias] ERROR: No se encontró columna para universidad en fila {r}. Valor: {valor_uni}")
-                if c_cuat: ws.cell(row=r, column=c_cuat).value = fila["cuat"]
-                if c_fir:  ws.cell(row=r, column=c_fir).value  = fila["firmado"]
+                if c_cuat and cuat_default: ws.cell(row=r, column=c_cuat).value = cuat_default
+                if c_fir:                   ws.cell(row=r, column=c_fir).value   = firmado_default
+                if c_la and la_default:     ws.cell(row=r, column=c_la).value    = la_default
                 print(f"[materias] Añadida fila {r}: {fila['asignatura']} | universidad_origen={valor_uni}")
-
-        # ---- nunca borrar (modo seguro) ----
-        if len(nuevas) < len(rows_student):
-            sobrantes = rows_student[len(nuevas):]
-            print(f"[materias] AVISO: filas sobrantes {sobrantes}. No se borran (modo seguro).")
 
         # _make_backup(materias_path, tag="materias_before_update")  # Desactivado: no crear backup
         wb.save(materias_path)

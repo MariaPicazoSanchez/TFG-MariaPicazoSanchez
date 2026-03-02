@@ -1,4 +1,5 @@
 import html
+import json
 from .popup_helpers import _clean
 from constants import PROGRAM_ERASMUS_IN
 
@@ -45,9 +46,8 @@ def build_materias_blocks(e, programa: str, row_index_attr: str, idx_attr: str):
       firmado_raw = str(m.get("firmado", "")).strip().lower()
       firmado_flag = "x" if firmado_raw in ("x", "1", "s", "si", "sí", "true", "t") else ""
 
-
       pills.append(f"<li class='mitem'>{html.escape(asig)}</li>")
-      lines.append(f"{asig}")
+      lines.append({"asignatura": asig})
 
       mid = f"{row_index_attr}-{idx_attr}-mat-{j}"
       mindex = len(materias_items)
@@ -60,7 +60,7 @@ def build_materias_blocks(e, programa: str, row_index_attr: str, idx_attr: str):
       materias_items.append(f"""
         <li class="{clase}"
           data-mindex="{mindex}"
-          data-nombre="{html.escape(asig, quote=True)}"
+          data-nombre="{html.escape(asig, quote=True)}">
           <span class="materia-name">{html.escape(asig)}</span>
           <span class="materia-actions">
             <button type="button" class="icon-btn materia-edit" title="Editar" data-mid="{mid}">✏️</button>
@@ -81,8 +81,8 @@ def build_materias_blocks(e, programa: str, row_index_attr: str, idx_attr: str):
     else:
         materias_view_html = "<div class='no-mat'>Sin asignaturas asignadas</div>"
 
-    # ---- 3) Texto raw para enviar en el form ----
-    materias_text = "\n".join(lines)
+    # ---- 3) Texto raw para enviar en el form (JSON con todos los campos) ----
+    materias_text = json.dumps(lines, ensure_ascii=False)
 
     # ---- 4) Bloque de EDICIÓN (lista + editor + textarea) ----
     materias_edit_block = f"""
@@ -101,10 +101,6 @@ def build_materias_blocks(e, programa: str, row_index_attr: str, idx_attr: str):
           <div class="field">
             <label>Asignatura</label>
             <input type="text" name="mat_nombre" placeholder="Nombre de la asignatura">
-          </div>
-
-          <div class="materia-editor-row">
-            <!-- Campos cuatrimestre y firmado eliminados para nuevas asignaturas -->
           </div>
 
           <div class="field acciones-materia" style="display:flex; justify-content:space-between; align-items:center; gap:1rem;">

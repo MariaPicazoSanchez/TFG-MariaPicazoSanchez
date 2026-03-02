@@ -317,12 +317,14 @@ def generate_dynamic_popup(row, programa: str, row_index: int) -> str:
                 if firmado_val == "x":
                   firmado_label = "Firmado"
                   firmado_color = "#4caf50"
+              firmado_hidden_id = f"firmado-hidden-{toggle_id}"
               firmado_field = f'''
                               <div class="field">
-                                <label>Firmado</label>
+                                <label>Firmado LA</label>
+                                <input type="hidden" name="firmado" id="{firmado_hidden_id}" value="{firmado_val}">
                                 <button type="button" class="toggle-btn{' active' if firmado_val == 'x' else ''}"
                                   style="width:100%;height:2.5rem;font-size:1.25rem;font-weight:500;border-radius:8px;border:1px solid #ddd;background:{firmado_color};color:{'#fff' if firmado_val == 'x' else '#333'};transition:background 0.2s;display:flex;align-items:center;justify-content:center;gap:0.5rem;flex:1;min-width:0;"
-                                  onclick="this.classList.toggle('active'); this.style.background = this.classList.contains('active') ? '#4caf50' : '#e0e0e0'; this.style.color = this.classList.contains('active') ? '#fff' : '#333'; this.querySelector('span').textContent = this.classList.contains('active') ? 'Firmado' : 'No firmado';">
+                                  onclick="this.classList.toggle('active'); this.style.background = this.classList.contains('active') ? '#4caf50' : '#e0e0e0'; this.style.color = this.classList.contains('active') ? '#fff' : '#333'; this.querySelector('span').textContent = this.classList.contains('active') ? 'Firmado' : 'No firmado'; document.getElementById('{firmado_hidden_id}').value = this.classList.contains('active') ? 'x' : '';">
                                   <span>{firmado_label}</span>
                                 </button>
                               </div>'''
