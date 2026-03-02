@@ -392,7 +392,14 @@ def load_erasmus_in(path: str, sheet_name: str | None = None) -> pd.DataFrame:
         df["longitud"] = pd.to_numeric(df[c_lon], errors="coerce") if c_lon else pd.NA
 
     # normaliza campos
-    df["universidad"]   = df[c_uni]    if c_uni    else None
+    df["universidad"] = df[c_uni] if c_uni else None
+
+    if c_uni:
+        df["universidad"] = (
+            df.groupby("estudiante")["universidad"]
+            .transform(lambda x: x.dropna().mode().iloc[0] if not x.dropna().mode().empty else None)
+        )
+
     df["pais"]          = df[c_pais]   if c_pais   else None
     df["ciudad"]        = df[c_ciudad] if c_ciudad else None
     df["link_LA"]       = df[c_la]     if c_la     else None
@@ -402,9 +409,8 @@ def load_erasmus_in(path: str, sheet_name: str | None = None) -> pd.DataFrame:
         cols = ["estudiante", "cuatrimestre", "link_LA"]
         if c_email: cols.insert(1, c_email)
         cols = [c for c in cols if c in g.columns]
-        
         records = []
-        for row in g.itertuples(index=False, name='Row'):
+        for idx, row in enumerate(g.itertuples(index=False, name='Row')):
             record = {}
             for col in cols:
                 if hasattr(row, col):
@@ -415,6 +421,9 @@ def load_erasmus_in(path: str, sheet_name: str | None = None) -> pd.DataFrame:
                         record[col] = getattr(row, col)
             if c_ciudad and c_ciudad in g.columns and hasattr(row, c_ciudad):
                 record["ciudad"] = getattr(row, c_ciudad)
+            # Añadir universidad de origen si existe
+            if c_uni and c_uni in g.columns and hasattr(row, c_uni):
+                record["universidad de origen"] = getattr(row, c_uni)
             records.append(record)
         return records
 
@@ -459,7 +468,7 @@ def load_erasmus_in(path: str, sheet_name: str | None = None) -> pd.DataFrame:
                     grouped.at[i, "ciudad"] = str(grupo_df["ciudad"].mode()[0] if not grupo_df["ciudad"].mode().empty else grupo_df["ciudad"].iloc[0])
                 if not grupo_df["universidad"].isna().all():
                     grouped.at[i, "universidad"] = str(grupo_df["universidad"].mode()[0] if not grupo_df["universidad"].mode().empty else grupo_df["universidad"].iloc[0])
-
+                print(grupo_df[["estudiante", "universidad"]])
     # Limpiar columnas temporales
     grouped = grouped.drop(columns=["_lat_r", "_lon_r"], errors="ignore")
 

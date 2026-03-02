@@ -348,7 +348,7 @@ def update_student():
                 cfg_path = os.getenv("APP_CONFIG_PATH", "config.json")
                 with open(cfg_path, "r", encoding="utf-8") as f:
                     config = json.load(f)
-                materias_path_raw = (config.get("Materias IN", "") or "").strip()
+                materias_path_raw = (config.get("Erasmus IN", "") or "").strip()
                 # REPARAR y normalizar ruta
                 materias_path = repair_windows_path(materias_path_raw)
                 logf(f"[update_student] materias_path_raw={materias_path_raw}")

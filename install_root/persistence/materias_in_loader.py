@@ -75,7 +75,7 @@ def load_materias_in(config):
     Lee el Excel de 'Materias IN' y extrae SOLO las tablas que tengan la cabecera
     de materias IN aunque haya otras tablas en el mismo archivo (y en distintas hojas).
     """
-    ruta = config.get("Materias IN")
+    ruta = config.get("Erasmus IN")
     if not ruta or not os.path.exists(ruta):
         return pd.DataFrame()
 
@@ -98,6 +98,7 @@ def load_materias_in(config):
 
             while i < n_rows:
                 row_vals = df_raw.iloc[i].tolist()
+                print(f"[DEBUG] Fila {i} hoja '{sheet_name}': {row_vals}")
                 header_map = _match_header_row(row_vals)
 
                 if header_map is None:
@@ -105,6 +106,7 @@ def load_materias_in(config):
                     continue
 
                 print(f"[DEBUG] Cabecera Materias IN encontrada en hoja '{sheet_name}', fila {i}: {row_vals}")
+                print(f"[DEBUG] header_map: {header_map}")
 
                 # Extraer filas de datos debajo de la cabecera hasta separador,
                 # o hasta que aparezca otra cabecera.
@@ -114,13 +116,16 @@ def load_materias_in(config):
 
                 while j < n_rows:
                     current_vals = df_raw.iloc[j].tolist()
+                    print(f"[DEBUG]   Fila datos {j} hoja '{sheet_name}': {current_vals}")
 
                     # Parar si fila vacía (separador típico)
                     if _is_separator_or_empty_row(current_vals):
+                        print(f"[DEBUG]   Fila {j} vacía/separador. Fin bloque.")
                         break
 
                     # Parar si aparece otra cabecera (otra tabla)
                     if _match_header_row(current_vals) is not None:
+                        print(f"[DEBUG]   Fila {j} parece otra cabecera. Fin bloque.")
                         break
 
                     # Construir fila con solo columnas relevantes detectadas
@@ -128,6 +133,7 @@ def load_materias_in(config):
                     for key, col_idx in header_map.items():
                         record[key] = df_raw.iat[j, col_idx] if col_idx < df_raw.shape[1] else None
 
+                    print(f"[DEBUG]   Registro extraído: {record}")
                     rows_data.append(record)
                     j += 1
 

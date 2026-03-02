@@ -321,7 +321,7 @@ def export_materias_in_excel(dfs, config):
     else:
         df_out = pd.DataFrame(columns=cols)
 
-    path_materias = config.get("Materias IN")
+    path_materias = config.get("Erasmus IN")
     if not path_materias:
         return
 

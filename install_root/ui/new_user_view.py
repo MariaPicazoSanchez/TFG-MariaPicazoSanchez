@@ -618,9 +618,9 @@ def _append_materias_in_excel_single_student(
 ):
     """
     Añade las materias de UN estudiante Erasmus IN al Excel 'Materias IN'
-    indicado en config["Materias IN"].
+    indicado en config["ERASMUS IN"].
     """
-    path_materias = (config or {}).get("Materias IN")
+    path_materias = (config or {}).get("Erasmus IN")
     if not path_materias or not materias_payload:
         return
 
@@ -675,4 +675,4 @@ def _append_materias_in_excel_single_student(
 
         df_out.to_excel(path_materias, index=False)
     except Exception as e:
-        st.warning(f"No se pudo actualizar el Excel de 'Materias IN': {e}")
+        st.warning(f"No se pudo actualizar el Excel de 'ERASMUS IN': {e}")
