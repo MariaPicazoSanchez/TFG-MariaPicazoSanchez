@@ -1,4 +1,3 @@
-
 import os
 import re
 from typing import Iterable, Tuple, Optional
@@ -7,11 +6,70 @@ import math
 from .sheets_helpers import sheets_for, resolve_sheet
 import streamlit as st
 from constants import PROGRAM_ERASMUS_OUT, PROGRAM_ERASMUS_IN, PROGRAM_SICUE_OUT, EXCEL_EXTENSIONS
-
+from .materias_in_loader import (
+    get_materias_in_por_estudiante,
+    get_alumnos_in
+)
 
 # ==============================
 # Helpers comunes
 # ==============================
+
+def _norm_name(s: str) -> str:
+    """Normaliza un nombre: minúsculas, sin acentos, sin espacios extra."""
+    import unicodedata
+    if not s or str(s).strip().lower() in ("", "nan", "none"):
+        return ""
+    s = str(s).strip().lower()
+    s = ''.join(c for c in unicodedata.normalize('NFD', s) if unicodedata.category(c) != 'Mn')
+    return re.sub(r'\s+', ' ', s).strip()
+
+
+def _build_materias_index(materias_dict: dict) -> dict:
+    """
+    Construye índices de búsqueda para hacer matching flexible de nombres:
+    1. Nombre completo normalizado -> clave original
+    2. Apellido (última palabra) -> lista de claves originales
+    3. Primer apellido + segundo apellido -> clave original
+    """
+    exact = {}      # nombre_norm -> clave_original
+    by_last = {}    # ultima_palabra -> [clave_original]
+
+    for nombre in materias_dict:
+        norm = _norm_name(nombre)
+        exact[norm] = nombre
+        words = norm.split()
+        if words:
+            last = words[-1]
+            by_last.setdefault(last, []).append(nombre)
+
+    return exact, by_last
+
+
+def _match_student_name(nombre_completo: str, exact: dict, by_last: dict) -> str | None:
+    """
+    Intenta encontrar la clave correcta en materias_dict para un nombre de alumno.
+    Orden: exacto → apellido → primera palabra del apellido.
+    """
+    if not nombre_completo:
+        return None
+    norm = _norm_name(nombre_completo)
+    # 1. Exacto
+    if norm in exact:
+        return exact[norm]
+    # 2. Por apellido (última palabra del nombre completo)
+    words = norm.split()
+    for last in reversed(words):  # prueba desde el último apellido hacia atrás
+        if last in by_last:
+            candidates = by_last[last]
+            if len(candidates) == 1:
+                return candidates[0]
+            # Si hay varios, buscar el que comparte más palabras
+            best = max(candidates, key=lambda c: len(set(_norm_name(c).split()) & set(words)))
+            return best
+    return None
+
+
 def filter_students_with_coords(df: pd.DataFrame, tipo: str) -> pd.DataFrame:
     """
     Filtra filas sin coordenadas y muestra advertencia por cada alumno y tipo.
@@ -353,19 +411,44 @@ def load_erasmus_in(path: str, sheet_name: str | None = None) -> pd.DataFrame:
     """
     df = _read_table(path, sheet_name=sheet_name)
     df.columns = [str(col).strip() for col in df.columns]
+    print(f"[IN] Columnas leídas: {list(df.columns)}")
+    print(f"[IN] Total filas: {len(df)}")
 
-    c_nombre  = _pick(df, "Nombre", "nombre")
-    c_ap1     = _pick(df, "Apellido1", "apellido1")
-    c_ap2     = _pick(df, "Apellido2", "apellido2")
-    c_email   = _pick(df, "Email", "email")
-    c_cuatri  = _pick(df, "Cuatrimestre", "Cuatrimestre")
-    c_la      = _pick(df, "LA")
-    c_uni     = _pick(df, "Universidad Origen", "Univ. Origen", "Universidad")
-    c_ciudad  = _pick(df, "Ciudad", "Ciudad Origen", "Ciudad origen", "City", "city", "ciudad")
-    c_pais    = _pick(df, "País", "Pais")
-    c_coords  = _pick(df, "Coordenadas", "coords")
-    c_lat     = _pick(df, "Latitud", "latitud", "lat")
-    c_lon     = _pick(df, "Longitud", "longitud", "lon")
+    c_nombre     = _pick(df, "Nombre", "nombre")
+    c_ap1        = _pick(df, "Apellido1", "apellido1")
+    c_ap2        = _pick(df, "Apellido2", "apellido2")
+    c_estudiante = _pick(df, "Estudiante", "estudiante", "Alumno", "alumno")
+    c_email      = _pick(df, "Email", "email")
+    c_cuatri     = _pick(df, "Cuatrimestre", "Cuatri", "Cuat")
+    c_la         = _pick(df, "LA")
+    c_uni        = _pick(df, "Universidad Origen", "Univ. Origen", "UniversidadOrigen", "Universidad")
+    c_ciudad     = _pick(df, "Ciudad", "Ciudad Origen", "Ciudad origen", "City", "city", "ciudad")
+    c_pais       = _pick(df, "País", "Pais", "Origen")
+    c_coords     = _pick(df, "Coordenadas", "coords")
+    # Buscar lat/lon con nombres exactos para evitar falso match con "LA"
+    c_lat        = _pick(df, "Latitud", "latitud")
+    c_lon        = _pick(df, "Longitud", "longitud")
+    # Evitar que "LA" sea detectado como latitud
+    if c_lat == c_la:
+        c_lat = None
+    if c_lon == c_la:
+        c_lon = None
+    print(f"[IN] Columnas detectadas → nombre={c_nombre}, estudiante={c_estudiante}, ap1={c_ap1}, ap2={c_ap2}, uni={c_uni}, pais={c_pais}, coords={c_coords}, lat={c_lat}, lon={c_lon}, cuatri={c_cuatri}, la={c_la}")
+
+    # Cargar coordenadas desde hoja "Coordenadas" cruzando por universidad
+    coords_dict = {}
+    try:
+        df_coords = pd.read_excel(path, sheet_name="Coordenadas", header=None, dtype=str)
+        df_coords.columns = [f"col{i}" for i in range(df_coords.shape[1])]
+        # Formato esperado: col0=País, col1=Universidad, col2=Coordenadas
+        for _, row in df_coords.iterrows():
+            uni = str(row.get("col1", "") or "").strip()
+            coords_raw = str(row.get("col2", "") or "").strip()
+            if uni and coords_raw and coords_raw.lower() not in ("nan", "none", ""):
+                coords_dict[uni] = coords_raw
+        print(f"[IN] Coordenadas cargadas desde hoja 'Coordenadas': {len(coords_dict)} universidades")
+    except Exception as e:
+        print(f"[IN] No se pudo leer hoja 'Coordenadas': {e}")
 
     # estudiante
     if c_nombre or c_ap1 or c_ap2:
@@ -377,51 +460,68 @@ def load_erasmus_in(path: str, sheet_name: str | None = None) -> pd.DataFrame:
         for p in parts[1:]:
             s = (s + " " + p)
         df["estudiante"] = s.str.replace(r"\s+", " ", regex=True).str.strip()
+    elif c_estudiante:
+        df["estudiante"] = df[c_estudiante].astype(str).str.strip()
     elif c_email:
         df["estudiante"] = df[c_email].astype(str).str.split("@").str[0]
     else:
         df["estudiante"] = ""
 
-    # coords
+    # coords: primero columna directa, luego lookup por universidad
     if c_coords:
         lats, lons = zip(*df[c_coords].map(_parse_coords))
-        df["latitud"] = pd.to_numeric(lats, errors="coerce")
+        df["latitud"]  = pd.to_numeric(lats, errors="coerce")
         df["longitud"] = pd.to_numeric(lons, errors="coerce")
     else:
         df["latitud"]  = pd.to_numeric(df[c_lat], errors="coerce") if c_lat else pd.NA
         df["longitud"] = pd.to_numeric(df[c_lon], errors="coerce") if c_lon else pd.NA
 
+    # Completar coordenadas faltantes por universidad desde hoja Coordenadas
+    if coords_dict and c_uni:
+        uni_col = df[c_uni].astype(str).str.strip()
+        df["_coords_lookup"] = uni_col.map(coords_dict)
+        parsed = df["_coords_lookup"].map(_parse_coords)
+        df["_lat_lu"] = [p[0] for p in parsed]
+        df["_lon_lu"] = [p[1] for p in parsed]
+        df["latitud"]  = df["latitud"].fillna(pd.to_numeric(df["_lat_lu"], errors="coerce"))
+        df["longitud"] = df["longitud"].fillna(pd.to_numeric(df["_lon_lu"], errors="coerce"))
+        df.drop(columns=["_coords_lookup", "_lat_lu", "_lon_lu"], inplace=True)
+        print(f"[IN] Coords tras lookup por universidad: {df['latitud'].notna().sum()} / {len(df)} filas con coords")
+
     # normaliza campos
-    df["universidad"] = df[c_uni] if c_uni else None
+    df["universidad"] = df[c_uni].astype(str).str.strip() if c_uni else None
+    df["pais"]         = df[c_pais].astype(str).str.strip() if c_pais else None
+    df["ciudad"]       = df[c_ciudad] if c_ciudad else None
+    df["link_LA"]      = df[c_la]     if c_la     else None
+    df["cuatrimestre"] = df[c_cuatri] if c_cuatri else None
 
-    if c_uni:
-        df["universidad"] = (
-            df.groupby("estudiante")["universidad"]
-            .transform(lambda x: x.dropna().mode().iloc[0] if not x.dropna().mode().empty else None)
-        )
-
-    df["pais"]          = df[c_pais]   if c_pais   else None
-    df["ciudad"]        = df[c_ciudad] if c_ciudad else None
-    df["link_LA"]       = df[c_la]     if c_la     else None
-    df["cuatrimestre"]  = df[c_cuatri] if c_cuatri else None
+    print(f"[IN] Muestra estudiantes (primeros 5): {df['estudiante'].head().tolist()}")
+    print(f"[IN] Muestra latitud:  {df['latitud'].head().tolist()}")
+    print(f"[IN] Muestra longitud: {df['longitud'].head().tolist()}")
+    print(f"[IN] Filas con coords válidas: {df['latitud'].notna().sum()} / {len(df)}")
+    print(f"[IN] Muestra universidad: {df['universidad'].head().tolist() if 'universidad' in df.columns else 'N/A'}")
 
     def _to_records(g: pd.DataFrame) -> list[dict]:
+        # Deduplicar por estudiante (hay múltiples filas por alumno, una por asignatura)
+        seen = set()
+        records = []
         cols = ["estudiante", "cuatrimestre", "link_LA"]
         if c_email: cols.insert(1, c_email)
         cols = [c for c in cols if c in g.columns]
-        records = []
-        for idx, row in enumerate(g.itertuples(index=False, name='Row')):
+        for row in g.itertuples(index=False, name='Row'):
+            est = getattr(row, "estudiante", "") or ""
+            if est in seen:
+                continue
+            seen.add(est)
             record = {}
             for col in cols:
                 if hasattr(row, col):
-                    # Renombra email si viene de otra columna
                     if col == c_email and c_email != "email":
                         record["email"] = getattr(row, col)
                     else:
                         record[col] = getattr(row, col)
             if c_ciudad and c_ciudad in g.columns and hasattr(row, c_ciudad):
                 record["ciudad"] = getattr(row, c_ciudad)
-            # Añadir universidad de origen si existe
             if c_uni and c_uni in g.columns and hasattr(row, c_uni):
                 record["universidad de origen"] = getattr(row, c_uni)
             records.append(record)
@@ -435,6 +535,7 @@ def load_erasmus_in(path: str, sheet_name: str | None = None) -> pd.DataFrame:
     df["_lon_r"] = df["longitud"].round(2)
 
     df = filter_students_with_coords(df, "Erasmus IN")
+    print(f"[IN] Tras filtrar coords: {len(df)} filas")
 
     if df.empty:
         import streamlit as st
@@ -446,6 +547,16 @@ def load_erasmus_in(path: str, sheet_name: str | None = None) -> pd.DataFrame:
           .apply(_to_records, include_groups=False)
           .reset_index(name="estudiantes")
     )
+
+    grouped = (
+        df.groupby(["_lat_r", "_lon_r"], dropna=False)
+          .apply(_to_records, include_groups=False)
+          .reset_index(name="estudiantes")
+    )
+    print(f"[IN] Grupos tras groupby: {len(grouped)}")
+    for _, r in grouped.iterrows():
+        ests = [a.get('estudiante', '?') for a in r['estudiantes']]
+        print(f"[IN]   → alumnos: {ests}")
 
     if grouped.empty:
         import streamlit as st
@@ -476,6 +587,29 @@ def load_erasmus_in(path: str, sheet_name: str | None = None) -> pd.DataFrame:
     del df
     import gc
     gc.collect()
+    # Cargar materias y asociar con matching flexible de nombres
+    config = {"Erasmus IN": path}
+    materias_dict = get_materias_in_por_estudiante(config)
+
+    if materias_dict:
+        print(f"[IN] Alumnos en materias_dict: {list(materias_dict.keys())[:10]}")
+        exact_idx, last_idx = _build_materias_index(materias_dict)
+        for grupo in grouped["estudiantes"]:
+            for alumno in grupo:
+                nombre = alumno.get("estudiante") or ""
+                # Intento 1: lookup directo
+                materias = materias_dict.get(nombre)
+                # Intento 2: matching flexible por apellido
+                if not materias:
+                    clave = _match_student_name(nombre, exact_idx, last_idx)
+                    if clave:
+                        print(f"[IN] Matching '{nombre}' → '{clave}'")
+                        materias = materias_dict.get(clave, [])
+                    else:
+                        print(f"[IN] Sin match para '{nombre}'")
+                alumno["materias"] = materias or []
+    else:
+        print("[IN] materias_dict vacío — no se cargaron materias")
 
     return grouped
 
@@ -489,6 +623,40 @@ def load_sicue_out(path: str, sheet_name: str | None = None) -> pd.DataFrame:
     Devuelve DF con columnas: ['universidad','pais','ciudad','latitud','longitud','estudiantes'].
     """
     df = _read_table(path, sheet_name=sheet_name)
+    # ==============================
+    # Cargar coordenadas desde hoja "coordenadas"
+    # ==============================
+    try:
+        df_coords = pd.read_excel(
+            path,
+            sheet_name="coordenadas",
+            header=None,
+            dtype=str
+        )
+
+        # columnas sin cabecera:
+        # A -> país
+        # B -> universidad
+        # C -> coordenadas
+        df_coords.columns = ["pais", "universidad", "coords"]
+
+        # limpiar texto
+        df_coords["universidad"] = df_coords["universidad"].str.strip()
+        df_coords["coords"] = df_coords["coords"].str.strip()
+
+        # crear diccionario universidad -> coords
+        coords_dict = dict(
+            zip(df_coords["universidad"], df_coords["coords"])
+        )
+        coords_dict = {
+            str(k).strip(): v
+            for k, v in coords_dict.items()
+        }
+
+    except Exception:
+        coords_dict = {}
+
+
     df.columns = [str(col).strip() for col in df.columns]
 
     c_nombre      = _pick(df, "Nombre", "nombre")
@@ -532,6 +700,27 @@ def load_sicue_out(path: str, sheet_name: str | None = None) -> pd.DataFrame:
 
     # normaliza
     df["universidad"]        = df[c_destino] if c_destino else None
+    # ==============================
+    # Completar coordenadas faltantes por universidad
+    # ==============================
+    if coords_dict:
+
+        # limpiar universidad (MUY IMPORTANTE)
+        df["universidad"] = df["universidad"].astype(str).str.strip()
+
+        df["coords_lookup"] = df["universidad"].map(coords_dict)
+
+        parsed = df["coords_lookup"].map(_parse_coords)
+
+        df["lat_lookup"] = [p[0] for p in parsed]
+        df["lon_lookup"] = [p[1] for p in parsed]
+
+        # SOLO rellenar donde falten coords
+        df["latitud"] = df["latitud"].fillna(df["lat_lookup"])
+        df["longitud"] = df["longitud"].fillna(df["lon_lookup"])
+
+        # limpiar columnas auxiliares
+        df.drop(columns=["coords_lookup", "lat_lookup", "lon_lookup"], inplace=True)
     df["ciudad"]             = df[c_ciudad]  if c_ciudad  else None
     df["pais"]               = "España"
     # mapeo de columnas específicas a names homogéneos

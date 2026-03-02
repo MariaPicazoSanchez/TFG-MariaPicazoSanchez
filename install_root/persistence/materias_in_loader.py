@@ -225,3 +225,17 @@ def get_materias_in_por_estudiante(config):
     """
     df = load_materias_in(config)
     return build_materias_in_por_estudiante(df)
+
+def get_alumnos_in(config):
+    df = load_materias_in(config)
+
+    if df.empty:
+        return df
+
+    alumnos = (
+        df[["Estudiante", "Origen", "UniversidadOrigen"]]
+        .drop_duplicates()
+        .reset_index(drop=True)
+    )
+
+    return alumnos
