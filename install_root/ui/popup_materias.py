@@ -3,7 +3,7 @@ import json
 from .popup_helpers import _clean
 from constants import PROGRAM_ERASMUS_IN
 
-def build_materias_blocks(e, programa: str, row_index_attr: str, idx_attr: str):
+def build_materias_blocks(e, programa: str, row_index_attr: str, idx_attr: str, asignaturas_catalog: list = None):
     """
     Devuelve:
       - has_materias: bool
@@ -84,9 +84,25 @@ def build_materias_blocks(e, programa: str, row_index_attr: str, idx_attr: str):
     # ---- 3) Texto raw para enviar en el form (JSON con todos los campos) ----
     materias_text = json.dumps(lines, ensure_ascii=False)
 
-    # ---- 4) Bloque de EDICIÓN (lista + editor + textarea) ----
+    # ---- 4) Catálogo JSON embebido para el editor JS ----
+    catalog_json = json.dumps(asignaturas_catalog or [], ensure_ascii=False)
+    catalog_json_escaped = catalog_json.replace('"', '&quot;')
+
+    # Cuatrimestre del alumno (para filtrar el catálogo en el editor)
+    student_cuat = _clean(
+        e.get("cuatrimestre") or e.get("cuat")
+        if isinstance(e, dict) else None
+    )
+    # Normalizar "1.0" -> "1", etc.
+    if student_cuat:
+        try:
+            student_cuat = str(int(float(student_cuat)))
+        except Exception:
+            pass
+
+    # ---- 5) Bloque de EDICIÓN (lista + editor + textarea) ----
     materias_edit_block = f"""
-      <div class="field full materias-block">
+      <div class="field full materias-block" data-catalog="{catalog_json_escaped}" data-student-cuat="{html.escape(student_cuat or '', quote=True)}">
         <label>Asignaturas (materias_in)</label>
 
         <ul class="materias-list">
@@ -100,7 +116,11 @@ def build_materias_blocks(e, programa: str, row_index_attr: str, idx_attr: str):
         <div class="materia-editor" style="display:none;">
           <div class="field">
             <label>Asignatura</label>
-            <input type="text" name="mat_nombre" placeholder="Nombre de la asignatura">
+            <input type="text" name="mat_nombre" class="mat-nombre-input"
+                   list="mat-catalog-{row_index_attr}-{idx_attr}"
+                   placeholder="Seleccionar o escribir asignatura"
+                   autocomplete="off">
+            <datalist id="mat-catalog-{row_index_attr}-{idx_attr}"></datalist>
           </div>
 
           <div class="field acciones-materia" style="display:flex; justify-content:space-between; align-items:center; gap:1rem;">

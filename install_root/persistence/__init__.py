@@ -33,7 +33,13 @@ def get_materias_in_por_estudiante(*args, **kwargs):
     return _f(*args, **kwargs)
 
 
+def get_asignaturas_catalog(*args, **kwargs):
+    from .materias_in_loader import get_asignaturas_catalog as _f
+    return _f(*args, **kwargs)
+
+
 __all__ = [
     'load_all_dataframes', 'append_user_to_excel', 'first_sheet_name', 'sheets_for',
-    'actualizar_excel_materias_para_estudiante', 'update_student_in_excel', 'get_materias_in_por_estudiante',
+    'actualizar_excel_materias_para_estudiante', 'update_student_in_excel',
+    'get_materias_in_por_estudiante', 'get_asignaturas_catalog',
 ]

@@ -2,6 +2,39 @@
     if (window.__materiasEditorInitialized) return;
     window.__materiasEditorInitialized = true;
 
+    // ---------------------------------------------------------------------------
+    // Carga el catálogo desde data-catalog y rellena el <datalist> del editor
+    // ---------------------------------------------------------------------------
+    function buildCatalogSelect(block) {
+        var dl = block.querySelector('datalist');
+        if (!dl) return;
+        if (dl.childElementCount > 0) return;  // ya poblado
+
+        var raw = block.getAttribute("data-catalog") || "[]";
+        var catalog = [];
+        try { catalog = JSON.parse(raw); } catch (e) { console.warn("[materias] catalog JSON inválido", e); }
+
+        if (!catalog.length) return;
+
+        // Cuatrimestre del alumno (puede estar vacío -> mostrar todo)
+        var studentCuat = (block.getAttribute("data-student-cuat") || "").replace(".0","").trim();
+
+        catalog.forEach(function(item) {
+            var c = (item.cuat || "").toString().replace(".0","").trim();
+            // Si el alumno tiene cuatrimestre, solo mostrar las del mismo
+            if (studentCuat && c && c !== studentCuat) return;
+            var opt = document.createElement("option");
+            opt.value = item.asignatura;
+            opt.label = c ? item.asignatura + "  [Cuat. " + c + "]" : item.asignatura;
+            dl.appendChild(opt);
+        });
+    }
+
+    // Inicializar todos los bloques ya presentes en el DOM
+    function initAllBlocks() {
+        document.querySelectorAll(".materias-block").forEach(buildCatalogSelect);
+    }
+
     // Utilidad: normaliza materia (acepta nombre/asignatura)
     function normalizeMateria(m) {
         m = m || {};
@@ -56,13 +89,17 @@
         var editor = block.querySelector(".materia-editor");
         var list = block.querySelector(".materias-list");
         if (!editor || !list) return;
-        var nombreInput = editor.querySelector('input[name="mat_nombre"]');
-        if (!nombreInput) {
-            console.error("[materias] Falta input nombre", { nombreInput });
+
+        // Asegurar que el datalist tiene el catálogo
+        buildCatalogSelect(block);
+
+        var inp = editor.querySelector('input[name="mat_nombre"]');
+        if (!inp) {
+            console.error("[materias] Falta input nombre", { inp });
             return;
         }
         var mat = (idx >= 0 && idx < materias.length) ? normalizeMateria(materias[idx]) : { nombre: "" };
-        nombreInput.value = mat.nombre || "";
+        inp.value = mat.nombre || "";
         editor.setAttribute("data-edit-index", String(idx));
         editor.style.display = "";
         list.style.display = "none";
@@ -81,7 +118,6 @@
         var target = ev.target || ev.srcElement;
         if (!(target instanceof Element)) return;
 
-        // Solo botones relevantes
         var editBtn = target.closest(".materia-edit");
         var delBtn = target.closest(".materia-delete");
         var addBtn = target.closest(".materia-add");
@@ -123,10 +159,7 @@
 
         // BORRAR
         if (delBtn) {
-            if (!textarea) {
-                console.warn("[materias] No se encontró textarea[name='materias_raw']");
-                return;
-            }
+            if (!textarea) return;
             var rowD = delBtn.closest(".materia-row");
             if (!rowD) return;
             var idxD = parseInt(rowD.getAttribute("data-mindex") || "-1", 10);
@@ -146,19 +179,16 @@
 
         // GUARDAR
         if (saveBtn) {
-            if (!textarea) {
-                console.warn("[materias] No se encontró textarea[name='materias_raw']");
-                return;
-            }
-            var nombreInput2 = editor.querySelector('input[name="mat_nombre"]');
-            if (!nombreInput2) {
-                console.error("[materias] Falta campo nombre en editor al guardar");
+            if (!textarea) return;
+            var inpNombre = editor.querySelector('input[name="mat_nombre"]');
+            if (!inpNombre) {
+                console.error("[materias] Falta input nombre en editor al guardar");
                 return;
             }
             var idxS = parseInt(editor.getAttribute("data-edit-index") || "-1", 10);
-            var nueva = normalizeMateria({ nombre: (nombreInput2.value || "").trim() });
+            var nueva = normalizeMateria({ nombre: (inpNombre.value || "").trim() });
             if (!nueva.nombre) {
-                alert("La asignatura debe tener nombre.");
+                alert("Selecciona o escribe una asignatura.");
                 return;
             }
             if (idxS >= 0 && idxS < materias.length) {
@@ -179,7 +209,8 @@
         }
     });
 
-    // DEBUG: log de inicialización
+    // Inicializar catálogos al cargar
+    initAllBlocks();
     console.log("[materias] Editor de materias inicializado");
 
     // Escucha mensajes de la API y muestra errores

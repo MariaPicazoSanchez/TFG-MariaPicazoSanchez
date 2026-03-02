@@ -239,3 +239,107 @@ def get_alumnos_in(config):
     )
 
     return alumnos
+
+
+# ---------------------------------------------------------------------------
+# Catálogo de asignaturas ofertadas (tabla con Asignaturas, Cuatrimestre, ...)
+# ---------------------------------------------------------------------------
+
+def _match_catalog_header_row(row_values):
+    """
+    Detecta si una fila es la cabecera del catálogo de asignaturas disponibles.
+    Requiere columnas 'asignatura(s)' y 'cuatrimestre' pero NO 'estudiante'.
+    """
+    normalized = [_norm(v) for v in row_values]
+
+    cat_aliases = {
+        "asignatura": {"asignatura", "asignaturas"},
+        "cuat": {"cuat", "cuatrimestre", "cuatri"},
+    }
+    found = {}
+    for idx, cell in enumerate(normalized):
+        if not cell:
+            continue
+        for key, aliases in cat_aliases.items():
+            if cell in aliases and key not in found:
+                found[key] = idx
+
+    if "asignatura" not in found or "cuat" not in found:
+        return None
+
+    # Si tiene columna de estudiante es la tabla de materias IN, no el catálogo
+    estudiante_aliases = {"estudiante", "estudiantes", "alumno", "alumnos"}
+    for cell in normalized:
+        if cell in estudiante_aliases:
+            return None
+
+    return found
+
+
+def get_asignaturas_catalog(config):
+    """
+    Lee el catálogo de asignaturas desde el Excel de Materias IN (o Erasmus IN).
+    Busca la hoja/tabla que tenga columnas Asignaturas + Cuatrimestre sin columna Estudiante.
+    Devuelve lista de dicts [{asignatura: str, cuat: str}, ...] ordenados por cuat.
+    """
+    ruta = config.get("Materias IN") or config.get("Erasmus IN")
+    if not ruta or not os.path.exists(ruta):
+        return []
+
+    try:
+        xls = pd.read_excel(ruta, sheet_name=None, header=None, dtype=str)
+        rows = []
+
+        for sheet_name, df_raw in xls.items():
+            if df_raw is None or df_raw.empty:
+                continue
+
+            for i in range(len(df_raw)):
+                row_vals = df_raw.iloc[i].tolist()
+                header_map = _match_catalog_header_row(row_vals)
+                if header_map is None:
+                    continue
+
+                # Extraer datos debajo de la cabecera hasta separador u otra cabecera
+                asig_idx = header_map["asignatura"]
+                cuat_idx = header_map["cuat"]
+
+                for j in range(i + 1, len(df_raw)):
+                    vals = df_raw.iloc[j].tolist()
+                    if _is_separator_or_empty_row(vals):
+                        break
+                    if _match_catalog_header_row(vals):
+                        break
+
+                    asig = str(df_raw.iat[j, asig_idx] or "").strip() if asig_idx < df_raw.shape[1] else ""
+                    cuat = str(df_raw.iat[j, cuat_idx] or "").strip() if cuat_idx < df_raw.shape[1] else ""
+
+                    if asig and asig.lower() not in ("nan", "none", ""):
+                        rows.append({
+                            "asignatura": asig,
+                            "cuat": "" if cuat.lower() in ("nan", "none") else cuat,
+                        })
+
+                if rows:
+                    # Encontramos la tabla, no seguir buscando en esta hoja
+                    break
+
+            if rows:
+                break
+
+        # Ordenar: cuatrimestre 1 primero, luego 2, luego sin cuatrimestre
+        def _sort_key(r):
+            c = r.get("cuat", "")
+            if c in ("1", "1.0"):
+                return (0, r["asignatura"])
+            if c in ("2", "2.0"):
+                return (1, r["asignatura"])
+            return (2, r["asignatura"])
+
+        rows.sort(key=_sort_key)
+        print(f"[catalog] Catálogo cargado: {len(rows)} asignaturas")
+        return rows
+
+    except Exception as e:
+        print(f"[catalog] Error leyendo catálogo de asignaturas: {e}")
+        return []

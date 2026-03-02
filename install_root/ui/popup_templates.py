@@ -21,6 +21,19 @@ API_TOKEN = get_api_token()
 API_URL = os.getenv("API_URL", "http://127.0.0.1:5000").rstrip("/")
 FORM_ACTION = f"{API_URL}/update_student"
 
+
+def _load_asignaturas_catalog(config: dict) -> list:
+    """Carga el catálogo de asignaturas, con caché en session_state."""
+    cache_key = "_asignaturas_catalog_cache"
+    if cache_key not in st.session_state:
+        try:
+            from persistence import get_asignaturas_catalog
+            st.session_state[cache_key] = get_asignaturas_catalog(config)
+        except Exception as e:
+            print(f"[popup] No se pudo cargar catálogo de asignaturas: {e}")
+            st.session_state[cache_key] = []
+    return st.session_state.get(cache_key, [])
+
 def _normalize_str(s):
     s = str(s or "").strip().lower()
     s = "".join(c for c in unicodedata.normalize("NFD", s) if unicodedata.category(c) != "Mn")
@@ -163,6 +176,7 @@ def generate_dynamic_popup(row, programa: str, row_index: int) -> str:
                 programa,
                 row_index_attr=row_index_attr,
                 idx_attr=idx_attr,
+                asignaturas_catalog=_load_asignaturas_catalog(config),
             )
 
             # Targeta del estudiante
