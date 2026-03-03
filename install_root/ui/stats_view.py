@@ -243,6 +243,7 @@ def _load_students_for_course(config: dict, course: str) -> pd.DataFrame:
             ]
         elif tipo == "Erasmus IN":
             candidates = common_candidates + [
+                "origen",
                 "pais_in",
                 "país_in",
                 "country_in",
@@ -264,6 +265,20 @@ def _load_students_for_course(config: dict, course: str) -> pd.DataFrame:
             else:
                 df_tipo["pais"] = ""
 
+        # Filtrar filas con país vacío
+        df_tipo["pais"] = df_tipo["pais"].fillna("").astype(str).str.strip()
+        df_tipo = df_tipo[df_tipo["pais"] != ""]
+
+        # Deduplicar por alumno (por si el Excel tiene una fila por asignatura)
+        student_candidates = ["estudiante", "email", "nombre", "dni", "nip"]
+        norm_cols = {_normalize_col_name(c): c for c in df_tipo.columns}
+        col_student = next(
+            (norm_cols[_normalize_col_name(c)] for c in student_candidates if _normalize_col_name(c) in norm_cols),
+            None,
+        )
+        if col_student:
+            df_tipo = df_tipo.drop_duplicates(subset=[col_student, "tipo_movilidad"])
+
         # Añadimos curso académico
         df_tipo["curso_academico"] = course
 
@@ -273,6 +288,17 @@ def _load_students_for_course(config: dict, course: str) -> pd.DataFrame:
         return pd.DataFrame()
 
     return pd.concat(dfs, ignore_index=True)
+
+def _load_erasmus_in_raw(config: dict, course: str) -> pd.DataFrame:
+    """
+    Carga el Excel de Erasmus IN SIN deduplicar (una fila por asignatura por alumno).
+    Se usa exclusivamente para las estadísticas de asignaturas.
+    """
+    path = (config or {}).get("Erasmus IN")
+    if not path:
+        return pd.DataFrame()
+    return _read_sheet_safe(path, course)
+
 
 # ────────────────────────────────────────────────────────────────────────────────
 # Helpers de estadísticas
@@ -485,10 +511,10 @@ def render_stats_view() -> None:
             ]
             tables.append(("País y ciudades", blocks_pais))
 
-        # Asignaturas Erasmus IN
+        # Asignaturas Erasmus IN (datos sin deduplicar para contar asignaturas)
         if st.session_state.get("exp_subject_in", False):
-            df_mat = details._load_materias_in(config)
-            tabla_mat = details._stats_materias_mas_frecuentes(df_mat, top_n=1000000)
+            df_erasmus_raw = _load_erasmus_in_raw(config, course)
+            tabla_mat = details._stats_materias_mas_frecuentes(df_erasmus_raw, top_n=1000000)
             tables.append(("Asignaturas - IN", tabla_mat))
 
         # HOJA ÚNICA: Universidades
@@ -518,7 +544,8 @@ def render_stats_view() -> None:
     # ===========================
     # DETALLES
     # ===========================
-    details.render_stats_details(df_filtered, mobility_filter, config)
+    df_erasmus_raw = _load_erasmus_in_raw(config, course)
+    details.render_stats_details(df_filtered, mobility_filter, df_erasmus_raw)
     # ===========================
     # RESUMEN
     # ===========================

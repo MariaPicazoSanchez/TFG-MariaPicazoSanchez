@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import os
 import pandas as pd
 import streamlit as st
 from constants import PROGRAM_ERASMUS_IN
@@ -45,6 +44,7 @@ def _find_university_column(df: pd.DataFrame) -> str | None:
         "uni destino", "uni origen",
         "centro", "centro destino", "centro origen",
         "centro de destino", "centro de origen",
+        "destino", "Destino",
         # extras típicos en excels
         "institucion", "institución", "institution", "host institution",
         "partner", "partner institution",
@@ -149,24 +149,6 @@ def _stats_by_university(df: pd.DataFrame, top_n: int | None = 15) -> pd.DataFra
     return tabla
 
 
-def _load_materias_in(config: dict) -> pd.DataFrame:
-    """
-    Carga el Excel de 'Materias IN' si existe (config['Materias IN']).
-    Devuelve DataFrame vacío si no hay ruta o hay error.
-    """
-    path = (config or {}).get("Materias IN")
-    if not path or not os.path.exists(path):
-        return pd.DataFrame()
-
-    try:
-        df = pd.read_excel(path, dtype_backend='numpy_nullable')
-        if df is None or df.empty:
-            return pd.DataFrame()
-        return df
-    except Exception:
-        return pd.DataFrame()
-
-
 def _stats_materias_mas_frecuentes(df_mat: pd.DataFrame, top_n: int | None= 20) -> pd.DataFrame:
     """
     Tabla: asignaturas Erasmus IN más frecuentes (usa el Excel 'Materias IN').
@@ -175,9 +157,16 @@ def _stats_materias_mas_frecuentes(df_mat: pd.DataFrame, top_n: int | None= 20) 
         return pd.DataFrame(columns=["Asignatura", "Nº de alumnos"])
 
     col_asig = None
-    for cand in ["Asignatura", "asignatura", "nombre_asignatura"]:
-        if cand in df_mat.columns:
-            col_asig = cand
+    candidates_asig = [
+        "Asignatura", "asignatura", "nombre_asignatura",
+        "subject", "Subject", "materia", "Materia",
+        "asignatura destino", "subject name", "course", "Course",
+    ]
+    norm_to_real = {_normalize_col_name(c): c for c in df_mat.columns}
+    for cand in candidates_asig:
+        nc = _normalize_col_name(cand)
+        if nc in norm_to_real:
+            col_asig = norm_to_real[nc]
             break
 
     if not col_asig:
@@ -189,6 +178,10 @@ def _stats_materias_mas_frecuentes(df_mat: pd.DataFrame, top_n: int | None= 20) 
         .astype(str)
         .str.strip()
     )
+    serie_asig = serie_asig[serie_asig != ""]  # Eliminar vacíos
+
+    if serie_asig.empty:
+        return pd.DataFrame(columns=["Asignatura", "Nº de alumnos"])
 
     tabla = (
         serie_asig.groupby(serie_asig)
@@ -208,12 +201,13 @@ def _stats_materias_mas_frecuentes(df_mat: pd.DataFrame, top_n: int | None= 20) 
 # Función pública: renderizar detalles
 # ────────────────────────────────────────────────────────────────────────────────
 
-def render_stats_details(df_filtered: pd.DataFrame, mobility_filter: str, config: dict) -> None:
+def render_stats_details(df_filtered: pd.DataFrame, mobility_filter: str, df_erasmus_raw: pd.DataFrame) -> None:
     """
     Renderiza el bloque de detalles (expanders) de la vista de estadísticas:
 
     - Universidades con más alumnos (para cualquier filtro).
-    - Asignaturas más frecuentes (Erasmus IN) usando el Excel 'Materias IN'.
+    - Asignaturas más frecuentes (Erasmus IN) usando los datos crudos del Excel Erasmus IN
+      (una fila por asignatura, sin deduplicar).
 
     Si algún día no quieres este bloque, basta con NO llamar a esta función
     desde stats_view.py o borrar este archivo.
@@ -237,13 +231,13 @@ def render_stats_details(df_filtered: pd.DataFrame, mobility_filter: str, config
     # 2) Materias más frecuentes (solo tiene sentido para Erasmus IN / Todos)
     if mobility_filter in (PROGRAM_ERASMUS_IN, "Todos"):
         with st.expander("Asignaturas más frecuentes (Erasmus IN)"):
-            df_mat = _load_materias_in(config)
-            tabla_mat = _stats_materias_mas_frecuentes(df_mat)
+            # Usar datos crudos (sin deduplicar) para contar asignaturas correctamente
+            tabla_mat = _stats_materias_mas_frecuentes(df_erasmus_raw)
             if tabla_mat.empty:
                 st.info(
                     "No se ha podido generar la tabla de asignaturas. "
-                    "Comprueba que exista el Excel 'Materias IN' en la configuración "
-                    "y que tenga la columna 'Asignatura'."
+                    "Comprueba que el Excel de Erasmus IN tenga una columna de asignatura "
+                    "('Asignatura', 'asignatura', 'nombre_asignatura', etc.)."
                 )
             else:
                 st.dataframe(

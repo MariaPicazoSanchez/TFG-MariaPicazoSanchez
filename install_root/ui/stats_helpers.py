@@ -79,7 +79,7 @@ def load_students_for_course(config: dict, course: str) -> pd.DataFrame:
         if tipo == PROGRAM_ERASMUS_OUT:
             candidates = common_candidates + ["pais_out", "país_out", "country_out"]
         elif tipo == PROGRAM_ERASMUS_IN:
-            candidates = common_candidates + ["pais_in", "país_in", "country_in", "pais origen", "país origen"]
+            candidates = common_candidates + ["origen", "pais_in", "país_in", "country_in", "pais origen", "país origen"]
         else:
             candidates = common_candidates
 
@@ -88,6 +88,20 @@ def load_students_for_course(config: dict, course: str) -> pd.DataFrame:
             df_tipo["pais"] = df_tipo[col_pais]
         else:
             df_tipo["pais"] = SPAIN if tipo == PROGRAM_SICUE_OUT else ""
+
+        # Filtrar filas con país vacío
+        df_tipo["pais"] = df_tipo["pais"].fillna("").astype(str).str.strip()
+        df_tipo = df_tipo[df_tipo["pais"] != ""]
+
+        # Deduplicar por alumno (por si el Excel tiene una fila por asignatura)
+        student_candidates = ["estudiante", "email", "nombre", "dni", "nip"]
+        norm_cols = {_normalize_col_name(c): c for c in df_tipo.columns}
+        col_student = next(
+            (norm_cols[_normalize_col_name(c)] for c in student_candidates if _normalize_col_name(c) in norm_cols),
+            None,
+        )
+        if col_student:
+            df_tipo = df_tipo.drop_duplicates(subset=[col_student, "tipo_movilidad"])
 
         # Normalizar columna universidad
         col_uni = details._find_university_column(df_tipo)
@@ -185,11 +199,11 @@ def build_export_xlsx(
         if blocks:
             tables.append(("País por tipo", blocks))
 
-    # 4) asignaturas Erasmus IN (MISMA fuente que la app: Materias IN)
+    # 4) asignaturas Erasmus IN (datos crudos sin deduplicar para contar asignaturas)
     if selections.get("exp_subject_in"):
-        df_mat = details._load_materias_in(config)  # :contentReference[oaicite:4]{index=4}
-        # export “todo”: si no cambias stats_details, usa un número grande
-        tabla_mat = details._stats_materias_mas_frecuentes(df_mat, top_n=1000000)  # :contentReference[oaicite:5]{index=5}
+        path_in = config.get("Erasmus IN", "")
+        df_erasmus_raw = _read_sheet_safe(path_in, course)
+        tabla_mat = details._stats_materias_mas_frecuentes(df_erasmus_raw, top_n=1000000)
         tables.append(("Asignaturas - Erasmus IN", tabla_mat))
 
     # 5) universidades (MISMA detección que la app)
