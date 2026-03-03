@@ -1,0 +1,1072 @@
+/* ================================================================
+   styles.css — Movilidad UCI · Documentación del Proyecto
+   Diseño limpio tipo documentación de producto.
+   Sin dependencias externas. Sistema de tipografía nativo.
+================================================================ */
+
+/* ----------------------------------------------------------------
+   VARIABLES CSS
+---------------------------------------------------------------- */
+:root {
+  /* Colores primarios */
+  --color-primary:        #1d4ed8;
+  --color-primary-light:  #3b82f6;
+  --color-primary-dark:   #1e3a8a;
+
+  /* Texto */
+  --color-text:           #111827;
+  --color-text-muted:     #6b7280;
+  --color-text-light:     #9ca3af;
+
+  /* Fondos */
+  --color-bg:             #ffffff;
+  --color-bg-alt:         #f8fafc;
+  --color-bg-dark:        #0f172a;
+
+  /* Bordes y separadores */
+  --color-border:         #e2e8f0;
+  --color-border-strong:  #cbd5e1;
+
+  /* Arquitectura: colores por capa */
+  --layer-ui:             #dbeafe;
+  --layer-ui-border:      #93c5fd;
+  --layer-api:            #dcfce7;
+  --layer-api-border:     #86efac;
+  --layer-domain:         #fef9c3;
+  --layer-domain-border:  #fde047;
+  --layer-persist:        #fce7f3;
+  --layer-persist-border: #f9a8d4;
+  --layer-utils:          #f3e8ff;
+  --layer-utils-border:   #d8b4fe;
+
+  /* Solución: colores por nodo */
+  --sol-input:            #e0f2fe;
+  --sol-input-border:     #38bdf8;
+  --sol-core:             #1d4ed8;
+  --sol-output:           #dcfce7;
+  --sol-output-border:    #4ade80;
+
+  /* Tipografía */
+  --font-sans: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto,
+               Oxygen, Ubuntu, Cantarell, 'Helvetica Neue', sans-serif;
+  --font-mono: 'SFMono-Regular', Consolas, 'Cascadia Code', 'Liberation Mono',
+               Menlo, Courier, monospace;
+
+  /* Espaciado */
+  --space-xs:   0.25rem;
+  --space-sm:   0.5rem;
+  --space-md:   1rem;
+  --space-lg:   1.5rem;
+  --space-xl:   2rem;
+  --space-2xl:  3rem;
+  --space-3xl:  4rem;
+
+  /* Contenedor */
+  --container-max: 1000px;
+  --container-px:  1.5rem;
+
+  /* Bordes redondeados */
+  --radius-sm:  4px;
+  --radius-md:  8px;
+  --radius-lg:  12px;
+
+  /* Sombras */
+  --shadow-sm:  0 1px 3px 0 rgba(0,0,0,.07), 0 1px 2px 0 rgba(0,0,0,.04);
+  --shadow-md:  0 4px 6px -1px rgba(0,0,0,.08), 0 2px 4px -1px rgba(0,0,0,.04);
+  --shadow-lg:  0 10px 15px -3px rgba(0,0,0,.08), 0 4px 6px -2px rgba(0,0,0,.04);
+
+  /* Transiciones */
+  --transition: 150ms ease;
+}
+
+
+/* ----------------------------------------------------------------
+   RESET Y BASE
+---------------------------------------------------------------- */
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html {
+  scroll-behavior: smooth;
+  font-size: 16px;
+}
+
+body {
+  font-family: var(--font-sans);
+  font-size: 1rem;
+  line-height: 1.7;
+  color: var(--color-text);
+  background-color: var(--color-bg);
+  -webkit-font-smoothing: antialiased;
+}
+
+img,
+picture,
+svg {
+  display: block;
+  max-width: 100%;
+}
+
+ul,
+ol {
+  list-style: none;
+}
+
+a {
+  color: var(--color-primary);
+  text-decoration: none;
+}
+
+a:hover {
+  text-decoration: underline;
+}
+
+p + p {
+  margin-top: var(--space-md);
+}
+
+h1, h2, h3, h4 {
+  line-height: 1.25;
+  font-weight: 700;
+  color: var(--color-text);
+}
+
+
+/* ----------------------------------------------------------------
+   UTILIDADES
+---------------------------------------------------------------- */
+
+/* Contenedor centrado de ancho máximo */
+.container {
+  width: 100%;
+  max-width: var(--container-max);
+  margin-inline: auto;
+  padding-inline: var(--container-px);
+}
+
+/* Texto auxiliar en mayúsculas tipo label */
+.section-tag {
+  display: inline-block;
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--color-primary);
+  margin-bottom: var(--space-sm);
+}
+
+/* Encabezado de sección */
+.section-header {
+  margin-bottom: var(--space-xl);
+}
+
+.section-title {
+  font-size: 1.875rem;
+  font-weight: 700;
+  color: var(--color-text);
+}
+
+/* Párrafo introductorio */
+.section-intro {
+  max-width: 680px;
+  color: var(--color-text-muted);
+  font-size: 1.05rem;
+  margin-bottom: var(--space-2xl);
+}
+
+
+/* ----------------------------------------------------------------
+   BOTONES
+---------------------------------------------------------------- */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-sm);
+  padding: 0.65rem 1.25rem;
+  border-radius: var(--radius-md);
+  font-size: 0.95rem;
+  font-weight: 600;
+  cursor: pointer;
+  border: 2px solid transparent;
+  transition: background-color var(--transition), color var(--transition),
+              border-color var(--transition), box-shadow var(--transition);
+  text-decoration: none;
+}
+
+.btn-primary {
+  background-color: var(--color-primary);
+  color: #fff;
+  border-color: var(--color-primary);
+}
+
+.btn-primary:hover {
+  background-color: var(--color-primary-dark);
+  border-color: var(--color-primary-dark);
+  text-decoration: none;
+  box-shadow: var(--shadow-md);
+}
+
+.btn-outline {
+  background-color: transparent;
+  color: var(--color-primary);
+  border-color: var(--color-primary);
+}
+
+.btn-outline:hover {
+  background-color: var(--color-primary);
+  color: #fff;
+  text-decoration: none;
+}
+
+
+/* ----------------------------------------------------------------
+   NAVEGACIÓN
+---------------------------------------------------------------- */
+.site-header {
+  position: sticky;
+  top: 0;
+  z-index: 100;
+  background-color: rgba(255,255,255,0.95);
+  backdrop-filter: blur(8px);
+  border-bottom: 1px solid var(--color-border);
+}
+
+.nav-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: 58px;
+  gap: var(--space-xl);
+}
+
+.nav-logo {
+  font-size: 1rem;
+  font-weight: 700;
+  color: var(--color-primary);
+  letter-spacing: -0.01em;
+  white-space: nowrap;
+}
+
+.nav-links {
+  display: flex;
+  gap: var(--space-lg);
+  flex-wrap: wrap;
+}
+
+.nav-links a {
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: var(--color-text-muted);
+  transition: color var(--transition);
+  white-space: nowrap;
+}
+
+.nav-links a:hover {
+  color: var(--color-primary);
+  text-decoration: none;
+}
+
+
+/* ----------------------------------------------------------------
+   SECCIONES BASE
+---------------------------------------------------------------- */
+.section {
+  padding-block: var(--space-3xl);
+  background-color: var(--color-bg);
+}
+
+.section-alt {
+  background-color: var(--color-bg-alt);
+}
+
+
+/* ----------------------------------------------------------------
+   HERO
+---------------------------------------------------------------- */
+.hero {
+  background-color: var(--color-bg-dark);
+  padding-block: 5rem 4rem;
+}
+
+.hero-inner {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-lg);
+}
+
+.hero-label {
+  font-size: 0.8rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--color-primary-light);
+}
+
+.hero-title {
+  font-size: clamp(2.5rem, 6vw, 4rem);
+  font-weight: 800;
+  color: #fff;
+  letter-spacing: -0.03em;
+  line-height: 1.1;
+}
+
+.hero-subtitle {
+  font-size: 1.15rem;
+  color: #94a3b8;
+  max-width: 640px;
+  line-height: 1.7;
+  margin-top: 0;
+}
+
+.hero-subtitle strong {
+  color: #e2e8f0;
+}
+
+/* Badges de tecnologías */
+.tech-badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-sm);
+  margin-top: var(--space-sm);
+}
+
+.badge {
+  display: inline-block;
+  padding: 0.2rem 0.65rem;
+  border-radius: 999px;
+  font-size: 0.78rem;
+  font-weight: 600;
+  background-color: rgba(59,130,246,0.18);
+  color: #93c5fd;
+  border: 1px solid rgba(59,130,246,0.3);
+  white-space: nowrap;
+}
+
+.hero-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-md);
+  margin-top: var(--space-sm);
+}
+
+
+/* ----------------------------------------------------------------
+   EL PROBLEMA
+---------------------------------------------------------------- */
+.problem-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--space-2xl);
+  align-items: start;
+}
+
+.problem-text {
+  color: var(--color-text-muted);
+  font-size: 0.98rem;
+}
+
+.pain-points {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-md);
+}
+
+.pain-card {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-md);
+  background-color: var(--color-bg);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  padding: var(--space-md) var(--space-lg);
+  box-shadow: var(--shadow-sm);
+}
+
+.pain-card strong {
+  display: block;
+  font-size: 0.92rem;
+  color: var(--color-text);
+  margin-bottom: 0.15rem;
+}
+
+.pain-card p {
+  font-size: 0.85rem;
+  color: var(--color-text-muted);
+  margin-top: 0;
+}
+
+.pain-icon {
+  font-size: 1.1rem;
+  flex-shrink: 0;
+  margin-top: 0.1rem;
+  color: #f59e0b;
+}
+
+
+/* ----------------------------------------------------------------
+   LA SOLUCIÓN — DIAGRAMA
+---------------------------------------------------------------- */
+.solution-diagram {
+  display: flex;
+  align-items: stretch;
+  justify-content: center;
+  gap: 0;
+  flex-wrap: nowrap;
+  margin-top: var(--space-xl);
+}
+
+.sol-node {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  padding: var(--space-xl) var(--space-lg);
+  border-radius: var(--radius-lg);
+  border: 2px solid transparent;
+  gap: var(--space-sm);
+}
+
+.sol-node--input {
+  background-color: var(--sol-input);
+  border-color: var(--sol-input-border);
+}
+
+.sol-node--core {
+  background-color: var(--sol-core);
+  color: #fff;
+}
+
+.sol-node--output {
+  background-color: var(--sol-output);
+  border-color: var(--sol-output-border);
+}
+
+.sol-node-icon {
+  font-size: 2rem;
+}
+
+.sol-node-label {
+  font-size: 1rem;
+  font-weight: 700;
+}
+
+.sol-node--core .sol-node-label {
+  color: #fff;
+}
+
+.sol-node-desc {
+  font-size: 0.83rem;
+  color: var(--color-text-muted);
+}
+
+.sol-node--core .sol-node-desc {
+  color: #bfdbfe;
+}
+
+.sol-arrow {
+  display: flex;
+  align-items: center;
+  font-size: 1.5rem;
+  color: var(--color-border-strong);
+  padding-inline: var(--space-md);
+  flex-shrink: 0;
+}
+
+
+/* ----------------------------------------------------------------
+   ARQUITECTURA — DIAGRAMA VERTICAL
+---------------------------------------------------------------- */
+.arch-diagram {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0;
+  max-width: 720px;
+  margin-inline: auto;
+}
+
+.arch-layer {
+  width: 100%;
+  border-radius: var(--radius-md);
+  border: 2px solid transparent;
+  padding: var(--space-lg) var(--space-xl);
+  box-shadow: var(--shadow-sm);
+}
+
+.arch-layer--ui          { background-color: var(--layer-ui);      border-color: var(--layer-ui-border); }
+.arch-layer--api         { background-color: var(--layer-api);     border-color: var(--layer-api-border); }
+.arch-layer--domain      { background-color: var(--layer-domain);  border-color: var(--layer-domain-border); }
+.arch-layer--persistence { background-color: var(--layer-persist); border-color: var(--layer-persist-border); }
+.arch-layer--utils       { background-color: var(--layer-utils);   border-color: var(--layer-utils-border); }
+
+.arch-layer-title {
+  font-size: 0.875rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--color-text);
+  margin-bottom: var(--space-md);
+}
+
+.arch-layer-items {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-sm);
+}
+
+.arch-item {
+  display: inline-block;
+  padding: 0.2rem 0.65rem;
+  background-color: rgba(255,255,255,0.65);
+  border: 1px solid rgba(0,0,0,0.08);
+  border-radius: var(--radius-sm);
+  font-size: 0.82rem;
+  font-weight: 500;
+  color: var(--color-text);
+}
+
+.arch-connector {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-xs);
+  padding-block: var(--space-sm);
+}
+
+.arch-connector-line {
+  display: block;
+  width: 2px;
+  height: 24px;
+  background-color: var(--color-border-strong);
+}
+
+.arch-connector-label {
+  font-size: 0.72rem;
+  color: var(--color-text-light);
+  font-style: italic;
+}
+
+
+/* ----------------------------------------------------------------
+   FUNCIONALIDADES — TARJETAS
+---------------------------------------------------------------- */
+.features-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: var(--space-lg);
+}
+
+.feature-card {
+  background-color: var(--color-bg);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  padding: var(--space-xl);
+  box-shadow: var(--shadow-sm);
+  transition: box-shadow var(--transition), transform var(--transition);
+}
+
+.feature-card:hover {
+  box-shadow: var(--shadow-lg);
+  transform: translateY(-2px);
+}
+
+.feature-icon {
+  font-size: 1.75rem;
+  margin-bottom: var(--space-md);
+  line-height: 1;
+}
+
+.feature-title {
+  font-size: 1.1rem;
+  font-weight: 700;
+  margin-bottom: var(--space-sm);
+  color: var(--color-text);
+}
+
+.feature-desc {
+  font-size: 0.9rem;
+  color: var(--color-text-muted);
+  margin-bottom: var(--space-md);
+}
+
+.feature-list {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xs);
+  border-top: 1px solid var(--color-border);
+  padding-top: var(--space-md);
+  margin-top: var(--space-md);
+}
+
+.feature-list li {
+  font-size: 0.85rem;
+  color: var(--color-text-muted);
+  padding-left: 1.1em;
+  position: relative;
+}
+
+.feature-list li::before {
+  content: '›';
+  position: absolute;
+  left: 0;
+  color: var(--color-primary);
+  font-weight: 700;
+}
+
+
+/* ----------------------------------------------------------------
+   DEMOSTRACIÓN — CAPTURAS
+---------------------------------------------------------------- */
+.screenshots-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: var(--space-lg);
+}
+
+.screenshot-item {
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  border: 1px solid var(--color-border);
+  box-shadow: var(--shadow-sm);
+}
+
+.screenshot-placeholder {
+  background-color: #e5e7eb;
+  height: 220px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-sm);
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: #9ca3af;
+  border-bottom: 1px solid var(--color-border);
+  text-align: center;
+  padding: var(--space-md);
+}
+
+.screenshot-hint {
+  display: block;
+  font-size: 0.78rem;
+  font-weight: 400;
+  color: #b0b7bf;
+}
+
+.screenshot-caption {
+  display: block;
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--color-text-muted);
+  padding: var(--space-sm) var(--space-md);
+  background-color: var(--color-bg);
+  text-align: center;
+}
+
+
+/* ----------------------------------------------------------------
+   DECISIONES TÉCNICAS
+---------------------------------------------------------------- */
+.decisions-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: var(--space-lg);
+}
+
+.decision-card {
+  background-color: var(--color-bg-alt);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  padding: var(--space-xl);
+}
+
+.decision-title {
+  font-size: 1rem;
+  font-weight: 700;
+  color: var(--color-primary);
+  margin-bottom: var(--space-md);
+  padding-bottom: var(--space-sm);
+  border-bottom: 2px solid var(--color-border);
+}
+
+.decision-card p {
+  font-size: 0.9rem;
+  color: var(--color-text-muted);
+}
+
+
+/* ----------------------------------------------------------------
+   RETOS Y APRENDIZAJES
+---------------------------------------------------------------- */
+.challenges-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xl);
+}
+
+.challenge-item {
+  display: flex;
+  gap: var(--space-xl);
+  align-items: flex-start;
+}
+
+.challenge-number {
+  font-size: 2rem;
+  font-weight: 800;
+  color: var(--color-border-strong);
+  line-height: 1;
+  flex-shrink: 0;
+  min-width: 3rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.challenge-content h3 {
+  font-size: 1.05rem;
+  font-weight: 700;
+  color: var(--color-text);
+  margin-bottom: var(--space-sm);
+}
+
+.challenge-content p {
+  font-size: 0.92rem;
+  color: var(--color-text-muted);
+}
+
+
+/* ----------------------------------------------------------------
+   INSTALACIÓN
+---------------------------------------------------------------- */
+.install-tabs {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: var(--space-lg);
+  margin-bottom: var(--space-2xl);
+}
+
+.install-option {
+  background-color: var(--color-bg-alt);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  padding: var(--space-xl);
+}
+
+.install-option-title {
+  font-size: 1rem;
+  font-weight: 700;
+  color: var(--color-text);
+  margin-bottom: var(--space-md);
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  flex-wrap: wrap;
+}
+
+.install-badge {
+  display: inline-block;
+  padding: 0.1rem 0.5rem;
+  border-radius: 999px;
+  font-size: 0.7rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.install-badge--recommended {
+  background-color: #dcfce7;
+  color: #15803d;
+  border: 1px solid #86efac;
+}
+
+.install-option > p {
+  font-size: 0.9rem;
+  color: var(--color-text-muted);
+  margin-bottom: var(--space-md);
+}
+
+.install-steps {
+  list-style: decimal;
+  padding-left: 1.4rem;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-md);
+}
+
+.install-steps li {
+  font-size: 0.9rem;
+  color: var(--color-text-muted);
+}
+
+/* Bloque de código */
+.code-block {
+  background-color: #1e293b;
+  color: #e2e8f0;
+  font-family: var(--font-mono);
+  font-size: 0.82rem;
+  padding: var(--space-sm) var(--space-md);
+  border-radius: var(--radius-sm);
+  overflow-x: auto;
+  margin-top: var(--space-sm);
+  line-height: 1.6;
+  border: 1px solid #334155;
+}
+
+code {
+  font-family: var(--font-mono);
+  font-size: 0.875em;
+  background-color: #f1f5f9;
+  padding: 0.1em 0.35em;
+  border-radius: var(--radius-sm);
+  color: var(--color-primary-dark);
+}
+
+.code-block code {
+  background: none;
+  color: inherit;
+  padding: 0;
+  border-radius: 0;
+  font-size: inherit;
+}
+
+/* Tabla de requisitos */
+.system-requirements {
+  background-color: var(--color-bg-alt);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  padding: var(--space-xl);
+}
+
+.requirements-title {
+  font-size: 1rem;
+  font-weight: 700;
+  margin-bottom: var(--space-lg);
+  color: var(--color-text);
+}
+
+.requirements-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.9rem;
+}
+
+.requirements-table th,
+.requirements-table td {
+  padding: var(--space-sm) var(--space-md);
+  text-align: left;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.requirements-table th {
+  font-weight: 700;
+  color: var(--color-text-muted);
+  font-size: 0.8rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  background-color: var(--color-bg);
+}
+
+.requirements-table td {
+  color: var(--color-text-muted);
+}
+
+.requirements-table td:first-child {
+  font-weight: 600;
+  color: var(--color-text);
+}
+
+.requirements-table tr:last-child td {
+  border-bottom: none;
+}
+
+
+/* ----------------------------------------------------------------
+   FOOTER
+---------------------------------------------------------------- */
+.site-footer {
+  background-color: var(--color-bg-dark);
+  padding-block: var(--space-2xl);
+  border-top: 1px solid #1e293b;
+}
+
+.footer-inner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-lg);
+  flex-wrap: wrap;
+}
+
+.footer-info {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.footer-project {
+  font-size: 1rem;
+  font-weight: 700;
+  color: #f1f5f9;
+}
+
+.footer-author {
+  font-size: 0.85rem;
+  color: #94a3b8;
+}
+
+.footer-year {
+  font-size: 0.8rem;
+  color: #64748b;
+}
+
+.footer-links {
+  display: flex;
+  gap: var(--space-md);
+}
+
+.footer-link {
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--color-primary-light);
+  transition: color var(--transition);
+}
+
+.footer-link:hover {
+  color: #fff;
+  text-decoration: none;
+}
+
+
+/* ================================================================
+   RESPONSIVE — MEDIA QUERIES
+================================================================ */
+
+/* Pantallas medianas (≤ 768px) */
+@media (max-width: 768px) {
+
+  /* Navegación: ocultar links en pantallas pequeñas */
+  .nav-links {
+    display: none;
+  }
+
+  /* Hero más compacto */
+  .hero {
+    padding-block: 3rem 2.5rem;
+  }
+
+  .hero-title {
+    font-size: 2.25rem;
+  }
+
+  /* Secciones con menos padding */
+  .section {
+    padding-block: var(--space-2xl);
+  }
+
+  /* Problema: una columna */
+  .problem-grid {
+    grid-template-columns: 1fr;
+  }
+
+  /* Solución: columna vertical */
+  .solution-diagram {
+    flex-direction: column;
+    align-items: center;
+    max-width: 380px;
+    margin-inline: auto;
+    gap: var(--space-sm);
+  }
+
+  .sol-arrow {
+    transform: rotate(90deg);
+    padding-inline: 0;
+    padding-block: var(--space-xs);
+    font-size: 1.2rem;
+  }
+
+  /* Arquitectura ya es columna, solo ajustar padding */
+  .arch-layer {
+    padding: var(--space-md) var(--space-lg);
+  }
+
+  /* Funcionalidades: una columna */
+  .features-grid {
+    grid-template-columns: 1fr;
+  }
+
+  /* Capturas: una columna */
+  .screenshots-grid {
+    grid-template-columns: 1fr;
+  }
+
+  /* Decisiones: una columna */
+  .decisions-grid {
+    grid-template-columns: 1fr;
+  }
+
+  /* Instalación: una columna */
+  .install-tabs {
+    grid-template-columns: 1fr;
+  }
+
+  /* Footer en columna */
+  .footer-inner {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  /* Retos: reducir número decorativo */
+  .challenge-number {
+    font-size: 1.5rem;
+    min-width: 2.5rem;
+  }
+}
+
+/* Pantallas pequeñas (≤ 480px) */
+@media (max-width: 480px) {
+
+  :root {
+    --container-px: 1rem;
+  }
+
+  .hero-title {
+    font-size: 1.875rem;
+  }
+
+  .hero-subtitle {
+    font-size: 1rem;
+  }
+
+  .hero-actions {
+    flex-direction: column;
+    width: 100%;
+  }
+
+  .btn {
+    justify-content: center;
+    width: 100%;
+  }
+
+  .section-title {
+    font-size: 1.5rem;
+  }
+
+  .challenge-item {
+    flex-direction: column;
+    gap: var(--space-sm);
+  }
+
+  .challenge-number {
+    font-size: 1.25rem;
+  }
+
+  .sol-node {
+    padding: var(--space-lg) var(--space-md);
+  }
+}

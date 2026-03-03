@@ -303,7 +303,7 @@ def sidebar_controls() -> tuple[str | None, st.delta_generator.DeltaGenerator | 
 
         # Placeholder para el buscador debajo de los botones de filtros
         st.sidebar.markdown("**Buscar alumno, ciudad, universidad...**")
-        search_slot = st.sidebar.empty()
+        search_slot = st.sidebar.container()
 
         st.sidebar.markdown("---")
         # Botón para crear estudiante (esto no es filtro, lo dejamos aquí)
