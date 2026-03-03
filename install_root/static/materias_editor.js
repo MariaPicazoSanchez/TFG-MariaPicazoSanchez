@@ -317,6 +317,34 @@
         topDoc.body.appendChild(toast);
     }
 
+    // Validación Erasmus IN: impedir submit si no hay asignaturas
+    document.addEventListener("submit", function(ev) {
+        var form = ev.target;
+        if (!form || form.tagName !== "FORM") return;
+        var progInput = form.querySelector('input[name="programa"]');
+        if (!progInput) return;
+        if (progInput.value.toLowerCase() !== "erasmus in") return;
+
+        var textarea = form.querySelector('textarea[name="materias_raw"]');
+        var materias = [];
+        if (textarea && textarea.value.trim()) {
+            try { materias = JSON.parse(textarea.value); } catch(e) {}
+        }
+        var tieneAsignaturas = Array.isArray(materias) && materias.some(function(m) {
+            return m && (m.asignatura || m.nombre || "").toString().trim() !== "";
+        });
+        if (!tieneAsignaturas) {
+            ev.preventDefault();
+            ev.stopImmediatePropagation();
+            // Cancelar el setTimeout que deshabilita el botón
+            clearTimeout(window._saveBtnTimeout);
+            // Restaurar botón si se había deshabilitado
+            var btn = window._saveBtnRef;
+            if (btn) { btn.disabled = false; btn.textContent = "Guardar"; }
+            showSaveToast(false, ["El alumno debe tener al menos una asignatura."]);
+        }
+    }, true); // capture=true para actuar antes del handler de submit del form
+
     // Escucha mensajes de la API
     window.addEventListener("message", function(event) {
         var data = event.data || {};

@@ -322,6 +322,10 @@ def update_student():
             materias_in = parse_materias_raw(materias_raw)
             logf(f"[API] materias_in parseadas = {len(materias_in)}")
 
+            # Validación Erasmus IN: debe tener al menos una asignatura
+            if es_erasmus_in and not materias_in:
+                return _build_js_response(False, ["El alumno debe tener al menos una asignatura."])
+
             est = {
                 "estudiante": (form.get("estudiante") or "").strip(),
                 "old_nombre": (old_nombre or "").strip(),
