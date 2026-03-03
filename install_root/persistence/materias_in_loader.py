@@ -29,6 +29,7 @@ HEADER_ALIASES = {
     },
     "cuat": {"cuat", "cuatrimestre", "cuatri"},
     "firmado": {"firmado", "firma"},
+    "la": {"la", "learningagreement", "acuerdoaprendizaje"},
 }
 
 # Columnas que deben existir para considerar que una tabla es "Materias IN"
@@ -123,6 +124,16 @@ def load_materias_in(config):
                         print(f"[DEBUG]   Fila {j} vacía/separador. Fin bloque.")
                         break
 
+                    # Parar si las columnas CLAVE (asignatura + estudiante) están ambas vacías
+                    # aunque otras columnas (ej. contadores) sean no vacías
+                    c_asig = header_map.get("asignatura")
+                    c_est  = header_map.get("estudiante")
+                    key_asig = _norm(current_vals[c_asig]) if c_asig is not None and c_asig < len(current_vals) else ""
+                    key_est  = _norm(current_vals[c_est])  if c_est  is not None and c_est  < len(current_vals) else ""
+                    if not key_asig and not key_est:
+                        print(f"[DEBUG]   Fila {j} sin asignatura ni estudiante. Fin bloque.")
+                        break
+
                     # Parar si aparece otra cabecera (otra tabla)
                     if _match_header_row(current_vals) is not None:
                         print(f"[DEBUG]   Fila {j} parece otra cabecera. Fin bloque.")
@@ -138,9 +149,19 @@ def load_materias_in(config):
                     j += 1
 
                 if rows_data:
-                    bloque = pd.DataFrame(rows_data)
-                    bloques.append(bloque)
-                    print(f"[DEBUG] Bloque extraído en hoja '{sheet_name}': {len(bloque)} filas")
+                    # Descartar bloque si todos los valores de 'estudiante' parecen numéricos
+                    # (falso positivo: tabla de conteos u otra tabla adyacente)
+                    est_vals = [str(r.get("estudiante") or "").strip() for r in rows_data]
+                    est_vals_nonempty = [v for v in est_vals if v and v.lower() not in ("nan", "none", "")]
+                    def _es_numerico(s):
+                        try: float(s.replace(",", ".")); return True
+                        except: return False
+                    if est_vals_nonempty and all(_es_numerico(v) for v in est_vals_nonempty):
+                        print(f"[DEBUG] Bloque descartado en hoja '{sheet_name}' fila {i}: todos los 'estudiante' son numéricos ({est_vals_nonempty[:3]})")
+                    else:
+                        bloque = pd.DataFrame(rows_data)
+                        bloques.append(bloque)
+                        print(f"[DEBUG] Bloque extraído en hoja '{sheet_name}': {len(bloque)} filas")
                 else:
                     print(f"[DEBUG] Cabecera detectada pero sin filas de datos en hoja '{sheet_name}', fila {i}")
 
@@ -154,7 +175,7 @@ def load_materias_in(config):
         df = pd.concat(bloques, ignore_index=True)
 
         # Asegurar columnas estándar (por si alguna tabla no trae todas)
-        columnas_relevantes = ["asignatura", "estudiante", "origen", "universidadorigen", "cuat", "firmado"]
+        columnas_relevantes = ["asignatura", "estudiante", "origen", "universidadorigen", "cuat", "firmado", "la"]
         for c in columnas_relevantes:
             if c not in df.columns:
                 df[c] = None
@@ -170,6 +191,7 @@ def load_materias_in(config):
             "universidadorigen": "UniversidadOrigen",
             "cuat": "Cuat",
             "firmado": "Firmado",
+            "la": "LA",
         })
 
         # Limpieza básica
@@ -178,6 +200,15 @@ def load_materias_in(config):
             df.loc[df[c].isin(["", "nan", "None"]), c] = pd.NA
 
         df = df.dropna(subset=["Estudiante", "Asignatura"]).reset_index(drop=True)
+
+        # Filtro de seguridad: descartar filas donde Estudiante es puramente numérico
+        def _parece_numero(s):
+            try: float(str(s).strip().replace(",", ".")); return True
+            except: return False
+        mask_num = df["Estudiante"].apply(_parece_numero)
+        if mask_num.any():
+            print(f"[DEBUG] Descartando {mask_num.sum()} filas con Estudiante numérico: {df.loc[mask_num, 'Estudiante'].tolist()[:5]}")
+        df = df[~mask_num].reset_index(drop=True)
 
         print(f"[DEBUG] Filas finales Materias IN: {len(df)}")
         print(f"[DEBUG] Columnas finales: {list(df.columns)}")
@@ -214,6 +245,7 @@ def build_materias_in_por_estudiante(df_materias):
             "origen":    getattr(row, 'Origen', None),
             # antes usabas 'Centro' (no existía); ahora usa UniversidadOrigen
             "centro":    getattr(row, 'UniversidadOrigen', None),
+            "la":        getattr(row, 'LA', None),
         })
 
     return materias_por_est

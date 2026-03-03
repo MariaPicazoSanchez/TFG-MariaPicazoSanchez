@@ -46,11 +46,35 @@ def build_materias_blocks(e, programa: str, row_index_attr: str, idx_attr: str, 
       firmado_raw = str(m.get("firmado", "")).strip().lower()
       firmado_flag = "x" if firmado_raw in ("x", "1", "s", "si", "sí", "true", "t") else ""
 
+      def _safe_or(a, b):
+          """Como 'a or b' pero tolerando pd.NA (que lanza TypeError en __bool__)."""
+          try:
+              return a or b
+          except TypeError:
+              return b
+      la_val = _clean(_safe_or(m.get("la"), m.get("link_la"))) or ""
+      origen_val = _clean(m.get("origen")) or ""
+      centro_val = _clean(_safe_or(m.get("centro"), m.get("universidadorigen"))) or ""
+
       pills.append(f"<li class='mitem'>{html.escape(asig)}</li>")
-      lines.append({"asignatura": asig})
+      lines.append({
+          "asignatura": asig,
+          "cuat": cuat or "",
+          "firmado": firmado_flag,
+          "la": la_val,
+          "origen": origen_val,
+          "centro": centro_val,
+      })
 
       mid = f"{row_index_attr}-{idx_attr}-mat-{j}"
       mindex = len(materias_items)
+
+      # Serializar materia completa para recuperarla en el JS sin pérdidas
+      materia_json = json.dumps({
+          "nombre": asig, "asignatura": asig,
+          "cuat": cuat or "", "firmado": firmado_flag,
+          "la": la_val, "origen": origen_val, "centro": centro_val,
+      }, ensure_ascii=False)
 
       # --- AQUI AÑADES LA CLASE SI ES NUEVA ---
       clase = "materia-row"
@@ -60,7 +84,8 @@ def build_materias_blocks(e, programa: str, row_index_attr: str, idx_attr: str, 
       materias_items.append(f"""
         <li class="{clase}"
           data-mindex="{mindex}"
-          data-nombre="{html.escape(asig, quote=True)}">
+          data-nombre="{html.escape(asig, quote=True)}"
+          data-materia="{html.escape(materia_json, quote=True)}">
           <span class="materia-name">{html.escape(asig)}</span>
           <span class="materia-actions">
             <button type="button" class="icon-btn materia-edit" title="Editar" data-mid="{mid}">✏️</button>

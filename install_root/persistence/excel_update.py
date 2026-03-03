@@ -721,14 +721,37 @@ def actualizar_excel_materias_para_estudiante(materias_in, est, materias_path: s
         c_fir  = table_info.cols.get("firmado")
         c_la   = table_info.cols.get("link_la")
 
-        # ---- buscar filas existentes del alumno (primero old_nombre, luego nuevo) ----
+        # ---- normalizar payload ----
+        nuevas = []
+        for m in (materias_in or []):
+            if not isinstance(m, dict):
+                continue
+            asig = str(m.get("asignatura") or m.get("nombre") or "").strip()
+            if not asig:
+                continue
+            item_origen = str(m.get("origen") or "").strip()
+            item_uni = str(m.get("universidad_origen") or m.get("centro") or "").strip()
+            nuevas.append({
+                "asignatura": asig,
+                "estudiante": nombre_nuevo or nombre_antiguo,
+                "origen": item_origen if item_origen else origen_default,
+                "universidad_origen": item_uni if item_uni else uni_default,
+                "cuat": str(m.get("cuat") or "").strip(),
+                "firmado": _normalize_firmado(m.get("firmado", "")),
+                "link_la": str(m.get("link_la") or m.get("la") or "").strip(),
+                "_origen_explicit": bool(item_origen),
+                "_uni_explicit": bool(item_uni),
+            })
+        print(f"[materias] nuevas={len(nuevas)} asignaturas a guardar")
+
+        # ---- buscar filas existentes del alumno (escanea hasta max_row para cubrir filas añadidas) ----
         rows_student = []
         lookup_names = [x for x in [nombre_antiguo, nombre_nuevo] if x]
         if c_est:
             for candidate in lookup_names:
                 cand_norm = normalize_str(candidate)
                 rows = []
-                for r in range(table_info.data_start, table_info.data_end + 1):
+                for r in range(table_info.data_start, ws.max_row + 1):
                     v = ws.cell(row=r, column=c_est).value
                     if normalize_str(v) == cand_norm:
                         rows.append(r)
@@ -780,23 +803,41 @@ def actualizar_excel_materias_para_estudiante(materias_in, est, materias_path: s
 
             print(f"[materias] Editada fila {r}: {fila['asignatura']}")
 
-        # ---- actualizar filas sobrantes del alumno (todos los campos del alumno) ----
+        # ---- eliminar filas sobrantes y compactar la tabla (sin insert/delete_rows) ----
         if len(rows_student) > len(nuevas):
             sobrantes = rows_student[len(nuevas):]
-            for r in sobrantes:
-                if c_est and nombre_nuevo:
-                    ws.cell(row=r, column=c_est).value = nombre_nuevo
-                if c_ori and origen_default:
-                    ws.cell(row=r, column=c_ori).value = origen_default
-                if c_uni and uni_default:
-                    ws.cell(row=r, column=c_uni).value = uni_default
-                if c_cuat and cuat_default:
-                    ws.cell(row=r, column=c_cuat).value = cuat_default
-                if c_fir:
-                    ws.cell(row=r, column=c_fir).value = firmado_default
-                if c_la and la_default:
-                    ws.cell(row=r, column=c_la).value = la_default
-                print(f"[materias] Actualizada fila sobrante {r}: nombre={nombre_nuevo}, cuat={cuat_default}, firmado={firmado_default}")
+            cols_to_clear = [c for c in [c_asig, c_est, c_ori, c_uni, c_cuat, c_fir, c_la] if c]
+            num_sobrantes = len(sobrantes)
+            first_sobrante = sobrantes[0]
+
+            # Última fila de la tabla que tiene algún dato en las columnas de materias
+            last_data_row = table_info.data_start - 1
+            for r in range(table_info.data_start, ws.max_row + 1):
+                if any(
+                    ws.cell(row=r, column=col).value not in (None, "")
+                    for col in cols_to_clear
+                ):
+                    last_data_row = r
+
+            if last_data_row >= first_sobrante + num_sobrantes:
+                # Hay filas con datos debajo de los sobrantes: subirlas
+                for r in range(first_sobrante, last_data_row - num_sobrantes + 1):
+                    source = r + num_sobrantes
+                    for col in cols_to_clear:
+                        ws.cell(row=r, column=col).value = ws.cell(row=source, column=col).value
+                    print(f"[materias] Subida fila {source} -> {r}")
+                # Limpiar las filas duplicadas al final
+                for r in range(last_data_row - num_sobrantes + 1, last_data_row + 1):
+                    for col in cols_to_clear:
+                        ws.cell(row=r, column=col).value = None
+                    print(f"[materias] Limpiada cola fila {r}")
+            else:
+                # No hay nada debajo: solo vaciar
+                for r in sobrantes:
+                    for col in cols_to_clear:
+                        ws.cell(row=r, column=col).value = None
+                    print(f"[materias] Vaciada fila sobrante {r}")
+        # ---- añadir filas nuevas ----
         if len(nuevas) > len(rows_student):
             pendientes = nuevas[len(rows_student):]
             # Buscar la última fila con valor en la columna de asignatura
@@ -810,7 +851,22 @@ def actualizar_excel_materias_para_estudiante(materias_in, est, materias_path: s
             if insert_at < table_info.data_start:
                 insert_at = table_info.data_start
 
-            _ensure_rows_for_append(ws, insert_at, len(pendientes))
+            # Columnas propias de la tabla de materias
+            mat_cols = [c for c in [c_asig, c_est, c_ori, c_uni, c_cuat, c_fir, c_la] if c]
+
+            # Buscar hueco: fila en la que las columnas de la tabla de materias estén vacías.
+            # NO se insertan filas (eso desplaza otras tablas adyacentes).
+            def _mat_cols_empty(row_num):
+                for col in mat_cols:
+                    v = ws.cell(row=row_num, column=col).value
+                    if v is not None and str(v).strip() != "":
+                        return False
+                return True
+
+            write_at = insert_at
+            while write_at <= ws.max_row and not _mat_cols_empty(write_at):
+                write_at += 1
+            # Si write_at > ws.max_row la fila no existe aún: openpyxl la crea al escribir
 
             # Obtener universidad de origen de la última asignatura existente del alumno
             valor_uni_existente = None
@@ -821,17 +877,13 @@ def actualizar_excel_materias_para_estudiante(materias_in, est, materias_path: s
                     valor_uni_existente = str(valor_uni_existente).strip()
 
             for i, fila in enumerate(pendientes):
-                r = insert_at + i
-                # Forzar universidad_origen a tener siempre valor:
-                # 1. Si el alumno ya tenía asignaturas, copiar el valor de la última
-                # 2. Si no, usar el valor por defecto
+                r = write_at + i
                 valor_uni = fila.get("universidad_origen")
                 if not valor_uni:
                     valor_uni = valor_uni_existente if valor_uni_existente else uni_default
                 if c_asig: ws.cell(row=r, column=c_asig).value = fila["asignatura"]
                 if c_est:  ws.cell(row=r, column=c_est).value  = fila["estudiante"]
                 if c_ori:  ws.cell(row=r, column=c_ori).value  = fila["origen"] or ""
-                # Escribir SIEMPRE la universidad detectada si hay columna
                 if c_uni:
                     ws.cell(row=r, column=c_uni).value = valor_uni or ""
                     print(f"[materias] DEBUG: Escribiendo universidad en fila {r}, col {c_uni}: {valor_uni}")

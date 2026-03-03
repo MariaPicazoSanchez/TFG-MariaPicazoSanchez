@@ -105,12 +105,17 @@ def _pick(df: pd.DataFrame, *aliases: Iterable[str]) -> Optional[str]:
         na = _norm_colname(a)
         if na in norm_map:
             return norm_map[na]
-    # contains único
+    # contains único — excluir columnas cuyo nombre normalizado sea puramente numérico
+    # (p.ej. columna "1" coincidiría con "Apellido1" al buscar substring "1")
+    non_numeric_norm_map = {
+        norm: real for norm, real in norm_map.items()
+        if norm and not norm.replace(".", "").isdigit()
+    }
     for a in aliases:
         if a is None:
             continue
         na = _norm_colname(a)
-        cand = [real for norm, real in norm_map.items() if na in norm or norm in na]
+        cand = [real for norm, real in non_numeric_norm_map.items() if na in norm or norm in na]
         if len(cand) == 1:
             return cand[0]
     return None

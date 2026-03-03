@@ -35,13 +35,18 @@
         document.querySelectorAll(".materias-block").forEach(buildCatalogSelect);
     }
 
-    // Utilidad: normaliza materia (acepta nombre/asignatura)
+    // Utilidad: normaliza materia (acepta nombre/asignatura) y preserva campos extra
     function normalizeMateria(m) {
         m = m || {};
         var nombre = m.nombre != null ? m.nombre : m.asignatura;
         return {
-            nombre: (nombre || "").toString(),
-            asignatura: (nombre || "").toString()
+            nombre:     (nombre || "").toString(),
+            asignatura: (nombre || "").toString(),
+            cuat:       (m.cuat    || "").toString(),
+            firmado:    (m.firmado || "").toString(),
+            la:         (m.la || m.link_la || "").toString(),
+            origen:     (m.origen  || "").toString(),
+            centro:     (m.centro  || "").toString()
         };
     }
     function normalizeMaterias(arr) {
@@ -49,19 +54,22 @@
         return arr.map(normalizeMateria);
     }
 
-    // Lee materias del DOM
+    // Lee materias del DOM (usa data-materia si existe para no perder campos extra)
     function getMateriasFromDOM(block) {
         var rows = block.querySelectorAll(".materia-row:not(.add-row)");
         var result = [];
         for (var i = 0; i < rows.length; i++) {
             var row = rows[i];
-            var nombre = row.getAttribute("data-nombre") || "";
-            result.push(normalizeMateria({ nombre: nombre }));
+            var raw = row.getAttribute("data-materia");
+            var m = {};
+            if (raw) { try { m = JSON.parse(raw); } catch(e) {} }
+            if (!m.nombre && !m.asignatura) { m.nombre = row.getAttribute("data-nombre") || ""; }
+            result.push(normalizeMateria(m));
         }
         return result;
     }
 
-    // Renderiza la lista de materias
+    // Renderiza la lista de materias (guarda data-materia con todos los campos)
     function renderMateriasList(block, materias) {
         var list = block.querySelector(".materias-list");
         if (!list) return;
@@ -74,6 +82,7 @@
             li.className = "materia-row";
             li.setAttribute("data-mindex", String(j));
             li.setAttribute("data-nombre", m.nombre || "");
+            li.setAttribute("data-materia", JSON.stringify(m));
             li.innerHTML =
                 '<span class="materia-name">' + (m.nombre || "") + '</span>' +
                 '<span class="materia-actions">' +
@@ -186,15 +195,24 @@
                 return;
             }
             var idxS = parseInt(editor.getAttribute("data-edit-index") || "-1", 10);
-            var nueva = normalizeMateria({ nombre: (inpNombre.value || "").trim() });
-            if (!nueva.nombre) {
+            var nuevoNombre = (inpNombre.value || "").trim();
+            if (!nuevoNombre) {
                 alert("Selecciona o escribe una asignatura.");
                 return;
             }
             if (idxS >= 0 && idxS < materias.length) {
-                materias[idxS] = nueva;
+                // Preservar todos los campos; solo actualizar nombre/asignatura
+                var existing = materias[idxS];
+                materias[idxS] = normalizeMateria({
+                    nombre:     nuevoNombre,
+                    cuat:       existing.cuat    || "",
+                    firmado:    existing.firmado  || "",
+                    la:         existing.la       || "",
+                    origen:     existing.origen   || "",
+                    centro:     existing.centro   || ""
+                });
             } else {
-                materias.push(nueva);
+                materias.push(normalizeMateria({ nombre: nuevoNombre }));
             }
             textarea.value = JSON.stringify(materias);
             renderMateriasList(block, materias);

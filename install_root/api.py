@@ -376,8 +376,8 @@ def update_student():
                 traceback.print_exc()
                 materias_path = ""
 
-            # 4) Actualizar Excel de asignaturas (solo si hay ruta + materias + nombre)
-            if materias_path and materias_in and est.get("estudiante"):
+            # 4) Actualizar Excel de asignaturas (solo si hay ruta + nombre; materias_in puede ser [] si borró todas)
+            if materias_path and est.get("estudiante"):
                 try:
                     actualizar_excel_materias_para_estudiante(materias_in, est, materias_path)
                 except PermissionError:
@@ -390,7 +390,7 @@ def update_student():
                     import traceback
                     traceback.print_exc()
                     messages.append(f"Error al actualizar el Excel de materias: {e}")
-            elif materias_in and not materias_path:
+            elif not materias_path and est.get("estudiante"):
                 ok_global = False
                 logf("[API] No se ha podido obtener la ruta del Excel de materias desde config.json (clave 'Materias IN').")
                 messages.append("No se ha podido obtener la ruta del Excel de materias desde config.json (clave 'Materias IN').")
