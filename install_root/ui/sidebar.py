@@ -1,8 +1,13 @@
 import os
+import re
 import json
 import xlrd
 import pandas as pd
 import streamlit as st
+
+def _is_academic_year(name: str) -> bool:
+    """Devuelve True si el nombre parece un curso académico (ej: 25-26, 2025/2026, 2016)."""
+    return bool(re.search(r'\d{4}|\d{2}[-/]\d{2}', name))
 from constants import PROGRAM_ERASMUS_OUT, PROGRAM_ERASMUS_IN, PROGRAM_SICUE_OUT, CSV_SHEET_MARKER
 
 def repair_windows_path(path_str: str) -> str:
@@ -75,7 +80,7 @@ def _unique_sheets_from_config_or_files(cfg: dict) -> list[str]:
             if p:
                 lst = _list_sheets_in_file(p)
         for name in (lst or []):
-            if name and str(name) != "__CSV__":
+            if name and str(name) != "__CSV__" and _is_academic_year(str(name)):
                 names.add(str(name))
     return sorted(names)
 
@@ -242,7 +247,7 @@ def _unique_sheets_from_config(cfg: dict) -> list[str]:
     names = set()
     for _type, lst in sheets_map.items():
         for name in (lst or []):
-            if name and str(name) != "__CSV__":
+            if name and str(name) != "__CSV__" and _is_academic_year(str(name)):
                 names.add(str(name))
     return sorted(names)
 

@@ -1,5 +1,6 @@
 from __future__ import annotations
 import os
+import re
 import streamlit as st
 from utils import open_in_system
 import pycountry
@@ -98,14 +99,18 @@ def _geocode_cached(q: str) -> tuple[float | None, float | None, str | None]:
 # ────────────────────────────────────────────────────────────────────────────────
 # UI: formulario
 # ────────────────────────────────────────────────────────────────────────────────
+def _is_academic_year(name: str) -> bool:
+    """Devuelve True si el nombre parece un curso académico (ej: 25-26, 2025/2026, 2016)."""
+    return bool(re.search(r'\d{4}|\d{2}[-/]\d{2}', name))
+
 def _sheet_options_for(cfg: dict, tipo: str) -> list[str]:
     from persistence import sheets_for
     sheets_map = (cfg or {}).get("sheets", {}) or {}
     known = sheets_map.get(tipo) or []
     if known:
-        return sorted({s for s in known if s and s != "__CSV__"})
+        return sorted({s for s in known if s and s != "__CSV__" and _is_academic_year(s)})
     path = (cfg or {}).get(tipo, "")
-    return [s for s in sheets_for(path) if s != "__CSV__"] if path else []
+    return [s for s in sheets_for(path) if s != "__CSV__" and _is_academic_year(s)] if path else []
 
 def _invisible_suffix_from_id(button_id: str) -> str:
     """

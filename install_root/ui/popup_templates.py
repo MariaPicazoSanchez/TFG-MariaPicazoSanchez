@@ -343,71 +343,72 @@ def generate_dynamic_popup(row, programa: str, row_index: int) -> str:
                                 </button>
                               </div>'''
               grid_fields += [firmado_field]
+            else:
+                materias = []
 
+            # === BLOQUES DE VISTA SEGÚN TIPO DE PROGRAMA ===
+            view_small = []
+            view_extras = []
 
-              # === BLOQUES DE VISTA SEGÚN TIPO DE PROGRAMA ===
-              view_small = []
-              view_extras = []
+            if "SICUE" in prog_upper:
+              view_small.append(_view_line("Email", email_val))
+              view_small.append(_view_line("Duración (meses)", dur_val))
+              view_small.append(_view_line("Destino", destino_val))
+              view_small.append(_view_line("Ciudad", ciudad_val))
+              view_small.append(_view_line("Gestión LA", gest_val))
+              view_small.append(_view_line("Coordinador destino", coord_val))
+              view_small.append(_view_link("Learning Agreement", la_val, open_in_system=True))
+              view_small.append(_view_link("Propuesta Alumno LA", plan_val, open_in_system=True))
 
-              if "SICUE" in prog_upper:
-                view_small.append(_view_line("Email", email_val))
-                view_small.append(_view_line("Duración (meses)", dur_val))
-                view_small.append(_view_line("Destino", destino_val))
-                view_small.append(_view_line("Ciudad", ciudad_val))
-                view_small.append(_view_line("Gestión LA", gest_val))
-                view_small.append(_view_line("Coordinador destino", coord_val))
-                view_small.append(_view_link("Learning Agreement", la_val, open_in_system=True))
-                view_small.append(_view_link("Propuesta Alumno LA", plan_val, open_in_system=True))
+            elif "ERASMUS OUT" == prog_upper:
+              view_small.append(_view_line("Email", email_val))
+              view_small.append(_view_line("Curso", curso_val))
+              view_small.append(_view_line("Duración (meses)", dur_val))
+              view_small.append(_view_line("Ciudad", ciudad_val))
+              view_small.append(_view_line("Destino", destino_val))
+              view_small.append(_view_line("País", pais_val))
+              view_small.append(_view_link("Learning Agreement", la_val, open_in_system=True))
+              view_small.append(_view_link("Propuesta Alumno LA", plan_val, open_in_system=True))
+              view_small.append(_view_link("ToR", tor_val, open_in_system=True))
+              view_small.append(_view_line("Responsable", responsable_val))
 
-              elif "ERASMUS OUT" == prog_upper:
-                view_small.append(_view_line("Email", email_val))
-                view_small.append(_view_line("Curso", curso_val))
-                view_small.append(_view_line("Duración (meses)", dur_val))
-                view_small.append(_view_line("Ciudad", ciudad_val))
-                view_small.append(_view_line("Destino", destino_val))
-                view_small.append(_view_line("País", pais_val))
-                view_small.append(_view_link("Learning Agreement", la_val, open_in_system=True))
-                view_small.append(_view_link("Propuesta Alumno LA", plan_val, open_in_system=True))
-                view_small.append(_view_link("ToR", tor_val, open_in_system=True))
-                view_small.append(_view_line("Responsable", responsable_val))
+            elif "ERASMUS IN" == prog_upper:
+              view_small.append(_view_line("Cuatrimestre", cuatri_val))
+              view_small.append(_view_line("Origen", origen_val))
+              view_small.append(_view_line("País", pais_val))
+              # Mostrar enlace de LA y estado de firmado
+              firmado_status = "No firmado"
+              if has_materias and isinstance(materias, list) and materias:
+                firmado_raw = str(materias[0].get("firmado", "")).strip().lower()
+                if firmado_raw in ("x", "1", "s", "si", "sí", "true", "t"):
+                  firmado_status = "Firmado"
+              la_html = _view_link("Learning Agreement", la_val, open_in_system=True)
+              firmado_html = f'<span style="margin-left:0.5em;font-weight:600;">· {firmado_status}</span>'
+              view_small.append(f'<span style="display:inline-flex;align-items:center;gap:0.5em;">{la_html}{firmado_html}</span>')
+              if has_materias and materias_view_html:
+                view_extras.append(materias_view_html)
 
-              elif "ERASMUS IN" == prog_upper:
-                view_small.append(_view_line("Cuatrimestre", cuatri_val))
-                view_small.append(_view_line("Origen", origen_val))
-                view_small.append(_view_line("País", pais_val))
-                # Mostrar enlace de LA y estado de firmado
-                firmado_status = "No firmado"
-                if has_materias and isinstance(materias, list) and materias:
-                  firmado_raw = str(materias[0].get("firmado", "")).strip().lower()
-                  if firmado_raw in ("x", "1", "s", "si", "sí", "true", "t"):
-                    firmado_status = "Firmado"
-                la_html = _view_link("Learning Agreement", la_val, open_in_system=True)
-                firmado_html = f'<span style="margin-left:0.5em;font-weight:600;">· {firmado_status}</span>'
-                view_small.append(f'<span style="display:inline-flex;align-items:center;gap:0.5em;">{la_html}{firmado_html}</span>')
-                if has_materias and materias_view_html:
+            else:
+              view_small.append(_view_line("Email", email_val))
+              view_small.append(_view_line("Curso", curso_val))
+              view_small.append(_view_line("Cuatrimestre", cuatri_val))
+              view_small.append(_view_line("Duración (meses)", dur_val))
+              view_small.append(_view_line("Ciudad", ciudad_val))
+              view_small.append(_view_line("Gestión LA", gest_val))
+              view_small.append(_view_line("Coordinador destino", coord_val))
+              view_small.append(_view_link("Learning Agreement", la_val, open_in_system=True))
+              view_small.append(_view_link("ToR", tor_val, open_in_system=True))
+              view_small.append(_view_link("Acta de equivalencias", acta_val, open_in_system=True))
+              view_small.append(_view_link("Propuesta Alumno LA", plan_val, open_in_system=True))
+
+              if has_materias and materias_view_html:
                   view_extras.append(materias_view_html)
 
-              else:
-                view_small.append(_view_line("Email", email_val))
-                view_small.append(_view_line("Curso", curso_val))
-                view_small.append(_view_line("Cuatrimestre", cuatri_val))
-                view_small.append(_view_line("Duración (meses)", dur_val))
-                view_small.append(_view_line("Ciudad", ciudad_val))
-                view_small.append(_view_line("Gestión LA", gest_val))
-                view_small.append(_view_line("Coordinador destino", coord_val))
-                view_small.append(_view_link("Learning Agreement", la_val, open_in_system=True))
-                view_small.append(_view_link("ToR", tor_val, open_in_system=True))
-                view_small.append(_view_link("Acta de equivalencias", acta_val, open_in_system=True))
-                view_small.append(_view_link("Propuesta Alumno LA", plan_val, open_in_system=True))
+            view_small_html = "".join(view_small)
+            view_extras_html = "".join(view_extras)
+            edit_fields_html = "\n".join(grid_fields)
 
-                if has_materias and materias_view_html:
-                    view_extras.append(materias_view_html)
-
-              view_small_html = "".join(view_small)
-              view_extras_html = "".join(view_extras)
-              edit_fields_html = "\n".join(grid_fields)
-
-              items_html.append(f"""
+            items_html.append(f"""
               <li class="pitem">
                 <details class="pdetails">
                   <summary>
@@ -482,7 +483,7 @@ def generate_dynamic_popup(row, programa: str, row_index: int) -> str:
                   </div> <!-- pcontent -->
                 </details>
               </li>
-              """)
+            """)
 
     html_out = f"""
     <div class="al-popup">
