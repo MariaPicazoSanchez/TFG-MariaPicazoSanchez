@@ -13,6 +13,7 @@ from domain.validators import (
     get_erasmus_out_schema, get_erasmus_in_schema, get_sicue_out_schema,
     safe_int_convert
 )
+from persistence import get_asignaturas_catalog
 
 from .sidebar import pick_local_file
 USE_LOCAL_PICKER = True
@@ -55,6 +56,18 @@ def get_country_options() -> list[str]:
     return [""] + sorted(set(nombres))
 
 COUNTRY_OPTIONS = get_country_options()
+
+
+def _load_asignaturas_catalog(config: dict) -> list:
+    """Carga el catálogo de asignaturas, con caché en session_state."""
+    cache_key = "_asignaturas_catalog_cache"
+    if cache_key not in st.session_state:
+        try:
+            st.session_state[cache_key] = get_asignaturas_catalog(config)
+        except Exception as e:
+            print(f"[new_user] No se pudo cargar catálogo de asignaturas: {e}")
+            st.session_state[cache_key] = []
+    return st.session_state.get(cache_key, [])
 
 
 
@@ -132,7 +145,7 @@ def file_picker_button(label: str, text_input_key: str, button_id: str, help: st
     invisible_suffix = _invisible_suffix_from_id(button_id)
     real_label = label + invisible_suffix
 
-    clicked = st.form_submit_button(real_label, help=help)
+    clicked = st.button(real_label, help=help, key=button_id)
 
     if clicked:
         if USE_LOCAL_PICKER:
@@ -154,8 +167,7 @@ def render_new_user_form(available_types: list[str], config: dict) -> dict | Non
     if st.session_state.pop("_user_saved", False):
         _clear_new_user_form_state()
 
-        st.success("✅ Estudiante creado y guardado en Excel.")
-        st.toast("Guardado correctamente")
+        st.toast("Guardado correctamente", icon="✅")
     st.header("👤 Crear nuevo estudiante")
 
     if not available_types:
@@ -167,6 +179,9 @@ def render_new_user_form(available_types: list[str], config: dict) -> dict | Non
         return None
 
     cfg = st.session_state.get("config", {}) or {}
+    
+    # Cargar catálogo de asignaturas para Erasmus IN
+    asignaturas_catalog = _load_asignaturas_catalog(cfg)
 
     # Selectores en la misma fila
     col_tipo, col_sheet = st.columns([1, 1], gap="small")
@@ -210,44 +225,38 @@ def render_new_user_form(available_types: list[str], config: dict) -> dict | Non
     selected_sheet = (new_sheet_name.strip() if new_sheet_name else (None if choice == SENT_NEW else choice))
     st.session_state["nu_sheet"] = selected_sheet
 
-    # Flags para los botones "📁" dentro del form
-    browse_tor_clicked = False
-    browse_la_out_clicked = False
-    browse_plan_out_clicked = False
-    browse_la_in_clicked = False
-    browse_horario_clicked = False
-
-    open_clicked = False
     # ────────────────────────────────────────────────────────────────
-    # FORMULARIO PRINCIPAL
+    # FORMULARIO PRINCIPAL (SIN st.form para permitir dinámica de asignaturas)
     # ────────────────────────────────────────────────────────────────
-    with st.form("new_user_form", clear_on_submit=False):
-        
+    
+    # Inicializar variables comunes
+    nombre = apellidos = destino_origen = email = ""
+    extra: dict = {}
 
-        # — comunes (obligatorios) —
-        col1, col2 = st.columns(2)
-        with col1:
-            nombre = st.text_input("Nombre", key="nu_nombre")
-            email  = st.text_input("Email", key="nu_email")
-        with col2:
-            apellidos = st.text_input("Apellidos", key="nu_apellidos")
-            dest_label = "Origen (universidad)" if tipo_norm.lower() == PROGRAM_ERASMUS_IN.lower() else "Destino (universidad)"
-            destino_origen = st.text_input(dest_label, key="nu_destino_origen")
-
-        extra: dict = {}
-
-        # _____________________________________
-        # Erasmus OUT
-        # _____________________________________
-        if tipo_norm == PROGRAM_ERASMUS_OUT:
+    # _____________________________________
+    # Erasmus OUT
+    # _____________________________________
+    if tipo_norm == PROGRAM_ERASMUS_OUT:
+        with st.container(border=True):
+            
+            # Campos comunes
             col1, col2 = st.columns(2)
-            # obligatorios
+            with col1:
+                nombre = st.text_input("Nombre", key="nu_nombre")
+                email = st.text_input("Email", key="nu_email")
+            with col2:
+                apellidos = st.text_input("Apellidos", key="nu_apellidos")
+                destino_origen = st.text_input("Destino (universidad)", key="nu_destino_origen")
+            
+            
+            # Campos específicos
+            col1, col2 = st.columns(2)
             with col1:
                 extra["pais_out"] = st.selectbox("País", options=COUNTRY_OPTIONS, key="nu_pais_out")
                 dur_out_val = st.text_input("Duración (meses)", key="nu_dur_out")
                 # Validar que solo contiene números
                 if dur_out_val and not dur_out_val.strip().isdigit():
-                    st.error("La duración debe ser un número")
+                    st.toast("⚠️ La duración debe ser un número", icon="⚠️")
                     extra["dur_out"] = ""
                 else:
                     extra["dur_out"] = dur_out_val
@@ -255,13 +264,13 @@ def render_new_user_form(available_types: list[str], config: dict) -> dict | Non
                 tor_col1, tor_col2 = st.columns([3, 1])
                 with tor_col2:
                     st.markdown("<br>", unsafe_allow_html=True)
-                    browse_tor_clicked = file_picker_button("📁", "nu_tor", "nu_tor_browse", "Abrir explorador de archivos.")
+                    file_picker_button("📁", "nu_tor", "nu_tor_browse", "Abrir explorador de archivos.")
                 with tor_col1:
                     extra["tor"] = st.text_input("ToR (ruta o enlace)", key="nu_tor")
                 plan_col1, plan_col2 = st.columns([3, 1])
                 with plan_col2:
                     st.markdown("<br>", unsafe_allow_html=True)
-                    browse_plan_out_clicked = file_picker_button("📁", "nu_plan_out", "nu_plan_out_browse", "Abrir explorador de archivos.")
+                    file_picker_button("📁", "nu_plan_out", "nu_plan_out_browse", "Abrir explorador de archivos.")
                 
                 with plan_col1:
                     extra["plan_out"] = st.text_input(
@@ -275,56 +284,149 @@ def render_new_user_form(available_types: list[str], config: dict) -> dict | Non
                 la_col1, la_col2 = st.columns([3, 1])
                 with la_col2:
                     st.markdown("<br>", unsafe_allow_html=True)
-                    browse_la_out_clicked = file_picker_button("📁", "nu_la_out_opt", "nu_la_out_opt_browse", "Abrir explorador de archivos.")
+                    file_picker_button("📁", "nu_la_out_opt", "nu_la_out_opt_browse", "Abrir explorador de archivos.")
                 
                 with la_col1:
                     extra["la_out"] = st.text_input("LA (enlace o ruta)", key="nu_la_out_opt")
-                    
-        # _____________________________________
-        # Erasmus IN
-        # _____________________________________
+    
+    # _____________________________________
+    # Erasmus IN
+    # _____________________________________
 
-        elif tipo_norm == PROGRAM_ERASMUS_IN:
+    elif tipo_norm == PROGRAM_ERASMUS_IN:
+        with st.container(border=True):
+
+
             col1, col2 = st.columns(2)
 
             with col1:
-                extra["pais_in"] = st.selectbox("País", options=COUNTRY_OPTIONS, key="nu_pais_in")
-                extra["cuatrimestre_in"] = st.selectbox("Cuatrimestre", options=["", "1", "2"], key="nu_cuatri_in")
+                nombre = st.text_input("Nombre", key="nu_nombre")
+                extra["cuatrimestre_in"] = st.selectbox(
+                    "Cuatrimestre",
+                    options=["", "1", "2"],
+                    key="nu_cuatri_in"
+                )
+                extra["pais_in"] = st.selectbox(
+                    "País",
+                    options=COUNTRY_OPTIONS,
+                    key="nu_pais_in"
+                )
+                extra["firmado_la"] = "x" if st.checkbox(
+                    "LA firmado",
+                    key="nu_firmado_la"
+                ) else ""
 
-                # LA con selector de archivo o ruta manual
+            with col2:
+                apellidos = st.text_input("Apellidos", key="nu_apellidos")
+                destino_origen = st.text_input(
+                    "Origen (universidad)",
+                    key="nu_destino_origen"
+                )
+
                 la_col1, la_col2 = st.columns([3, 1])
-
+                with la_col1:
+                    extra["la_in"] = st.text_input(
+                        "LA (enlace o ruta)",
+                        key="nu_la_in"
+                    )
                 with la_col2:
                     st.markdown("<br>", unsafe_allow_html=True)
-                    browse_la_in_clicked = file_picker_button("📁", "nu_la_in", "nu_la_in_browse", "Abrir explorador de archivos.")
-
-                with la_col1:
-                    extra["la_in"] = st.text_input("LA (enlace o ruta)", key="nu_la_in")
-
-            # opcionales
-            with col2:
-                extra["ciudad"] = st.text_input("Ciudad", key="nu_ciudad")
-
-                col_hor1, col_hor2 = st.columns([3, 1])
-
-                with col_hor2:
-                    st.markdown("<br>", unsafe_allow_html=True)
-                    browse_horario_clicked = file_picker_button("📁", "nu_horario", "nu_horario_browse", "Abrir explorador de archivos.")
-
-                with col_hor1:
-                    extra["horario"] = st.text_input(
-                        "Propuesta alumno LA (ruta o enlace)",
-                        key="nu_horario",
+                    file_picker_button(
+                        "📁",
+                        "nu_la_in",
+                        "nu_la_in_browse",
+                        "Abrir explorador de archivos."
                     )
-            
-            
-        # _____________________________________
-        # SICUE OUT
-        # _____________________________________
 
-        elif tipo_norm == PROGRAM_SICUE_OUT:
+            # ─────────────────────────────
+            # ASIGNATURAS (YA DENTRO)
+            # ─────────────────────────────
+
+            st.divider()
+            st.markdown("#### 📚 Asignaturas")
+
+            materias_key = "nu_materias_in"
+            # Asegurar que materias siempre sea una lista
+            if materias_key not in st.session_state or not isinstance(st.session_state[materias_key], list):
+                st.session_state[materias_key] = []
+            materias = st.session_state[materias_key]
+
+            cuatrimestre_seleccionado = st.session_state.get("nu_cuatri_in", "")
+
+            if cuatrimestre_seleccionado:
+                asignaturas_sugerencias = [
+                    a["asignatura"]
+                    for a in asignaturas_catalog
+                    if a.get("cuat") == cuatrimestre_seleccionado
+                ]
+            else:
+                asignaturas_sugerencias = [
+                    a["asignatura"]
+                    for a in asignaturas_catalog
+                ]
+
+            header_cols = st.columns([8, 1])
+
+            with header_cols[0]:
+                st.caption("Nombre de la asignatura")
+
+            with header_cols[1]:
+                if st.button("➕ Añadir", key=f"{materias_key}_add"):
+                    materias.append({"nombre": ""})
+
+            delete_idx = None
+
+            for i, mat in enumerate(materias):
+
+                row_cols = st.columns([8, 1])
+
+                with row_cols[0]:
+                    valor_actual = mat.get("nombre", "")
+
+                    seleccion = st.selectbox(
+                        f"Asignatura {i+1}",
+                        options=asignaturas_sugerencias,
+                        index=asignaturas_sugerencias.index(valor_actual)
+                            if valor_actual in asignaturas_sugerencias else None,
+                        key=f"{materias_key}_select_{i}",
+                        label_visibility="collapsed",
+                        placeholder="Seleccionar o escribir...",
+                        accept_new_options=True
+                    )
+
+                    mat["nombre"] = seleccion if seleccion else ""
+
+                with row_cols[1]:
+                    if st.button(
+                        "❌",
+                        key=f"{materias_key}_del_{i}",
+                        help="Eliminar asignatura",
+                        type="secondary",
+                        use_container_width=True
+                    ):
+                        delete_idx = i
+
+            if delete_idx is not None:
+                materias.pop(delete_idx)            
+        
+    # _____________________________________
+    # SICUE OUT
+    # _____________________________________
+
+    elif tipo_norm == PROGRAM_SICUE_OUT:
+        with st.container(border=True):
+            
+            # Campos comunes
             col1, col2 = st.columns(2)
-            # obligatorios
+            with col1:
+                nombre = st.text_input("Nombre", key="nu_nombre")
+                email = st.text_input("Email", key="nu_email")
+            with col2:
+                apellidos = st.text_input("Apellidos", key="nu_apellidos")
+                destino_origen = st.text_input("Destino (universidad)", key="nu_destino_origen")
+            
+            # Campos específicos
+            col1, col2 = st.columns(2)
             with col1:
                 extra["ciudad_sicue"] = st.selectbox(
                     "Ciudad",
@@ -336,14 +438,14 @@ def render_new_user_form(available_types: list[str], config: dict) -> dict | Non
                 dur_sicue_val = st.text_input("Duración (meses)", key="nu_dur_sicue")
                 # Validar que solo contiene números
                 if dur_sicue_val and not dur_sicue_val.strip().isdigit():
-                    st.error("La duración debe ser un número")
+                    st.toast("La duración debe ser un número", icon="⚠️")
                     extra["dur_sicue"] = ""
                 else:
                     extra["dur_sicue"] = dur_sicue_val
                 la_col1, la_col2 = st.columns([3, 1])
                 with la_col2:
                     st.markdown("<br>", unsafe_allow_html=True)
-                    browse_la_in_clicked = file_picker_button("📁", "nu_la_sicue", "nu_la_sicue_browse", "Abrir explorador de archivos.")
+                    file_picker_button("📁", "nu_la_sicue", "nu_la_sicue_browse", "Abrir explorador de archivos.")
                 with la_col1:
                     extra["la_in"] = st.text_input("LA (enlace o ruta)", key="nu_la_sicue")
             with col2:
@@ -353,191 +455,99 @@ def render_new_user_form(available_types: list[str], config: dict) -> dict | Non
                 plan_col1, plan_col2 = st.columns([3, 1])
                 with plan_col2:
                     st.markdown("<br>", unsafe_allow_html=True)
-                    browse_plan_out_clicked =  file_picker_button("📁", "nu_plan_sic_out", "nu_plan_sic_out_browse", "Abrir explorador de archivos.")
+                    file_picker_button("📁", "nu_plan_sic_out", "nu_plan_sic_out_browse", "Abrir explorador de archivos.")
                 with plan_col1:
                     extra["plan_sic_out"] = st.text_input(
                         "Propuesta alumno LA (ruta o enlace)",
                         key="nu_plan_sic_out",
                     )
-
-        # — fila con los dos botones: Crear y Abrir Excel (dinámico) —
-        bcol1, bcol2 = st.columns([1, 1], gap="small")
-        open_clicked   = bcol1.form_submit_button(open_label, use_container_width=True)
-        submit_clicked = bcol2.form_submit_button("✅ Crear", use_container_width=True)
+    
+    # — fila con los dos botones: Crear y Abrir Excel (dinámico) —
+    
+    bcol1, bcol2 = st.columns([1, 1], gap="small")
+    
+    with bcol1:
+        open_clicked = st.button(open_label, use_container_width=True, type="secondary")
+    
+    with bcol2:
+        submit_clicked = st.button("Crear estudiante", use_container_width=True, type="primary")
+    
     # ────────────────────────────────────────────────────────────────
-    # BLOQUE DE ASIGNATURAS ERASMUS IN (FUERA DEL FORM)
+    # ACCIONES DE BOTONES
     # ────────────────────────────────────────────────────────────────
-    if tipo_norm == "Erasmus IN":
-        st.markdown("### 📚 Asignaturas (Erasmus IN)")
-
-        materias_key = "nu_materias_in"
-        materias = st.session_state.setdefault(materias_key, [])
-
-        with st.container(border=True):
-            # Cabecera tipo tabla
-            header_cols = st.columns([3, 1, 1, 0.8, 0.8])
-            with header_cols[0]:
-                st.caption("Nombre de la asignatura")
-            with header_cols[1]:
-                st.caption("Cuatr.")
-            with header_cols[2]:
-                st.caption("Firmado")
-            with header_cols[3]:
-                st.caption("Acciones")
-            with header_cols[4]:
-                st.write("")
-                if st.button("➕ Añadir", key=f"{materias_key}_add_top"):
-                    materias.append({"nombre": "", "cuatrimestre": "1", "firmado": False})
-                    st.rerun()
-
-            if not materias:
-                st.info("Aún no hay asignaturas añadidas para este estudiante.")
-
-            delete_idx = None
-            # Filas de asignaturas
-            for i, mat in enumerate(materias):
-                row_cols = st.columns([3, 1, 1, 0.8, 0.8])
-
-                with row_cols[0]:
-                    mat["nombre"] = st.text_input(
-                        f"Asignatura {i+1}",
-                        key=f"{materias_key}_nombre_{i}",
-                        value=mat.get("nombre", ""),
-                        label_visibility="collapsed",
-                    )
-
-                with row_cols[1]:
-                    cuatri_val = str(mat.get("cuatrimestre", "1"))
-                    opciones_cuatri = ["1", "2"]
-                    idx_cuatri = opciones_cuatri.index(cuatri_val) if cuatri_val in opciones_cuatri else 0
-                    mat["cuatrimestre"] = st.selectbox(
-                        "Cuat.",
-                        options=opciones_cuatri,
-                        index=idx_cuatri,
-                        key=f"{materias_key}_cuatri_{i}",
-                        label_visibility="collapsed",
-                    )
-
-                with row_cols[2]:
-                    mat["firmado"] = st.checkbox(
-                        "Firmado",
-                        value=bool(mat.get("firmado", False)),
-                        key=f"{materias_key}_firmado_{i}",
-                        label_visibility="collapsed",
-                    )
-
-                with row_cols[3]:
-                    st.write(f"#{i+1}")
-
-                with row_cols[4]:
-                    if st.button("🗑️", key=f"{materias_key}_del_{i}"):
-                        delete_idx = i
-            if delete_idx is not None:
-                materias.pop(delete_idx)
-                st.rerun()
-
-
-    # ────────────────────────────────────────────────────────────────
-    # ACCIONES DE BOTONES DEL FORM
-    # ────────────────────────────────────────────────────────────────
-    if browse_tor_clicked:
-        if USE_LOCAL_PICKER:
-            current_val = st.session_state.get("nu_tor", "")
-            path = pick_local_file(current_val)
-            if path:
-                st.session_state["nu_tor"] = path
-        else:
-            st.sidebar.warning("Ejecuta la app en local para seleccionar rutas del equipo.")
-        st.rerun()
-
-    if browse_la_out_clicked:
-        if USE_LOCAL_PICKER:
-            current_val = st.session_state.get("nu_la_out_opt", "")
-            path = pick_local_file(current_val)
-            if path:
-                st.session_state["nu_la_out_opt"] = path
-        else:
-            st.sidebar.warning("Ejecuta la app en local para seleccionar rutas del equipo.")
-        st.rerun()
-
-    if browse_plan_out_clicked:
-        if USE_LOCAL_PICKER:
-            current_val = st.session_state.get("nu_plan_out", "")
-            path = pick_local_file(current_val)
-            if path:
-                st.session_state["nu_plan_out"] = path
-        else:
-            st.sidebar.warning("Ejecuta la app en local para seleccionar rutas del equipo.")
-        st.rerun()
-
-    if browse_la_in_clicked:
-        if USE_LOCAL_PICKER:
-            current_val = st.session_state.get("nu_la_in", "")
-            path = pick_local_file(current_val)
-            if path:
-                st.session_state["nu_la_in"] = path
-        else:
-            st.sidebar.warning("Ejecuta la app en local para seleccionar rutas del equipo.")
-        st.rerun()
-
-    if browse_horario_clicked:
-        if USE_LOCAL_PICKER:
-            current_val = st.session_state.get("nu_horario", "")
-            path = pick_local_file(current_val)
-            if path:
-                st.session_state["nu_horario"] = path
-        else:
-            st.sidebar.warning("Ejecuta la app en local para seleccionar rutas del equipo.")
-        st.rerun()
-
     if open_clicked:
         if xlsx_for_tipo:
             ok2, err2 = open_in_system(os.path.abspath(xlsx_for_tipo))
             if not ok2:
                 st.warning(f"No se pudo abrir el archivo: {err2}")
         else:
-            st.warning(f"No hay Excel configurado para ‘{tipo_norm}’.")
+            st.warning(f"No hay Excel configurado para '{tipo_norm}'.")
         st.stop()  # evitar validar/guardar cuando solo se quiso abrir
 
     if not submit_clicked:
         return None
-    
+
     # ────────────────────────────────────────────────────────────────
     # VALIDACIONES
     # ────────────────────────────────────────────────────────────────
     validator = DataValidator()
+
     
     # Campos obligatorios con normalización
-    validator.validate_field("nombre", nombre.strip(), lambda x: len(x) > 0, 
-                            normalizer=lambda x: x.strip())
-    validator.validate_field("apellidos", apellidos.strip(), lambda x: len(x) > 0,
-                            normalizer=lambda x: x.strip())
-    validator.validate_field("email", email.strip(), is_email(),
-                            normalizer=lambda x: x.strip().lower())
-    validator.validate_field("destino_origen", destino_origen.strip(), lambda x: len(x) > 0,
-                            normalizer=lambda x: x.strip())
+    nombre_val = (nombre or "").strip()
+    destino_val = (destino_origen or "").strip()
+    
+    if not nombre_val:
+        validator._add_error("nombre", "El nombre es obligatorio")
+    else:
+        validator.cleaned_data["nombre"] = nombre_val
+    
+    if not destino_val:
+        validator._add_error("destino_origen", "El destino/universidad es obligatorio")
+    else:
+        validator.cleaned_data["destino_origen"] = destino_val
+    
+    # Campos opcionales (añadir a cleaned_data si existen)
+    apellidos_val = (apellidos or "").strip()
+    if apellidos_val:
+        validator.cleaned_data["apellidos"] = apellidos_val
+    
+    email_val = (email or "").strip()
+    if email_val:
+        validator.cleaned_data["email"] = email_val
     
     # Validaciones específicas por tipo con normalización
     if tipo_norm == PROGRAM_ERASMUS_OUT:
-        validator.validate_field("pais_out", extra["pais_out"].strip(), lambda x: len(x) > 0,
-                                normalizer=lambda x: x.strip())
-        if extra["dur_out"]:
+        pais_val = (extra.get("pais_out") or "").strip()
+        if not pais_val:
+            validator._add_error("pais_out", "El país es obligatorio")
+        else:
+            validator.cleaned_data["pais_out"] = pais_val
+            
+        if extra.get("dur_out"):
             validator.validate_field("dur_out", extra["dur_out"], is_duration_valid(),
                                     normalizer=lambda x: str(safe_int_convert(x, default=0)))
             
     elif tipo_norm == PROGRAM_ERASMUS_IN:
-        validator.validate_field("pais_in", extra["pais_in"].strip(), lambda x: len(x) > 0,
-                                normalizer=lambda x: x.strip())
+        pais_val = (extra.get("pais_in") or "").strip()
+        if not pais_val:
+            validator._add_error("pais_in", "El país es obligatorio")
+        else:
+            validator.cleaned_data["pais_in"] = pais_val
             
     elif tipo_norm == PROGRAM_SICUE_OUT:
-        validator.validate_field("ciudad_sicue", extra["ciudad_sicue"].strip(), lambda x: len(x) > 0,
-                                normalizer=lambda x: x.strip())
-        if extra["dur_sicue"]:
+        ciudad_val = (extra.get("ciudad_sicue") or "").strip()
+        if not ciudad_val:
+            validator._add_error("ciudad_sicue", "La ciudad es obligatoria")
+        else:
+            validator.cleaned_data["ciudad_sicue"] = ciudad_val
+            
+        if extra.get("dur_sicue"):
             validator.validate_field("dur_sicue", extra["dur_sicue"], is_duration_valid(),
                                     normalizer=lambda x: str(safe_int_convert(x, default=0)))
     
     if not validator.is_valid():
-        st.error(validator.get_error_messages())
+        st.toast(f"{validator.get_error_messages()}", icon="❌")
         return None
     
     # Obtener datos normalizados
@@ -545,17 +555,19 @@ def render_new_user_form(available_types: list[str], config: dict) -> dict | Non
 
 
     # ────────────────────────────────────────────────────────────────
-    # GEOCODING
+    # GEOCODING (solo para SICUE OUT)
     # ────────────────────────────────────────────────────────────────
-    lat, lon, gerr = _geocode_cached(destino_origen.strip())
-    if (lat is None or lon is None) and tipo_norm == PROGRAM_SICUE_OUT:
-        ciudad_opt = (extra.get("ciudad_sicue") or "").strip()
-        if ciudad_opt:
-            lat, lon, gerr2 = _geocode_cached(ciudad_opt)
-            if gerr and not gerr2:
-                gerr = None  # mejoró con ciudad
-    if gerr:
-        st.warning(f"No se pudo geocodificar ‘{destino_origen}’: {gerr}")
+    lat, lon = None, None
+    if tipo_norm == PROGRAM_SICUE_OUT:
+        lat, lon, gerr = _geocode_cached(destino_origen.strip())
+        if lat is None or lon is None:
+            ciudad_opt = (extra.get("ciudad_sicue") or "").strip()
+            if ciudad_opt:
+                lat, lon, gerr2 = _geocode_cached(ciudad_opt)
+                if gerr and not gerr2:
+                    gerr = None  # mejoró con ciudad
+        if gerr:
+            st.warning(f"No se pudo geocodificar '{destino_origen}': {gerr}")
     # ────────────────────────────────────────────────────────────────
     # PAYLOAD + MATERIAS
     # ────────────────────────────────────────────────────────────────
@@ -571,21 +583,29 @@ def render_new_user_form(available_types: list[str], config: dict) -> dict | Non
     }
     if tipo_norm == "Erasmus IN":
         materias_payload = []
+        
+        # Obtener valores globales del estudiante para todas las asignaturas
+        cuat_global = extra.get("cuatrimestre_in", "")
+        firmado_global = extra.get("firmado_la", "")
+        la_global = extra.get("la_in", "")
+        
         for m in st.session_state.get("nu_materias_in", []):
             nom = (m.get("nombre") or "").strip()
             if not nom:
                 # ignoramos filas vacías
                 continue
-            cuatri = str(m.get("cuatrimestre") or "").strip()
-            firmado_bool = bool(m.get("firmado"))
-            materias_payload.append(
-                {
-                    "asignatura": nom,
-                    "cuatrimestre": cuatri,
-                    "cuat": cuatri,
-                    "firmado": "x" if firmado_bool else "",
-                }
-            )
+            materias_payload.append({
+                "asignatura": nom,
+                "cuat": cuat_global,
+                "firmado": firmado_global,
+                "link_la": la_global
+            })
+        
+        # Validar que hay al menos una asignatura
+        if not materias_payload:
+            st.toast("Debes añadir al menos una asignatura para Erasmus IN", icon="❌")
+            return None
+        
         if materias_payload:
             payload["materias_in"] = materias_payload
     else:
@@ -597,87 +617,15 @@ def render_new_user_form(available_types: list[str], config: dict) -> dict | Non
     # ────────────────────────────────────────────────────────────────
     xlsx_path = config.get(tipo_norm)
     if not xlsx_path:
-        st.error(f"No hay Excel configurado para ‘{tipo_norm}’. Ábrelo en ‘Cambiar rutas’.")
+        st.toast(f"No hay Excel configurado para '{tipo_norm}'. Ábrelo en 'Cambiar rutas'.", icon="❌")
         return None
 
     ok, err = append_user_to_excel(xlsx_path, tipo_norm, payload, sheet_name=selected_sheet)
     if not ok:
-        st.error(f"Error guardando en Excel: {err}")
+        st.toast(f"Error guardando en Excel: {err}", icon="❌")
         return None
-
-    # Si es Erasmus IN y hay materias, añadimos también al Excel 'Materias IN'
-    if tipo_norm == PROGRAM_ERASMUS_IN and materias_payload:
-        _append_materias_in_excel_single_student(materias_payload, payload, config)
-
 
     # Marcamos éxito y forzamos incremento de `data_version` para invalidar caches
     st.session_state["_user_saved"] = True
     st.session_state["data_version"] = st.session_state.get("data_version", 0) + 1
     st.rerun()
-
-
-def _append_materias_in_excel_single_student(
-    materias_payload: list[dict],
-    student_payload: dict,
-    config: dict,
-):
-    """
-    Añade las materias de UN estudiante Erasmus IN al Excel 'Materias IN'
-    indicado en config["ERASMUS IN"].
-    """
-    path_materias = (config or {}).get("Erasmus IN")
-    if not path_materias or not materias_payload:
-        return
-
-    # Datos comunes
-    nombre_est = f"{student_payload.get('nombre', '')} {student_payload.get('apellidos', '')}".strip()
-    origen = student_payload.get("pais_in") or ""
-    centro = student_payload.get("destino_origen") or ""
-
-    rows_out = []
-    for m in materias_payload:
-        asig = m.get("asignatura", "").strip()
-        if not asig:
-            continue
-        cuat = (m.get("cuat") or m.get("cuatrimestre") or "").strip()
-        firmado = m.get("firmado") or ""
-        rows_out.append(
-            {
-                "Asignatura": asig,
-                "Estudiante": nombre_est,
-                "Origen": origen,
-                "Universidad Origen": centro,
-                "Cuat": cuat,
-                "Firmado": firmado,
-            }
-        )
-
-    if not rows_out:
-        return
-
-    cols = ["Asignatura", "Estudiante", "Origen", "Universidad Origen", "Cuat", "Firmado"]
-    df_new = pd.DataFrame(rows_out, columns=cols)
-
-    try:
-        if os.path.exists(path_materias):
-            try:
-                df_old = pd.read_excel(path_materias)
-                # alineamos columnas
-                for c in cols:
-                    if c not in df_old.columns:
-                        df_old[c] = None
-                for c in df_old.columns:
-                    if c not in df_new.columns:
-                        df_new[c] = None
-                df_out = pd.concat(
-                    [df_old[cols], df_new[cols]],
-                    ignore_index=True,
-                )
-            except Exception:
-                df_out = df_new
-        else:
-            df_out = df_new
-
-        df_out.to_excel(path_materias, index=False)
-    except Exception as e:
-        st.warning(f"No se pudo actualizar el Excel de 'ERASMUS IN': {e}")

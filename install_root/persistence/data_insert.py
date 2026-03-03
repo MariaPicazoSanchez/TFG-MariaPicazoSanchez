@@ -50,14 +50,146 @@ def _sheet_exists(xlsx_path: str, sheet_name: str) -> bool:
         return sheet_name in wb.sheetnames
     except Exception:
         return False
+
+
+def _append_erasmus_in_with_subjects(xlsx_path: str, row_data: dict, target_sheet: str, lat, lon):
+    """
+    Añade múltiples filas (una por asignatura) para un estudiante Erasmus IN.
+    Cada fila contiene: Asignatura, Estudiante, Origen, Universidad Origen, Cuat, Firmado, LA
+    Usa detección de tabla para añadir en el lugar correcto.
+    """
+    materias = row_data.get("materias_in", [])
+    if not materias:
+        return True, None  # Sin materias, nada que hacer
+    
+    # Construir nombre completo del estudiante
+    nombre_completo = f"{row_data.get('nombre', '')} {row_data.get('apellidos', '')}".strip()
+    origen = row_data.get("pais_in", "")
+    universidad_origen = row_data.get("destino_origen", "")
+    la_default = row_data.get("la_in", "")  # Learning Agreement del estudiante (clave correcta)
+    
+    # Columnas esperadas para Erasmus IN (tabla de asignaturas)
+    cols = ["Asignatura", "Estudiante", "Origen", "Universidad Origen", "Cuat", "Firmado", "LA"]
+    
+    # Crear una fila por cada asignatura
+    rows_to_add = []
+    for materia in materias:
+        asignatura = materia.get("asignatura", "").strip()
+        if not asignatura:
+            continue  # Ignorar materias vacías
+        
+        rows_to_add.append({
+            "Asignatura": asignatura,
+            "Estudiante": nombre_completo,
+            "Origen": origen,
+            "Universidad Origen": universidad_origen,
+            "Cuat": materia.get("cuat", ""),
+            "Firmado": materia.get("firmado", ""),
+            "LA": materia.get("link_la", la_default),  # Usar LA específico o el del estudiante
+        })
+    
+    if not rows_to_add:
+        return True, None  # Sin filas válidas, nada que hacer
+    
+    # Si la hoja NO existe, crear con pandas (primera vez)
+    if not _sheet_exists(xlsx_path, target_sheet):
+        df_new = pd.DataFrame(rows_to_add, columns=cols)
+        mode = "a" if os.path.exists(xlsx_path) else "w"
+        try:
+            with pd.ExcelWriter(xlsx_path, engine="openpyxl", mode=mode) as w:
+                df_new.to_excel(w, sheet_name=target_sheet, index=False)
+        except PermissionError:
+            return False, "El archivo está abierto en otra aplicación."
+        except Exception as e:
+            return False, f"Error creando la hoja '{target_sheet}': {e}"
+        return True, None
+    
+    # Si la hoja SÍ existe, usar openpyxl para detectar la tabla y añadir en el lugar correcto
+    try:
+        from persistence.excel_update import _find_table_in_workbook, MATERIAS_HEADER_ALIASES, MATERIAS_REQUIRED
+        
+        # Detectar tabla de Erasmus IN
+        table_info = _find_table_in_workbook(
+            xlsx_path,
+            MATERIAS_HEADER_ALIASES,
+            MATERIAS_REQUIRED,
+            extra_min_matches=2,
+            extras_pool={"origen", "universidad_origen", "cuat", "firmado"},
+        )
+        
+        if not table_info:
+            # Si no se encuentra tabla, usar el método de pandas (concatenar al final)
+            df_existing = pd.read_excel(xlsx_path, sheet_name=target_sheet, engine="openpyxl")
+            df_existing.columns = [str(c).strip() for c in df_existing.columns]
+            df_new = pd.DataFrame(rows_to_add, columns=cols)
+            
+            for col in cols:
+                if col not in df_existing.columns:
+                    df_existing[col] = None
+            for col in df_existing.columns:
+                if col not in df_new.columns:
+                    df_new[col] = None
+            
+            cols_order = list(df_existing.columns)
+            df_out = pd.concat([df_existing, df_new[cols_order]], ignore_index=True)
+            
+            with pd.ExcelWriter(xlsx_path, engine="openpyxl", mode="a", if_sheet_exists="replace") as w:
+                df_out.to_excel(w, sheet_name=target_sheet, index=False)
+            return True, None
+        
+        # Tabla encontrada: añadir filas justo después del final de la tabla
+        wb = load_workbook(xlsx_path)
+        ws = wb[table_info.sheet_name]
+        
+        c_asig = table_info.cols.get("asignatura")
+        c_est = table_info.cols.get("estudiante")
+        c_ori = table_info.cols.get("origen")
+        c_uni = table_info.cols.get("universidad_origen")
+        c_cuat = table_info.cols.get("cuat")
+        c_fir = table_info.cols.get("firmado")
+        c_la = table_info.cols.get("link_la")
+        
+        # Buscar la última fila con datos de la tabla (no más allá de data_end)
+        last_row = table_info.data_end
+        if c_asig:
+            for r in range(table_info.data_start, ws.max_row + 1):
+                v = ws.cell(row=r, column=c_asig).value
+                if v is not None and str(v).strip() != "":
+                    # Verificar que está dentro del rango de la tabla (no otra tabla)
+                    if r <= table_info.data_end + 50:  # Margen de seguridad
+                        last_row = max(last_row, r)
+        
+        # Añadir las nuevas filas justo después
+        insert_row = last_row + 1
+        
+        for i, fila in enumerate(rows_to_add):
+            r = insert_row + i
+            if c_asig: ws.cell(row=r, column=c_asig).value = fila["Asignatura"]
+            if c_est: ws.cell(row=r, column=c_est).value = fila["Estudiante"]
+            if c_ori: ws.cell(row=r, column=c_ori).value = fila["Origen"]
+            if c_uni: ws.cell(row=r, column=c_uni).value = fila["Universidad Origen"]
+            if c_cuat: ws.cell(row=r, column=c_cuat).value = fila["Cuat"]
+            if c_fir: ws.cell(row=r, column=c_fir).value = fila["Firmado"]
+            if c_la: ws.cell(row=r, column=c_la).value = fila["LA"]
+        
+        wb.save(xlsx_path)
+        wb.close()
+        return True, None
+        
+    except PermissionError:
+        return False, "El archivo está abierto en otra aplicación."
+    except Exception as e:
+        return False, f"Error guardando: {e}"
     
 
 
 def append_user_to_excel(xlsx_path: str, tipo: str, row_data: dict, sheet_name: str | None):
     """
     Añade una fila al Excel en la hoja `sheet_name`.
+    - Para Erasmus IN: añade UNA FILA POR ASIGNATURA con la info del estudiante.
+    - Para otros tipos: añade UNA fila con la info del estudiante.
     - Si la hoja NO existe -> la crea con cabeceras estándar.
-    - Si SÍ existe -> mapea a las columnas reales y añade una fila (replace esa hoja).
+    - Si SÍ existe -> mapea a las columnas reales y añade fila(s) (replace esa hoja).
     Devuelve: (ok: bool, err: str|None)
     """
     if not xlsx_path or not os.path.exists(xlsx_path):
@@ -72,6 +204,11 @@ def append_user_to_excel(xlsx_path: str, tipo: str, row_data: dict, sheet_name: 
     else:
         lat = row_data.get("lat")
         lon = row_data.get("lon")
+    
+    # CASO ESPECIAL: Erasmus IN con materias
+    # Añadir una fila por asignatura con la info del estudiante
+    if tipo == "Erasmus IN" and row_data.get("materias_in"):
+        return _append_erasmus_in_with_subjects(xlsx_path, row_data, target_sheet, lat, lon)
 
     # ── Hoja NO existe → crear con columnas estándar ────────────────────────────
     if not _sheet_exists(xlsx_path, target_sheet):
