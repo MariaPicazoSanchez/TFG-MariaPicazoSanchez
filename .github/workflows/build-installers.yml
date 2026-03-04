@@ -9,61 +9,89 @@ jobs:
 
     steps:
 
-      - name: Descargar repositorio
+      - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Instalar Python 3.12
+      - name: Setup Python
         uses: actions/setup-python@v5
         with:
-          python-version: '3.12'
+          python-version: "3.12"
 
-      - name: Instalar dependencias
+      - name: Install dependencies
+        shell: pwsh
         run: |
           python -m pip install --upgrade pip
           pip install pyinstaller
           pip install -r install_root/requirements.txt
 
-      # =============================
-      # BUILD CON DATOS
-      # =============================
-
-      - name: Generar EXE CON datos
-        run: |
-          python -m PyInstaller --onedir --noconsole --clean --noconfirm --icon=./install_root/MovilidadESII.ico --name MovilidadESII_Demo launcher_system.py
-
-      - name: Instalar Inno Setup
+      - name: Install Inno Setup
+        shell: pwsh
         run: choco install innosetup --yes
 
-      - name: Crear instalador CON datos
+      # =================================
+      # BUILD VERSION CON DATOS
+      # =================================
+
+      - name: Build EXE (demo data)
+        shell: pwsh
+        run: |
+          python -m PyInstaller `
+            --onedir `
+            --noconsole `
+            --clean `
+            --noconfirm `
+            --icon=install_root/MovilidadESII.ico `
+            --name MovilidadESII `
+            launcher_system.py
+
+      - name: Debug dist folder
+        shell: pwsh
+        run: dir dist
+
+      - name: Create installer (demo data)
+        shell: pwsh
         run: |
           & "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" installer.iss
 
-      # =============================
-      # LIMPIAR DIST
-      # =============================
-
-      - name: Limpiar carpeta dist
-        run: Remove-Item -Recurse -Force dist
-
-      # =============================
-      # BUILD SIN DATOS
-      # =============================
-
-      - name: Generar EXE SIN datos
+      - name: Clean build folders
+        shell: pwsh
         run: |
-          python -m PyInstaller --onedir --noconsole --clean --noconfirm --icon=./install_root/MovilidadESII.ico --name MovilidadESII_Clean launcher_system_sindata.py
+          Remove-Item -Recurse -Force dist -ErrorAction Ignore
+          Remove-Item -Recurse -Force build -ErrorAction Ignore
+          Remove-Item *.spec -ErrorAction Ignore
 
-      - name: Crear instalador SIN datos
+      # =================================
+      # BUILD VERSION SIN DATOS
+      # =================================
+
+      - name: Build EXE (no demo data)
+        shell: pwsh
+        run: |
+          python -m PyInstaller `
+            --onedir `
+            --noconsole `
+            --clean `
+            --noconfirm `
+            --icon=install_root/MovilidadESII.ico `
+            --name MovilidadESII `
+            launcher_system_sindata.py
+
+      - name: Debug dist folder (clean version)
+        shell: pwsh
+        run: dir dist
+
+      - name: Create installer (no demo data)
+        shell: pwsh
         run: |
           & "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" installer_sindata.iss
 
-      # =============================
-      # SUBIR ARTEFACTOS
-      # =============================
+      # =================================
+      # UPLOAD ARTIFACTS
+      # =================================
 
-      - name: Subir instaladores
+      - name: Upload installers
         uses: actions/upload-artifact@v4
         with:
-          name: Instaladores
+          name: installers
           path: |
-            Output\*.exe
+            output/*.exe
