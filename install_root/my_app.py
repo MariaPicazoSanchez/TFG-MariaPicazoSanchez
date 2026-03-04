@@ -184,29 +184,146 @@ def _render_view(dfs, base_map, materias, config):
         _render_map_view(dfs, base_map, materias)
 
 
-def inject_js_ping(interval_ms: int = 8000) -> None:
-    """Inyecta JavaScript para hacer ping periódico a la API para chequeos de salud.
-    
+def inject_js_heartbeat(interval_ms: int = 20_000) -> None:
+    """Inyecta el sistema completo de heartbeat y detección de cierre de pestaña.
+
+    Combina en una sola llamada a components.html (que SIEMPRE ejecuta scripts):
+    - Ping periódico al endpoint /ping de la API Flask.
+    - Registro de apertura de pestaña (/open) en el servidor de control.
+    - Detección de cierre con beforeunload + pagehide (/close beacon).
+
+    Por qué components.html y no st.markdown:
+      st.markdown usa innerHTML, y los navegadores modernos NO ejecutan
+      <script> tags insertados por innerHTML (política de seguridad HTML5).
+      components.html crea un <iframe> nuevo en cada render, cuyo documento
+      se carga con un src data-URL — los scripts dentro sí se ejecutan.
+
+    Todo se ancla en window.top (el documento raíz de Streamlit) para que
+    los timers y listeners sobrevivan a los re-renders de Streamlit, que
+    destruyen y recrean el iframe pero dejan window.top intacto.
+
     Args:
-        interval_ms: Intervalo de ping en milisegundos
+        interval_ms: Intervalo entre pings en milisegundos (default 20 s).
     """
-    api_url = os.getenv("API_URL", "http://127.0.0.1:5000").rstrip("/")
+    api_url      = os.getenv("API_URL",       "http://127.0.0.1:5000").rstrip("/")
+    control_port = os.getenv("CONTROL_PORT",  "")
+    shutdown_token = os.getenv("SHUTDOWN_TOKEN", "")
+
+    # URLs del servidor de control (vacías en modo desarrollo sin launcher)
+    url_open_base  = (
+        f"http://127.0.0.1:{control_port}/open?token={shutdown_token}"
+        if control_port and shutdown_token else ""
+    )
+    url_close_base = (
+        f"http://127.0.0.1:{control_port}/close?token={shutdown_token}"
+        if control_port and shutdown_token else ""
+    )
+
     components.html(
         f"""
         <script>
         (function() {{
-          const url = "{api_url}/ping";
+          // ── URLs ───────────────────────────────────────────────────────────────────
+          const pingUrl      = "{api_url}/ping";
+          const urlOpenBase  = "{url_open_base}";
+          const urlCloseBase = "{url_close_base}";
+          const iv           = {interval_ms};
+
+          // ── Seleccionar window.top como host de todos los timers y listeners ──
+          // window.top NO se destruye en los re-renders de Streamlit (a diferencia
+          // del iframe de components.html, que sí se recrea en cada st.rerun).
+          var host;
+          try {{
+            host = (window.top && window.top.setInterval) ? window.top : window;
+          }} catch (e) {{
+            host = window;
+          }}
+
+          // ── Tab ID persistente entre recargas (localStorage en window.top) ──
+          var tabId = "";
+          try {{
+            tabId = host.localStorage.getItem("movilidad_tab_id") || "";
+            if (!tabId) {{
+              // UUID v4 en JS puro
+              tabId = ([1e7]+-1e3+-4e3+-8e3+-1e11).replace(/[018]/g, function(c) {{
+                return (c ^ crypto.getRandomValues(new Uint8Array(1))[0] & 15 >> c / 4).toString(16);
+              }});
+              host.localStorage.setItem("movilidad_tab_id", tabId);
+              console.log("[MovilidadESII] NuevoTabId generado:", tabId);
+            }} else {{
+              console.log("[MovilidadESII] TabId recuperado:", tabId);
+            }}
+          }} catch (e) {{ tabId = "nols-" + Math.random().toString(36).slice(2); }}
+
+          var urlOpen  = urlOpenBase  ? (urlOpenBase  + "&id=" + tabId) : "";
+          var urlClose = urlCloseBase ? (urlCloseBase + "&id=" + tabId) : "";
+
+          // ── Registrar /open solo una vez por sesión de browser (no en reruns) ──
+          // host.__movilidad_tab_registered se conserva entre re-renders de
+          // Streamlit (mismo window.top), pero desaparece en F5 (nuevo window),
+          // lo que hace que F5 reenvíe /open y cancele el pending /close. ✓
+          if (urlOpen && !host.__movilidad_tab_registered) {{
+            host.__movilidad_tab_registered = true;
+            fetch(urlOpen, {{ method: "POST" }})
+              .then(function() {{ console.log("[MovilidadESII] /open enviado:", tabId); }})
+              .catch(function(e) {{ console.warn("[MovilidadESII] /open error:", e); }});
+          }}
+
+          // ── Ping interval: cancelar el anterior y arrancar uno nuevo ──
+          // Necesario porque el iframe es destruido y recreado en cada st.rerun();
+          // sin esto, el intervalo del iframe anterior se pierde silenciosamente.
+          if (host.__movilidad_ping_id) {{
+            try {{ host.clearInterval(host.__movilidad_ping_id); }} catch (e) {{}}
+          }}
           function ping() {{
-            try {{
-              fetch(url, {{ method: "GET", cache: "no-store" }}).catch(() => {{}});
-            }} catch (e) {{}}
+            try {{ fetch(pingUrl, {{ method: "GET", cache: "no-store" }}).catch(function(){{}}); }}
+            catch (e) {{}}
           }}
           ping();
-          setInterval(ping, {interval_ms});
+          host.__movilidad_ping_id = host.setInterval(ping, iv);
+
+          // ── Detección de cierre de pestaña ───────────────────────────────────
+          // Enviar /close al servidor de control (que espera 5 s de gracia).
+          // Si el navegador envía /open antes de que expire la gracia (F5/recarga)
+          // el servidor cancela el cierre. Si no llega /open → shutdown. ✔
+          function sendClose() {{
+            if (urlClose) {{
+              console.log("[MovilidadESII] sendBeacon /close:", tabId);
+              try {{ navigator.sendBeacon(urlClose); }} catch (e) {{}}
+            }}
+            // Último ping para mantener LAST_PING fresco hasta el momento de cierre.
+            try {{ navigator.sendBeacon(pingUrl); }} catch (e) {{}}
+          }}
+
+          // Eliminar listeners anteriores (evitar duplicados entre re-renders)
+          if (host.__movilidad_unload_fn) {{
+            try {{ host.removeEventListener("beforeunload", host.__movilidad_unload_fn); }} catch (e) {{}}
+          }}
+          if (host.__movilidad_pagehide_fn) {{
+            try {{ host.removeEventListener("pagehide", host.__movilidad_pagehide_fn); }} catch (e) {{}}
+          }}
+
+          // beforeunload: se ejecuta antes de cerrar o navegar fuera de la página.
+          host.__movilidad_unload_fn = function() {{
+            sendClose();
+          }};
+
+          // pagehide: más fiable que beforeunload en navegadores móviles y Chrome
+          // moderno.  persisted=true significa BF cache (F5); intentamos enviar
+          // /close en ambos casos — la gracia de 5 s en el servidor lo maneja. ✔
+          host.__movilidad_pagehide_fn = function(ev) {{
+            sendClose();
+          }};
+
+          host.addEventListener("beforeunload", host.__movilidad_unload_fn);
+          host.addEventListener("pagehide",     host.__movilidad_pagehide_fn);
+
+          console.log("[MovilidadESII] Heartbeat registrado.",
+                      "pingUrl:", pingUrl, "tabId:", tabId);
         }})();
         </script>
         """,
-        height=0, width=0
+        height=0, width=0,
     )
 
 
@@ -215,52 +332,17 @@ def inject_js_ping(interval_ms: int = 8000) -> None:
 def main():
 
     # ==================== CONFIGURACIÓN ====================
-    # --- Notificación de pestaña abierta/cerrada al launcher (persistente por pestaña) ---
-    import uuid
-    control_port = os.getenv("CONTROL_PORT")
-    shutdown_token = os.getenv("SHUTDOWN_TOKEN")
-    if control_port and shutdown_token:
-        js = f"""
-        <script>
-        (function() {{
-            // Usa localStorage para persistir un id de pestaña único
-            let tabId = localStorage.getItem('movilidad_tab_id');
-            if (!tabId) {{
-                // Generar un UUID v4 en JS puro (no depende de Python)
-                tabId = ([1e7]+-1e3+-4e3+-8e3+-1e11).replace(/[018]/g, c =>
-                    (c ^ crypto.getRandomValues(new Uint8Array(1))[0] & 15 >> c / 4).toString(16)
-                );
-                localStorage.setItem('movilidad_tab_id', tabId);
-                console.log("Nuevo tabId generado:", tabId);
-            }} else {{
-                console.log("tabId persistente:", tabId);
-            }}
-            window.__movilidad_tab_id = tabId;
-            const token = '{shutdown_token}';
-            const urlOpen = 'http://127.0.0.1:{control_port}/open?id=' + tabId + '&token=' + token;
-            const urlClose = 'http://127.0.0.1:{control_port}/close?id=' + tabId + '&token=' + token;
-            // Notificar apertura (en cada recarga)
-            fetch(urlOpen, {{method: 'POST'}}).then(() => {{
-                console.log("/open enviado:", urlOpen);
-            }}).catch((e) => {{
-                console.error("/open error:", e);
-            }});
-            // Notificar cierre solo al cerrar la pestaña
-            window.addEventListener('beforeunload', function() {{
-                navigator.sendBeacon(urlClose);
-                console.log("/close enviado:", urlClose);
-            }});
-        }})();
-        </script>
-        """
-        st.markdown(js, unsafe_allow_html=True)
-    
+    control_port   = os.getenv("CONTROL_PORT", "")
+    shutdown_token = os.getenv("SHUTDOWN_TOKEN", "")
+
     st.set_page_config(
         page_title="Movilidad ESII",
         layout="wide",
         initial_sidebar_state="expanded"
     )
-    inject_js_ping(8000)
+    # Sistema completo de heartbeat + detección de cierre de pestaña.
+    # Sustituye a st.markdown(js) (que no ejecuta scripts) + inject_js_ping.
+    inject_js_heartbeat(20_000)
     
     init_session_defaults()
     

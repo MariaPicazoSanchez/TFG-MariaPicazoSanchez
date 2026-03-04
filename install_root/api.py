@@ -40,7 +40,10 @@ def repair_windows_path(path_str: str) -> str:
     
     return os.path.normpath(path_str)
 
-LAST_PING = time.time()
+# None hasta que el navegador envíe el primer /ping.
+# Esto evita que el watchdog del launcher interprete el tiempo de arranque
+# (sin ningún cliente conectado todavía) como inactividad y cierre la app.
+LAST_PING: float | None = None
 API_TOKEN = get_api_token()
 
 
@@ -60,6 +63,8 @@ def ping():
 
 @app.get("/last_ping")
 def last_ping():
+    # ts es None si todavía no ha llegado ningún ping del navegador.
+    # El launcher lo trata como "no inicializado" y no activa el watchdog.
     return {"ok": True, "ts": LAST_PING}
 
 def require_token(f):

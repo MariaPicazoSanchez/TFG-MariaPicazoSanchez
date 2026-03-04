@@ -9,11 +9,33 @@ def start_control_server(port: int, token: str, shutdown_event: threading.Event)
     open_tabs = set()
     pending_close = dict()  # tab_id -> timestamp de cierre programado
     last_close_ts = [0.0]  # mutable para acceso desde handler
-    CLOSE_DEBOUNCE = 1.0  # cierre casi inmediato
-    PENDING_CLOSE_GRACE = 1.0  # cierre casi inmediato
+    CLOSE_DEBOUNCE = 1.0
+    # Tiempo que se espera antes de confirmar un cierre de pestaña.
+    # Debe ser mayor que el tiempo de recarga de página (F5) para evitar
+    # falsos positivos: una recarga envía /close y luego /open en ~2-4s.
+    PENDING_CLOSE_GRACE = 5.0
+    # Guard: cleanup_pending NO puede disparar shutdown hasta que al menos
+    # una pestaña haya enviado /open.  Evita cierre prematuro al arrancar,
+    # cuando open_tabs está vacío simplemente porque el navegador aún no abrió.
+    first_open_received = [False]   # [bool] mutable para acceso desde el hilo
     LOGGER = logging.getLogger("movilidad_launcher")
 
     class Handler(BaseHTTPRequestHandler):
+
+        def end_headers(self):
+            """Añade cabeceras CORS a todas las respuestas para permitir
+            que el iframe de Streamlit (puerto distinto) haga fetch al
+            servidor de control."""
+            self.send_header("Access-Control-Allow-Origin", "*")
+            self.send_header("Access-Control-Allow-Methods", "POST, GET, OPTIONS")
+            self.send_header("Access-Control-Allow-Headers", "Content-Type")
+            super().end_headers()
+
+        def do_OPTIONS(self):
+            """Responde a las preflight CORS que el navegador envía antes
+            de cada fetch cross-origin."""
+            self.send_response(204)
+            self.end_headers()
 
         def do_POST(self):
             u = urlparse(self.path)
@@ -25,6 +47,7 @@ def start_control_server(port: int, token: str, shutdown_event: threading.Event)
                 tab_id = qs.get("id", [""])[0]
                 if tab_id:
                     open_tabs.add(tab_id)
+                    first_open_received[0] = True   # armar el watchdog de cierre
                     # Si estaba pendiente de cierre, cancelar
                     if tab_id in pending_close:
                         del pending_close[tab_id]
@@ -60,10 +83,26 @@ def start_control_server(port: int, token: str, shutdown_event: threading.Event)
                     open_tabs.remove(tid)
                     LOGGER.info(f"pending_close ejecutado: {tid}. Pestañas abiertas: {len(open_tabs)}")
                 del pending_close[tid]
-            time.sleep(2)
+
+            # ── Cierre inmediato cuando no queda ninguna pestaña ──────────────
+            # Requisito: que la pestaña haya emitido al menos un /open antes.
+            # Sin este guard, al arrancar (open_tabs={}, pending_close={}) la
+            # condición sería verdadera desde el primer tick y cerraría la app
+            # antes de que el navegador siquiera abriera la página.
+            if first_open_received[0] and open_tabs == set() and not pending_close:
+                LOGGER.info(
+                    "Todas las pestañas cerradas y sin gracias pendientes "
+                    "→ señal de shutdown inmediata."
+                )
+                shutdown_event.set()
+                return  # el hilo ya no es necesario
+
+            time.sleep(1)
 
     httpd = HTTPServer(("127.0.0.1", port), Handler)
     httpd.open_tabs = open_tabs
+    httpd.pending_close = pending_close
+    httpd.first_open_received = first_open_received
     httpd.last_close_ts = last_close_ts
     httpd.CLOSE_DEBOUNCE = CLOSE_DEBOUNCE
     t = threading.Thread(target=httpd.serve_forever, daemon=True)
@@ -738,71 +777,115 @@ def start_processes(api_enabled: bool = True, api_disabled_reason: str | None = 
             write_api_status(False, api_url, reason=reason)
             LOGGER.warning(reason)
 
-        GRACE_STARTUP = 20
-        IDLE_TIMEOUT = 20 * 60  # 20 minutos de inactividad (fallback)
-        CHECK_INTERVAL = 1  # Verificar cada 1 segundo
-        MAX_RUNTIME = 8 * 60 * 60  # 8 horas máximo de ejecución total
+        # ── Watchdog de heartbeat ──────────────────────────────────────────────
+        # Dos mecanismos de cierre independientes:
+        #
+        # A) CIERRE INMEDIATO (ruta rápida, ~5-6 s):
+        #    beforeunload JS → POST /close → PENDING_CLOSE_GRACE (5 s) → si ningún
+        #    /open llega (no es un F5), cleanup_pending() llama shutdown_event.set()
+        #    → el watchdog lo detecta en la siguiente iteración (CHECK_INTERVAL = 1 s)
+        #    y termina los procesos.
+        #
+        # B) FALLBACK POR HEARTBEAT (para crashes de navegador sin beforeunload):
+        #    Si no llega /ping en HEARTBEAT_TIMEOUT segundos, el watchdog cierra.
+        # ──────────────────────────────────────────────────────────────────────
+        GRACE_STARTUP      = 30           # s — esperar el primer ping antes de activar watchdog
+        HEARTBEAT_TIMEOUT  = 120          # s — fallback: sin ping durante este tiempo → cerrar
+        CHECK_INTERVAL     = 1            # s — latencia máxima de reacción al shutdown_event
+        MAX_RUNTIME        = 8 * 60 * 60  # 8 h — límite absoluto de seguridad
 
-        start_time = time.time()
-        last_seen_client = time.time()
+        start_time        = time.time()
+        last_seen_client  = time.time()  # se actualiza al recibir ping
 
         LOGGER.info("=" * 60)
-        LOGGER.info("Monitor configurado:")
-        LOGGER.info("  - Periodo de gracia inicial: %ds", GRACE_STARTUP)
-        LOGGER.info("  - Timeout sin clientes TCP: %ds", IDLE_TIMEOUT)
-        LOGGER.info("  - Tiempo máximo de ejecución: %ds (%.1f horas)", MAX_RUNTIME, MAX_RUNTIME / 3600)
-        LOGGER.info("  - Intervalo de verificación: %ds", CHECK_INTERVAL)
-        LOGGER.info("  - API habilitada: %s", api_enabled)
-        LOGGER.info("  - NOTA: La aplicación se mantendrá abierta mientras haya navegadores conectados")
-        LOGGER.info("  - Para cerrar manualmente: crear archivo %s/.shutdown", APPDATA_DIR)
+        LOGGER.info("Watchdog de heartbeat configurado:")
+        LOGGER.info("  Gracia inicial          : %ds", GRACE_STARTUP)
+        LOGGER.info("  Ping JS cada            : ~20s")
+        LOGGER.info("  Gracia F5 refresh       : 5s (PENDING_CLOSE_GRACE)")
+        LOGGER.info("  Cierre tab → shutdown   : ~6s (ruta rápida, sin esperar heartbeat)")
+        LOGGER.info("  Fallback sin ping       : %ds (~%d pings de margen)",
+                    HEARTBEAT_TIMEOUT, HEARTBEAT_TIMEOUT // 20)
+        LOGGER.info("  Tiempo máx. ejecución   : %ds (%.1fh)", MAX_RUNTIME, MAX_RUNTIME / 3600)
+        LOGGER.info("  Intervalo watchdog      : %ds", CHECK_INTERVAL)
+        LOGGER.info("  API habilitada          : %s", api_enabled)
+        LOGGER.info("  Cerrar manualmente      : crear %s/.shutdown", APPDATA_DIR)
         LOGGER.info("=" * 60)
 
         while True:
 
-            # 1. Shutdown explícito desde el navegador
+            # 1. Shutdown explícito desde el navegador (botón "Cerrar aplicación")
             if shutdown_event.is_set():
-                LOGGER.info("Shutdown recibido desde el navegador, cerrando aplicación.")
+                LOGGER.info("Shutdown explícito recibido desde el navegador.")
                 break
 
-            # 2. Verificar si Streamlit terminó
+            # 2. Streamlit terminó por sí solo
             if app_proc.poll() is not None:
-                LOGGER.info("Streamlit finalizó.")
+                LOGGER.info("Streamlit finalizó (rc=%s).", app_proc.returncode)
                 break
 
-            # 3. Mecanismo de apagado manual (archivo de señal)
+            # 3. Apagado manual por archivo .shutdown
             shutdown_file = APPDATA_DIR / ".shutdown"
             if shutdown_file.exists():
-                LOGGER.info("Archivo de apagado detectado, cerrando aplicación.")
+                LOGGER.info("Archivo .shutdown detectado — cerrando.")
                 try:
                     shutdown_file.unlink()
                 except Exception:
                     pass
                 break
 
-            now = time.time()
+            now     = time.time()
             elapsed = now - start_time
 
-            # 4. Timeout máximo absoluto (seguridad - aplicación ejecutándose demasiado tiempo)
+            # 4. Límite de tiempo absoluto (seguridad)
             if elapsed > MAX_RUNTIME:
-                LOGGER.info("Tiempo máximo de ejecución alcanzado (%.1fs), cerrando.", elapsed)
+                LOGGER.info("Tiempo máximo de ejecución alcanzado (%.1fs) — cerrando.", elapsed)
                 break
 
-            # 5. Periodo de gracia inicial (dar tiempo a que arranque todo)
+            # 5. Periodo de gracia inicial: esperar a que la API arranque y llegue
+            #    el primer heartbeat antes de activar el watchdog.
             if elapsed <= GRACE_STARTUP:
-                remaining = GRACE_STARTUP - elapsed
-                LOGGER.debug("Periodo de gracia inicial, restantes %.1fs", remaining)
+                LOGGER.debug("Gracia inicial: %.1fs restantes.", GRACE_STARTUP - elapsed)
                 time.sleep(CHECK_INTERVAL)
                 continue
 
+            # ── 6. Watchdog de heartbeat (fallback para crash de navegador) ──
+            # La ruta rápida de cierre (beforeunload → /close → grace 5s →
+            # cleanup_pending → shutdown_event.set()) ya fue gestionada en el
+            # paso 1. Este bloque actúa solo si el navegador muere sin enviar
+            # beforeunload (kill del proceso, caída del sistema, etc.).
+            #
+            # IMPORTANTE: last_ping es None si el navegador aún no envió ningún
+            # /ping (arranque, carga lenta).  En ese caso no se activa el fallback
+            # para evitar cierres prematuros antes de que la primera página cargue.
+            last_ping = get_last_ping_ts(api_port)
 
-            # 6. Nunca cerrar por pestañas abiertas/cerradas
-            open_tabs = getattr(control_httpd, "open_tabs", set())
-            LOGGER.debug(f"Pestañas registradas vía /open: {len(open_tabs)}. Los procesos seguirán vivos.")
-            last_seen_client = now
-            time.sleep(CHECK_INTERVAL)
-            continue
+            if last_ping is None:
+                # Primera carga todavía: mantener last_seen_client al día para
+                # que, cuando llegue el primer ping, ping_age empiece en 0.
+                last_seen_client = now
+                LOGGER.debug("Heartbeat: esperando primer ping del navegador.")
+                time.sleep(CHECK_INTERVAL)
+                continue
 
-            # 7. Eliminar timeout por inactividad TCP: solo cerrar si no hay pestañas abiertas
+            if last_ping > last_seen_client:
+                last_seen_client = last_ping
+
+            ping_age    = now - last_seen_client
+            open_tabs   = getattr(control_httpd, "open_tabs", set())
+
+            if ping_age > HEARTBEAT_TIMEOUT:
+                LOGGER.info(
+                    "Fallback heartbeat: sin ping desde hace %.1fs "
+                    "(timeout=%ds, pestañas_abiertas=%d) — cerrando.",
+                    ping_age, HEARTBEAT_TIMEOUT, len(open_tabs),
+                )
+                break
+
+            LOGGER.debug(
+                "Heartbeat OK: último_ping hace %.1fs | timeout=%ds | "
+                "pestañas_abiertas=%d",
+                ping_age, HEARTBEAT_TIMEOUT, len(open_tabs),
+            )
             time.sleep(CHECK_INTERVAL)
 
 
