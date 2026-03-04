@@ -443,6 +443,80 @@ def _recalculate_coords_ws(ws, excel_row: int, norm_to_col_1based: Dict[str, int
 
     print(f"[coords/ws] Escritas coords lat={lat}, lon={lon}")
 
+
+def _recalculate_coords(df: "pd.DataFrame", row_idx: int):
+    """
+    Versión pandas de _recalculate_coords_ws.
+    Geocodifica la fila row_idx del DataFrame y escribe las coordenadas en él.
+    """
+    import pandas as pd
+    if _geolocator is None:
+        print("[coords/df] geopy no disponible; se omite geocodificación.")
+        return
+
+    col_map = {str(c).strip().lower(): c for c in df.columns}
+
+    def _col(*aliases):
+        for a in aliases:
+            if a in col_map:
+                return col_map[a]
+        return None
+
+    def _val(*aliases):
+        col = _col(*aliases)
+        if col is None:
+            return None
+        v = df.at[row_idx, col]
+        if pd.isna(v) or str(v).strip().lower() in ("", "none", "nan"):
+            return None
+        return str(v).strip()
+
+    destino = _val("universidad", "destino", "universidad destino")
+    ciudad = _val("ciudad")
+    pais = _val("país", "pais")
+
+    queries: List[str] = []
+    partes = [x for x in (destino, ciudad, pais) if x]
+    if partes:
+        queries.append(", ".join(partes))
+    if ciudad and pais:
+        queries.append(f"{ciudad}, {pais}")
+    if ciudad:
+        queries.append(ciudad)
+    if pais:
+        queries.append(pais)
+
+    if not queries:
+        return
+
+    loc = None
+    for query in queries:
+        try:
+            print(f"[coords/df] Geocodificando: {query!r}")
+            loc = _geolocator.geocode(query, timeout=10)
+        except Exception as e:
+            print(f"[coords/df] Error geocodificando {query!r}: {e}")
+            loc = None
+        if loc:
+            break
+
+    if not loc:
+        print("[coords/df] No se encontraron coordenadas.")
+        return
+
+    lat, lon = float(loc.latitude), float(loc.longitude)
+    c_coo = _col("coordenadas", "coords")
+    c_lat = _col("latitud", "latitude")
+    c_lon = _col("longitud", "longitude")
+    if c_coo:
+        df.at[row_idx, c_coo] = f"{lat}, {lon}"
+    if c_lat:
+        df.at[row_idx, c_lat] = lat
+    if c_lon:
+        df.at[row_idx, c_lon] = lon
+    print(f"[coords/df] Escritas coords lat={lat}, lon={lon}")
+
+
 def _normalize_firmado(v: Any) -> str:
     if isinstance(v, bool):
         return "x" if v else ""

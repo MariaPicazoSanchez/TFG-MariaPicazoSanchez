@@ -78,8 +78,6 @@ def _load_asignaturas_catalog(config: dict) -> list:
 try:
     from geopy.geocoders import Nominatim
     from geopy.extra.rate_limiter import RateLimiter
-    import tkinter as tk
-    from tkinter import filedialog
     _GEOCODER = Nominatim(user_agent="tfg-movilidad-esii")
     _GEOCODE = RateLimiter(_GEOCODER.geocode, min_delay_seconds=1)
 except Exception:

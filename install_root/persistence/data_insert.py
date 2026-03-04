@@ -226,7 +226,10 @@ def append_user_to_excel(xlsx_path: str, tipo: str, row_data: dict, sheet_name: 
             "Universidad": row_data.get("destino_origen"),
             "Coordenadas": (
                 f"{row_data.get('coordenadas')[0]}, {row_data.get('coordenadas')[1]}"
-                if isinstance(row_data.get('coordenadas'), (tuple, list)) and len(row_data['coordenadas']) == 2
+                if isinstance(row_data.get('coordenadas'), (tuple, list))
+                    and len(row_data['coordenadas']) == 2
+                    and row_data['coordenadas'][0] is not None
+                    and row_data['coordenadas'][1] is not None
                 else None
             ),
         }
@@ -242,6 +245,9 @@ def append_user_to_excel(xlsx_path: str, tipo: str, row_data: dict, sheet_name: 
                 new.update({"Ciudad": row_data.get("ciudad")})
         else:  # SICUE OUT
             new.update({"LA": row_data.get("la"), "EstadoFirmas": row_data.get("estado_firmas"), "PlanEstudios": row_data.get("plan_estudios")})
+            # ciudad (el payload usa la clave ciudad_sicue)
+            if row_data.get("ciudad_sicue"):
+                new.update({"Ciudad": row_data.get("ciudad_sicue")})
 
         out = pd.DataFrame([new], columns=need_cols)
 
@@ -331,7 +337,13 @@ def append_user_to_excel(xlsx_path: str, tipo: str, row_data: dict, sheet_name: 
         c_ciudad = _pick_col(df, "Ciudad")
         if c_dur:    new_row[c_dur]    = (row_data.get("dur_sicue") or None)
         if c_coord:  new_row[c_coord]  = (row_data.get("coord_dest") or None)
-        if c_ciudad: new_row[c_ciudad] = (row_data.get("ciudad_sicue") or None)
+        if c_ciudad:
+            new_row[c_ciudad] = (row_data.get("ciudad_sicue") or None)
+        elif row_data.get("ciudad_sicue"):
+            # La hoja no tiene columna Ciudad aún → añadirla al vuelo
+            c_ciudad = "Ciudad"
+            new_row[c_ciudad] = row_data.get("ciudad_sicue")
+            cols_order.append("Ciudad")
 
     elif tipo == "Erasmus OUT":
         if c_la:    new_row[c_la]    = row_data.get("la")
