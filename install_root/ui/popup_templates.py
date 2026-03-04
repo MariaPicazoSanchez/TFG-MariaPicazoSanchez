@@ -460,6 +460,7 @@ def generate_dynamic_popup(row, programa: str, row_index: int) -> str:
                         <input type="hidden" name="materias_excel_path" value="{str(materias_excel_path or '').replace('"', '&quot;')}">
                         <input type="hidden" name="old_email" value="{html.escape(str(email_val or ''), quote=True)}">
                         <input type="hidden" name="old_nombre" value="{html.escape(str(nombre_raw or ''), quote=True)}">
+                        <input type="hidden" name="students_sheet_name" value="{html.escape(str(e.get('_sheet_name') or ''), quote=True)}">
                         <input type="hidden" name="materias_sheet_name" value="{html.escape(str(e.get('materias_sheet_name') or ''), quote=True)}">
 
 

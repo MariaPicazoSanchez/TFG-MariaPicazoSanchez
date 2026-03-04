@@ -12,6 +12,8 @@ from dataclasses import dataclass
 from datetime import datetime
 from typing import Any, Dict, List, Optional, Iterable
 from openpyxl import load_workbook
+import pandas as pd
+
 
 logger = logging.getLogger("movilidad_persistence")
 
@@ -96,14 +98,17 @@ FIELD_ALIASES = {
 # Alias específicos para detectar tabla de alumnos (múltiples tablas en una hoja)
 STUDENTS_HEADER_ALIASES = {
     "nombre": {"nombre", "nombre completo", "estudiante"},
+    "apellido1": {"apellido1", "apellido 1", "primer apellido", "apellidos"},
+    "apellido2": {"apellido2", "apellido 2", "segundo apellido"},
     "email": {"email", "e-mail", "correo", "correo electronico", "correo electrónico"},
     "pais": {"pais", "país"},
     "cuatrimestre": {"cuatrimestre", "cuat", "cuatri"},
-    "universidad_origen": {"universidad de origen", "universidad origen", "origen", "destino"},
+    "universidad_origen": {"universidad de origen", "universidad origen", "origen", "destino", "universidad"},
     "coordenadas": {"coordenadas", "coords"},
     "ciudad": {"ciudad"},
 }
-STUDENTS_REQUIRED = {"nombre", "pais", "cuatrimestre"}
+# "nombre" es el único campo verdaderamente universal; "pais" no existe en SICUE OUT
+STUDENTS_REQUIRED = {"nombre"}
 
 # Alias específicos para detectar tabla de Materias IN
 MATERIAS_HEADER_ALIASES = {
@@ -266,6 +271,51 @@ def _match_header_row(ws, row_num: int, aliases_map: Dict[str, set], required: s
             return None
 
     return found
+
+def _iter_all_tables_in_workbook(wb, aliases_map: Dict[str, set], required: set,
+                                 extra_min_matches: int = 0, extras_pool: Optional[set] = None):
+    """
+    Generador: devuelve TableInfo de TODAS las tablas encontradas en TODAS las hojas,
+    en el orden natural del workbook (índice 0 primero).
+    """
+    for ws in wb.worksheets:
+        max_r = ws.max_row
+        max_c = ws.max_column
+        if not max_r or not max_c:
+            continue
+        r = 1
+        while r <= max_r:
+            cols = _match_header_row(ws, r, aliases_map, required,
+                                     extra_min_matches=extra_min_matches, extras_pool=extras_pool)
+            if not cols:
+                r += 1
+                continue
+            data_start = r + 1
+            data_end = r
+            rr = data_start
+            while rr <= max_r:
+                if _row_is_empty_ws(ws, rr, max_c):
+                    break
+                if _match_header_row(ws, rr, aliases_map, required,
+                                     extra_min_matches=extra_min_matches, extras_pool=extras_pool):
+                    break
+                non_empty = [ws.cell(row=rr, column=c).value for c in range(1, max_c + 1)
+                             if ws.cell(row=rr, column=c).value not in (None, "")]
+                if len(non_empty) == 1:
+                    v = non_empty[0]
+                    if isinstance(v, (int, float)) or (isinstance(v, str) and v.strip().isdigit()):
+                        break
+                data_end = rr
+                rr += 1
+            yield TableInfo(
+                sheet_name=ws.title,
+                header_row=r,
+                data_start=data_start,
+                data_end=data_end,
+                cols=cols,
+            )
+            r = data_end + 1
+
 
 def _find_table_in_workbook(excel_path: str, aliases_map: Dict[str, set], required: set,
                             extra_min_matches: int = 0, extras_pool: Optional[set] = None,
@@ -454,7 +504,6 @@ def _recalculate_coords_ws(ws, excel_row: int, norm_to_col_1based: Dict[str, int
 
     logger.debug("[coords/ws] Escritas coords lat=%s, lon=%s", lat, lon)
 
-
 def _recalculate_coords(df: "pd.DataFrame", row_idx: int):
     """
     Versión pandas de _recalculate_coords_ws.
@@ -547,90 +596,88 @@ def _ensure_rows_for_append(ws, insert_at: int, count: int):
         logger.debug("[materias] Insertadas %d filas en %d para no pisar contenido inferior.", count, insert_at)
 
 
-def update_student_in_excel(excel_path: str, row_index: str, idx: int, data: dict, old_email: str = None, old_nombre: str = None) -> bool:
+def _search_student_in_ws(ws, table_info, email_target: str, cand_norm: str) -> Optional[int]:
+    """Devuelve la fila (1-based) donde está el alumno en ws, o None."""
+    email_col  = table_info.cols.get("email")
+    nombre_col = table_info.cols.get("nombre")
+    ap1_col    = table_info.cols.get("apellido1")
+    ap2_col    = table_info.cols.get("apellido2")
+    # Buscar hasta ws.max_row para no perder filas tras huecos vacíos
+    search_end = ws.max_row
+
+    if email_col and email_target:
+        for r in range(table_info.data_start, search_end + 1):
+            cell_email = _name_to_scalar(ws.cell(row=r, column=email_col).value)
+            if not _is_invalid_student_name_cell(cell_email) and str(cell_email).strip().lower() == email_target:
+                return r
+
+    if nombre_col and cand_norm:
+        for r in range(table_info.data_start, search_end + 1):
+            cell_name = _name_to_scalar(ws.cell(row=r, column=nombre_col).value)
+            if _is_invalid_student_name_cell(cell_name):
+                continue
+            if ap1_col:
+                ap1_val = _name_to_scalar(ws.cell(row=r, column=ap1_col).value)
+                ap2_val = _name_to_scalar(ws.cell(row=r, column=ap2_col).value) if ap2_col else ""
+                parts = [p for p in [cell_name, ap1_val, ap2_val] if p and not _is_invalid_student_name_cell(p)]
+                name_norm = normalize_str(" ".join(parts))
+            else:
+                name_norm = normalize_str(cell_name)
+            if name_norm == cand_norm:
+                return r
+    return None
+
+
+def update_student_in_excel(excel_path: str, row_index: str, idx: int, data: dict, old_email: str = None, old_nombre: str = None, target_sheet: str = "") -> bool:
     """
     Actualiza SOLO la misma fila del alumno dentro de la tabla de alumnos.
-    No crea hojas, no reemplaza hojas, no elimina filas.
+    Si target_sheet está definida, busca únicamente en esa hoja (evita editar
+    la misma alumna en un curso distinto al que se está visualizando).
+    Busca en todas las hojas si target_sheet está vacía.
     """
     logger.debug("[update_student_in_excel] excel_path=%s row_index=%s idx=%s", excel_path, row_index, idx)
 
-    try:
-        table_info = _find_table_in_workbook(
-            excel_path,
-            STUDENTS_HEADER_ALIASES,
-            STUDENTS_REQUIRED,
-            extra_min_matches=1,
-            extras_pool={"universidad_origen", "coordenadas", "email"},
-        )
-        if not table_info:
-            logger.warning("[update_student_in_excel] No se encontró tabla de alumnos.")
-            return False
-    except Exception as e:
-        logger.exception("[update_student_in_excel] Error localizando tabla")
-        return False
+    email_target = (data.get("old_email") or old_email or "").strip().lower()
+    full_name_raw = (data.get("old_nombre") or old_nombre or data.get("estudiante") or "").strip()
+    cand_norm = normalize_str(_name_to_scalar(full_name_raw))
 
     wb = None
     try:
         wb = load_workbook(excel_path)
+
+        # Buscar al alumno en las tablas del workbook.
+        # Si target_sheet está definido, se restringe solo a esa hoja.
+        table_info_found = None
+        row_found = None
+        for ti in _iter_all_tables_in_workbook(
+            wb, STUDENTS_HEADER_ALIASES, STUDENTS_REQUIRED,
+            extra_min_matches=1,
+            extras_pool={"cuatrimestre", "universidad_origen", "coordenadas", "email"},
+        ):
+            if target_sheet and ti.sheet_name != target_sheet:
+                logger.debug("[update_student_in_excel] Saltando hoja=%r (buscando en %r)", ti.sheet_name, target_sheet)
+                continue
+            logger.debug("[update_student_in_excel] Probando tabla hoja=%r header=%d data=%d..%d cols=%s",
+                         ti.sheet_name, ti.header_row, ti.data_start, ti.data_end, list(ti.cols.keys()))
+            ws_ti = wb[ti.sheet_name]
+            r = _search_student_in_ws(ws_ti, ti, email_target, cand_norm)
+            if r is not None:
+                table_info_found = ti
+                row_found = r
+                logger.debug("[update_student_in_excel] Alumno encontrado en hoja=%r fila=%d", ti.sheet_name, r)
+                break
+
+        if table_info_found is None or row_found is None:
+            logger.warning("[update_student_in_excel] No se encontró ninguna fila válida con ese email/nombre "
+                           "(email_target=%r, cand_norm=%r).", email_target, cand_norm)
+            return False
+
+        table_info = table_info_found
         ws = wb[table_info.sheet_name]
-
-
         norm_to_col_1based, raw_headers = _build_header_maps_from_ws(ws, table_info.header_row - 1)
         logger.debug("[update_student_in_excel] headers detectados: %s", raw_headers)
 
-        # Si es matriz dinámica, solo impedir editar el nombre, pero permitir editar otros campos
         is_dynamic_matrix = _students_table_is_dynamic_unique(ws, table_info)
-        if is_dynamic_matrix:
-            logger.debug("[update_student_in_excel] Tabla de alumnos es una matriz dinámica (UNICOS). Solo se editarán campos distintos al nombre.")
-
-
-        # Buscar solo la primera fila válida que coincida por email o nombre (robusto)
-        row_found = None
-        email_col = table_info.cols.get("email")
-        email_target = (data.get("old_email") or old_email or "").strip().lower()
-        if email_col and email_target:
-            logger.debug("[update_student_in_excel] Buscando por email: %s", email_target)
-            for r in range(table_info.data_start, table_info.data_end + 1):
-                v = ws.cell(row=r, column=email_col).value
-                cell_email = _name_to_scalar(v)
-                if _is_invalid_student_name_cell(cell_email):
-                    continue
-                # Comprobar que la fila no es basura (al menos un campo clave válido)
-                if str(cell_email).strip().lower() == email_target:
-                    # Comprobar que la fila no es basura (al menos país/cuatrimestre válidos)
-                    pais_col = table_info.cols.get("pais")
-                    cuat_col = table_info.cols.get("cuatrimestre")
-                    pais_val = ws.cell(row=r, column=pais_col).value if pais_col else None
-                    cuat_val = ws.cell(row=r, column=cuat_col).value if cuat_col else None
-                    if not _is_invalid_student_name_cell(pais_val) or not _is_invalid_student_name_cell(cuat_val):
-                        row_found = r
-                        logger.debug("[update_student_in_excel] Fila válida localizada por email: %d", r)
-                        break
-
-        if row_found is None:
-            nombre_col = table_info.cols.get("nombre")
-            full_name_raw = (data.get("old_nombre") or old_nombre or data.get("estudiante") or "").strip()
-            cand_norm = normalize_str(_name_to_scalar(full_name_raw))
-            if nombre_col and cand_norm:
-                for r in range(table_info.data_start, table_info.data_end + 1):
-                    v = ws.cell(row=r, column=nombre_col).value
-                    cell_name = _name_to_scalar(v)
-                    if _is_invalid_student_name_cell(cell_name):
-                        continue
-                    # Comprobar que la fila no es basura (al menos país/cuatrimestre válidos)
-                    pais_col = table_info.cols.get("pais")
-                    cuat_col = table_info.cols.get("cuatrimestre")
-                    pais_val = ws.cell(row=r, column=pais_col).value if pais_col else None
-                    cuat_val = ws.cell(row=r, column=cuat_col).value if cuat_col else None
-                    if normalize_str(cell_name) == cand_norm:
-                        if not _is_invalid_student_name_cell(pais_val) or not _is_invalid_student_name_cell(cuat_val):
-                            row_found = r
-                            logger.debug("[update_student_in_excel] Fila válida localizada por nombre (robusto): %d", r)
-                            break
-
-        if row_found is None:
-            logger.warning("[update_student_in_excel] No se encontró ninguna fila válida con ese email/nombre.")
-            return False
 
 
 

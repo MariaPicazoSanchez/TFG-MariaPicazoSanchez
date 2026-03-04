@@ -257,6 +257,8 @@ def update_student():
 
     old_email = (form.get("old_email") or "").strip()
     old_nombre = (form.get("old_nombre") or "").strip()
+    students_sheet_name = (form.get("students_sheet_name") or "").strip()
+    logger.debug("students_sheet_name=%r", students_sheet_name)
 
     messages = []
     ok_global = True
@@ -297,7 +299,7 @@ def update_student():
             ok_main = True
         else:
             # Firma real: (excel_path: str, row_index: str, idx: int, data: dict)
-            ok_main = update_student_in_excel(excel_path, row_index_str, idx, form, old_email=old_email, old_nombre=old_nombre)
+            ok_main = update_student_in_excel(excel_path, row_index_str, idx, form, old_email=old_email, old_nombre=old_nombre, target_sheet=students_sheet_name)
 
         if ok_main:
             # messages.append("Datos del estudiante actualizados correctamente.")
@@ -448,6 +450,21 @@ def update_student():
 
 
 if __name__ == "__main__":
+    # Configurar logging a nivel DEBUG para el proceso de la API
+    _log_dir = os.path.join(os.getenv("LOCALAPPDATA", "."), "MovilidadESII", "logs")
+    os.makedirs(_log_dir, exist_ok=True)
+    _log_file = os.path.join(_log_dir, "api.log")
+    logging.basicConfig(
+        level=logging.DEBUG,
+        format="%(asctime)s %(levelname)s %(name)s: %(message)s",
+        handlers=[
+            logging.FileHandler(_log_file, encoding="utf-8"),
+            logging.StreamHandler(sys.stdout),
+        ],
+    )
+    logging.getLogger("werkzeug").setLevel(logging.WARNING)
+    logging.getLogger("urllib3").setLevel(logging.WARNING)
+
     host = os.getenv("API_HOST", "127.0.0.1")
     port = int(os.getenv("API_PORT", "5000"))
     app.run(host=host, port=port, debug=False)

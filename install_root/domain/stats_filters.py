@@ -97,7 +97,7 @@ def render_filters_stats(available_courses: list[str]) -> None:
 
             col.button(
                 label,
-                use_container_width=True,
+                width='stretch',
                 key=f"mob_btn_{opt}",
                 type="primary" if is_selected else "secondary",
                 on_click=_set_mobility,
@@ -134,7 +134,7 @@ def render_filters_stats(available_courses: list[str]) -> None:
     if not st.session_state["export_open"]:
         export_clicked = st.sidebar.button(
             "📥 Exportar a Excel",
-            use_container_width=True,
+            width='stretch',
             key="export_tables_btn",
             type="secondary",
         )
@@ -225,7 +225,7 @@ def render_filters_stats(available_courses: list[str]) -> None:
                         data=xlsx_bytes,
                         file_name=xlsx_name,
                         mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                        use_container_width=True,
+                        width='stretch',
                         type="secondary",
                     )
 

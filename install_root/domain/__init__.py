@@ -1,7 +1,7 @@
 from .es_cities import CITIES_ES 
 from .map_filters import render_filters_map
 from .stats_filters import render_filters_stats
-from .models import COMMON_COLS, SPEC_COLS, PROGRAM_COLORS, PROGRAM_ICONS, ESTADOS_FIRMA,ICON_BY_TIPO, FIELD_ALIASES
+from .models import COMMON_COLS, SPEC_COLS, SICUE_OUT_COLS, PROGRAM_COLORS, PROGRAM_ICONS, ESTADOS_FIRMA,ICON_BY_TIPO, FIELD_ALIASES
 
 __all__ = [
     "CITIES_ES",
@@ -9,6 +9,7 @@ __all__ = [
     "render_filters_stats",
     "COMMON_COLS",
     "SPEC_COLS",
+    "SICUE_OUT_COLS",
     "PROGRAM_COLORS",
     "PROGRAM_ICONS",
     "ESTADOS_FIRMA",

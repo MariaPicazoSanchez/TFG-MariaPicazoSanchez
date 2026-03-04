@@ -12,6 +12,14 @@ SPEC_COLS = {
     "SICUE OUT":   ["LA", "EstadoFirmas", "PlanEstudios"],
 }
 
+# Columnas exactas para nueva hoja SICUE OUT (orden replicado del Excel real)
+SICUE_OUT_COLS = [
+    "nombre", "apellido1", "apellido2", "email",
+    "duracion meses", "Coordinador en destino",
+    "LA", "Gestión LA", "Destino", "Ciudad",
+    "Plan de estudios", "Coordenadas",
+]
+
 PROGRAM_COLORS = {
     "Erasmus OUT": "blue",
     "Erasmus IN": "green",

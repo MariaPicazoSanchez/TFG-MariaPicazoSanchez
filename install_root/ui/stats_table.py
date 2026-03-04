@@ -39,7 +39,7 @@ def render_stats_table(df: pd.DataFrame, count_col: str = "Nº de alumnos") -> N
 
     st.dataframe(
         df,
-        use_container_width=True,
+        width='stretch',
         hide_index=True,
         column_config=col_cfg,
     )

@@ -340,19 +340,19 @@ def load_erasmus_out(path: str, sheet_name: str | None = None) -> pd.DataFrame:
             keep.append("link_plan")
         keep_mapped = keep + list(mapping.keys())
         
-        # Convertir a lista de dicts sin .copy()
+        # Convertir a lista de dicts usando to_dict para soportar columnas con espacios
         records = []
-        for row in g.itertuples(index=False, name='Row'):
+        for raw in g.to_dict('records'):
             record = {}
             for col in keep:
-                if hasattr(row, col):
-                    record[col] = getattr(row, col)
+                if col in raw:
+                    record[col] = raw[col]
             for orig_col, mapped_col in mapping.items():
-                if hasattr(row, orig_col):
-                    record[mapped_col] = getattr(row, orig_col)
-            if c_ciudad and c_ciudad in g.columns:
-                if hasattr(row, c_ciudad):
-                    record["ciudad"] = getattr(row, c_ciudad)
+                if orig_col in raw:
+                    record[mapped_col] = raw[orig_col]
+            if c_ciudad and c_ciudad in raw:
+                record["ciudad"] = raw[c_ciudad]
+            record["_sheet_name"] = sheet_name or ""
             records.append(record)
         return records
     
@@ -523,22 +523,22 @@ def load_erasmus_in(path: str, sheet_name: str | None = None) -> pd.DataFrame:
         cols = ["estudiante", "cuatrimestre", "link_LA"]
         if c_email: cols.insert(1, c_email)
         cols = [c for c in cols if c in g.columns]
-        for row in g.itertuples(index=False, name='Row'):
-            est = getattr(row, "estudiante", "") or ""
+        for raw in g.to_dict('records'):
+            est = raw.get("estudiante") or ""
             if est in seen:
                 continue
             seen.add(est)
             record = {}
             for col in cols:
-                if hasattr(row, col):
+                if col in raw:
                     if col == c_email and c_email != "email":
-                        record["email"] = getattr(row, col)
+                        record["email"] = raw[col]
                     else:
-                        record[col] = getattr(row, col)
-            if c_ciudad and c_ciudad in g.columns and hasattr(row, c_ciudad):
-                record["ciudad"] = getattr(row, c_ciudad)
-            if c_uni and c_uni in g.columns and hasattr(row, c_uni):
-                record["universidad de origen"] = getattr(row, c_uni)
+                        record[col] = raw[col]
+            if c_ciudad and c_ciudad in raw:
+                record["ciudad"] = raw[c_ciudad]
+            if c_uni and c_uni in raw:
+                record["universidad de origen"] = raw[c_uni]
             records.append(record)
         return records
 
@@ -666,7 +666,7 @@ def load_sicue_out(path: str, sheet_name: str | None = None) -> pd.DataFrame:
     df.columns = [str(col).strip() for col in df.columns]
 
     c_nombre      = _pick(df, "Nombre", "nombre")
-    c_ap1         = _pick(df, "Apellido1", "apellido1")
+    c_ap1         = _pick(df, "Apellido1", "apellido1", "Apellidos", "apellidos")
     c_ap2         = _pick(df, "Apellido2", "apellido2")
     c_email       = _pick(df, "Email", "email")
     c_dur         = _pick(df, "Duracion meses", "Duración meses", "duracion_meses", "duración_meses")
@@ -739,21 +739,17 @@ def load_sicue_out(path: str, sheet_name: str | None = None) -> pd.DataFrame:
     if c_plan:       mapping[c_plan] = "link_plan"
 
     def _to_records(g: pd.DataFrame) -> list[dict]:
-        keep = ["estudiante"] + [k for k in mapping.keys() if k in g.columns]
-        
         records = []
-        for row in g.itertuples(index=False, name='Row'):
+        for raw in g.to_dict('records'):
             record = {}
-            # Agregar field estudiante
-            if hasattr(row, "estudiante"):
-                record["estudiante"] = getattr(row, "estudiante")
-            # Agregar campos mapeados
+            if "estudiante" in raw:
+                record["estudiante"] = raw["estudiante"]
             for orig_col, new_col in mapping.items():
-                if orig_col in g.columns and hasattr(row, orig_col):
-                    record[new_col] = getattr(row, orig_col)
-            # Agregar ciudad si existe
-            if c_ciudad and c_ciudad in g.columns and hasattr(row, c_ciudad):
-                record["ciudad"] = getattr(row, c_ciudad)
+                if orig_col in raw:
+                    record[new_col] = raw[orig_col]
+            if c_ciudad and c_ciudad in raw:
+                record["ciudad"] = raw[c_ciudad]
+            record["_sheet_name"] = sheet_name or ""
             records.append(record)
         return records
 

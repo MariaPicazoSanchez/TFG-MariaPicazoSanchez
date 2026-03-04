@@ -3,7 +3,7 @@ import os
 import json
 import pandas as pd
 import streamlit as st
-from domain import COMMON_COLS, SPEC_COLS
+from domain import COMMON_COLS, SPEC_COLS, SICUE_OUT_COLS
 from openpyxl import load_workbook
 from domain.validators import safe_int_convert, DataValidator
 
@@ -246,11 +246,29 @@ def append_user_to_excel(xlsx_path: str, tipo: str, row_data: dict, sheet_name: 
             # ciudad (campo opcional en IN)
             if row_data.get("ciudad"):
                 new.update({"Ciudad": row_data.get("ciudad")})
-        else:  # SICUE OUT
-            new.update({"LA": row_data.get("la"), "EstadoFirmas": row_data.get("estado_firmas"), "PlanEstudios": row_data.get("plan_estudios")})
-            # ciudad (el payload usa la clave ciudad_sicue)
-            if row_data.get("ciudad_sicue"):
-                new.update({"Ciudad": row_data.get("ciudad_sicue")})
+        else:  # SICUE OUT – reescribir columnas y fila con la estructura real del Excel
+            need_cols = list(SICUE_OUT_COLS)
+            # repartir apellidos: si el form envía combinado, dividir; si ya vienen separados usarlos
+            apes = (row_data.get("apellidos") or "").strip()
+            parts = apes.split()
+            new = {
+                "nombre":                 row_data.get("nombre"),
+                "apellido1":              parts[0] if parts else (row_data.get("apellido1") or ""),
+                "apellido2":              " ".join(parts[1:]) if len(parts) > 1 else (row_data.get("apellido2") or ""),
+                "email":                  row_data.get("email"),
+                "duracion meses":         row_data.get("dur_sicue"),
+                "Coordinador en destino": row_data.get("coord_dest"),
+                "LA":                     row_data.get("la_in"),
+                "Gestión LA":             row_data.get("gestion_la"),
+                "Destino":                row_data.get("destino_origen"),
+                "Ciudad":                 row_data.get("ciudad_sicue"),
+                "Plan de estudios":       row_data.get("plan_sic_out"),
+                "Coordenadas": (
+                    f"{lat}, {lon}"
+                    if lat is not None and lon is not None
+                    else None
+                ),
+            }
 
         out = pd.DataFrame([new], columns=need_cols)
 
