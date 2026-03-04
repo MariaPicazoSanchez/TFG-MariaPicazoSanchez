@@ -29,7 +29,7 @@ node_modules/
 Thumbs.db
 install_root/data_demo/
 install_root/_internal/
-install_root/thirdparty/
+# install_root/thirdparty/
 install_root/wheelhouse/
 install_root/node_modules/
 install_root/MovilidadESII.exe
