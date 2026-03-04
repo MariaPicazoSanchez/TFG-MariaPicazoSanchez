@@ -3,6 +3,7 @@ from __future__ import annotations
 import pandas as pd
 import streamlit as st
 from constants import PROGRAM_ERASMUS_IN
+from .stats_table import render_stats_table
 
 
 # ────────────────────────────────────────────────────────────────────────────────
@@ -222,11 +223,7 @@ def render_stats_details(df_filtered: pd.DataFrame, mobility_filter: str, df_era
                 "('destino_origen', 'universidad', 'centro', etc.)."
             )
         else:
-            st.dataframe(
-                tabla_uni,
-                use_container_width=True,
-                hide_index=True,
-            )
+            render_stats_table(tabla_uni)
 
     # 2) Materias más frecuentes (solo tiene sentido para Erasmus IN / Todos)
     if mobility_filter in (PROGRAM_ERASMUS_IN, "Todos"):
@@ -240,8 +237,4 @@ def render_stats_details(df_filtered: pd.DataFrame, mobility_filter: str, df_era
                     "('Asignatura', 'asignatura', 'nombre_asignatura', etc.)."
                 )
             else:
-                st.dataframe(
-                    tabla_mat,
-                    use_container_width=True,
-                    hide_index=True,
-                )
+                render_stats_table(tabla_mat)

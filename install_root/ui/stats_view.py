@@ -5,6 +5,7 @@ from typing import Iterable
 import pandas as pd
 import streamlit as st
 from . import stats_details as details
+from .stats_table import render_stats_table
 from export import build_stats_excel
 from constants import MOBILITY_PROGRAMS, MOBILITY_OPTIONS, PROGRAM_ERASMUS_OUT, PROGRAM_ERASMUS_IN, PROGRAM_SICUE_OUT, SPAIN
 
@@ -57,8 +58,7 @@ def render_filters_stats(available_courses: list[str]) -> None:
     # TIPO DE MOVILIDAD
     # ===========================
     mobility_options = MOBILITY_OPTIONS
-    if "stats_mobility" not in st.session_state:
-        st.session_state["stats_mobility"] = "Todos"
+    st.session_state.setdefault("stats_mobility", "Todos")
 
     st.sidebar.markdown("#### Tipo de movilidad")
     st.sidebar.markdown(
@@ -71,7 +71,6 @@ def render_filters_stats(available_courses: list[str]) -> None:
     st.sidebar.radio(
         label="",
         options=mobility_options,
-        index=mobility_options.index(st.session_state["stats_mobility"]),
         key="stats_mobility",
     )
 
@@ -366,13 +365,11 @@ def _stats_by_city(df: pd.DataFrame) -> pd.DataFrame:
         .astype(str)
         .str.strip()
     )
-    serie_city = serie_city.replace({"": "Desconocido"})
+    # Limpiar valores nulos textuales antes de agrupar
+    serie_city = serie_city.replace({"nan": "", "None": "", "none": ""}).replace("", "Desconocido")
 
-    tabla = (
-        serie_city.groupby(serie_city)
-        .size()
-        .reset_index(name="Nº de alumnos")
-    )
+    counts = serie_city.value_counts(dropna=False)
+    tabla = counts.reset_index()
     tabla.columns = ["Ciudad", "Nº de alumnos"]
     tabla = tabla.sort_values("Nº de alumnos", ascending=False)
 
@@ -440,11 +437,7 @@ def render_stats_view() -> None:
         if tabla_tipo.empty:
             st.info("No se han encontrado alumnos con información de tipo de movilidad.")
         else:
-            st.dataframe(
-                tabla_tipo,
-                use_container_width=True,
-                hide_index=True,
-            )
+            render_stats_table(tabla_tipo)
 
     with col2:
         # ===========================
@@ -483,11 +476,7 @@ def render_stats_view() -> None:
                 )
                 return
 
-        st.dataframe(
-            tabla_geo,
-            use_container_width=True,
-            hide_index=True,
-        )
+        render_stats_table(tabla_geo)
     # ===========================
     # BOTÓN DE EXPORTAR EXCEL
     # ===========================

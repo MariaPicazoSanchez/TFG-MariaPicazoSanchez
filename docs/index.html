@@ -374,34 +374,34 @@
         <div class="screenshots-grid">
 
           <figure class="screenshot-item">
-            <div class="screenshot-placeholder" aria-label="Captura pendiente">
-              Captura aquí
-              <span class="screenshot-hint">Vista principal del mapa interactivo</span>
-            </div>
+            <img src="figs/mapa.gif"
+                 alt="Vista principal del mapa interactivo de destinos"
+                 class="screenshot-img"
+                 loading="lazy" />
             <figcaption class="screenshot-caption">Mapa interactivo de destinos</figcaption>
           </figure>
 
           <figure class="screenshot-item">
-            <div class="screenshot-placeholder" aria-label="Captura pendiente">
-              Captura aquí
-              <span class="screenshot-hint">Panel de búsqueda y filtros</span>
-            </div>
+            <img src="figs/filtros.gif"
+                 alt="Panel de búsqueda y filtros del mapa"
+                 class="screenshot-img"
+                 loading="lazy" />
             <figcaption class="screenshot-caption">Búsqueda y filtrado de datos</figcaption>
           </figure>
 
           <figure class="screenshot-item">
-            <div class="screenshot-placeholder" aria-label="Captura pendiente">
-              Captura aquí
-              <span class="screenshot-hint">Módulo de estadísticas con gráficos</span>
-            </div>
+            <img src="figs/stats.gif"
+                 alt="Módulo de estadísticas con gráficos"
+                 class="screenshot-img"
+                 loading="lazy" />
             <figcaption class="screenshot-caption">Panel de estadísticas</figcaption>
           </figure>
 
           <figure class="screenshot-item">
-            <div class="screenshot-placeholder" aria-label="Captura pendiente">
-              Captura aquí
-              <span class="screenshot-hint">Exportación y gestión de informes</span>
-            </div>
+            <img src="figs/export_excel.gif"
+                 alt="Exportación de estadísticas a Excel"
+                 class="screenshot-img"
+                 loading="lazy" />
             <figcaption class="screenshot-caption">Exportación a Excel</figcaption>
           </figure>
 
@@ -670,6 +670,116 @@ cd TFG-MariaPicazoSanchez</code></pre>
       </div>
     </div>
   </footer>
+
+  <!-- LIGHTBOX -->
+  <div id="gif-lightbox" role="dialog" aria-modal="true" aria-label="Vista ampliada">
+    <div id="gif-lightbox-inner">
+      <button id="gif-lightbox-close" aria-label="Cerrar">&#x2715;</button>
+      <img id="gif-lightbox-img" src="" alt="" />
+      <p id="gif-lightbox-caption"></p>
+    </div>
+  </div>
+
+  <!-- GIF pause-on-hover: show first frame by default, animate on hover -->
+  <script>
+    document.addEventListener('DOMContentLoaded', function () {
+      var lightbox      = document.getElementById('gif-lightbox');
+      var lightboxInner = document.getElementById('gif-lightbox-inner');
+      var lightboxImg   = document.getElementById('gif-lightbox-img');
+      var lightboxCap   = document.getElementById('gif-lightbox-caption');
+      var lightboxClose = document.getElementById('gif-lightbox-close');
+      var closeTimer    = null;
+
+      function openLightbox(gifSrc, caption) {
+        lightboxImg.src = gifSrc;
+        lightboxCap.textContent = caption;
+        lightbox.classList.add('active');
+        document.body.style.overflow = 'hidden';
+      }
+
+      function closeLightbox() {
+        lightbox.classList.remove('active');
+        document.body.style.overflow = '';
+        // stop the gif to save resources
+        setTimeout(function () { lightboxImg.src = ''; }, 300);
+      }
+
+      // Close when mouse leaves the inner box
+      lightboxInner.addEventListener('mouseleave', function () {
+        closeTimer = setTimeout(closeLightbox, 300);
+      });
+      lightboxInner.addEventListener('mouseenter', function () {
+        clearTimeout(closeTimer);
+      });
+
+      // Close on backdrop click or close button
+      lightbox.addEventListener('click', function (e) {
+        if (e.target === lightbox) closeLightbox();
+      });
+      lightboxClose.addEventListener('click', closeLightbox);
+
+      // Close on Escape
+      document.addEventListener('keydown', function (e) {
+        if (e.key === 'Escape') closeLightbox();
+      });
+
+      document.querySelectorAll('.screenshot-img').forEach(function (img) {
+        var gifSrc  = img.getAttribute('src');
+        var canvas  = document.createElement('canvas');
+        var ctx     = canvas.getContext('2d');
+        canvas.className = img.className;
+
+        // Caption from the parent <figure>'s <figcaption>
+        var caption = '';
+        var fig = img.closest('figure');
+        if (fig) {
+          var fc = fig.querySelector('figcaption');
+          if (fc) caption = fc.textContent.trim();
+        }
+
+        function drawFirstFrame() {
+          canvas.width  = img.naturalWidth;
+          canvas.height = img.naturalHeight;
+          ctx.drawImage(img, 0, 0);
+          img.parentNode.insertBefore(canvas, img);
+          img.style.display = 'none';
+          img.src = '';
+        }
+
+        if (img.complete && img.naturalWidth) {
+          drawFirstFrame();
+        } else {
+          img.addEventListener('load', drawFirstFrame, { once: true });
+        }
+
+        // Hover → play gif
+        canvas.addEventListener('mouseenter', function () {
+          canvas.style.display = 'none';
+          img.src = gifSrc;
+          img.style.display = 'block';
+        });
+
+        // Leave → freeze
+        img.addEventListener('mouseleave', function () {
+          canvas.width  = img.naturalWidth;
+          canvas.height = img.naturalHeight;
+          ctx.drawImage(img, 0, 0);
+          img.style.display = 'none';
+          img.src = '';
+          canvas.style.display = 'block';
+        });
+
+        // Click (canvas or img) → open lightbox
+        function handleClick() { openLightbox(gifSrc, caption); }
+        canvas.addEventListener('click', handleClick);
+        img.addEventListener('click', handleClick);
+
+        // Cursor hint
+        canvas.style.cursor = 'zoom-in';
+        img.style.cursor   = 'zoom-in';
+      });
+    });
+  </script>
 
 </body>
 </html>

@@ -84,23 +84,25 @@ def render_filters_stats(available_courses: list[str]) -> None:
         ["Erasmus IN", "SICUE OUT"],
     ]
 
+    def _set_mobility(opt: str) -> None:
+        st.session_state["stats_mobility"] = opt
+        st.session_state["view"] = "stats"
+
     for row in rows:
         cols = st.sidebar.columns(2, gap="small")
         for opt, col in zip(row, cols):
             label = MOBILITY_LABELS.get(opt, opt)
-            is_selected = (current == opt)
+            # Leer current AQUÍ para que refleje el valor ya actualizado por on_click
+            is_selected = (st.session_state.get("stats_mobility", "Todos") == opt)
 
-            # type="primary" para el seleccionado, "secondary" para el resto
-            clicked = col.button(
+            col.button(
                 label,
                 use_container_width=True,
                 key=f"mob_btn_{opt}",
                 type="primary" if is_selected else "secondary",
+                on_click=_set_mobility,
+                args=(opt,),
             )
-
-            if clicked:
-                st.session_state["stats_mobility"] = opt
-                st.session_state["view"] = "stats"  # para no perder la vista
 
     st.sidebar.markdown("---")
     # Estado antiguo no necesario; gestionamos con click del botón
