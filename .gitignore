@@ -27,7 +27,7 @@ node_modules/
 # OS
 .DS_Store
 Thumbs.db
-install_root/data_demo/
+# install_root/data_demo/
 install_root/_internal/
 # install_root/thirdparty/
 install_root/wheelhouse/
