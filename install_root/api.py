@@ -326,6 +326,9 @@ def update_student():
             if es_erasmus_in and not materias_in:
                 return _build_js_response(False, ["El alumno debe tener al menos una asignatura."])
 
+            materias_sheet_name = (form.get("materias_sheet_name") or "").strip()
+            logf(f"[API] materias_sheet_name='{materias_sheet_name}'")
+
             est = {
                 "estudiante": (form.get("estudiante") or "").strip(),
                 "old_nombre": (old_nombre or "").strip(),
@@ -383,7 +386,7 @@ def update_student():
             # 4) Actualizar Excel de asignaturas (solo si hay ruta + nombre; materias_in puede ser [] si borró todas)
             if materias_path and est.get("estudiante"):
                 try:
-                    actualizar_excel_materias_para_estudiante(materias_in, est, materias_path)
+                    actualizar_excel_materias_para_estudiante(materias_in, est, materias_path, sheet_name=materias_sheet_name)
                 except PermissionError:
                     ok_global = False
                     logf(f"[API] PermissionError al guardar el Excel de materias ({materias_path}): archivo abierto")

@@ -265,10 +265,16 @@ def _match_header_row(ws, row_num: int, aliases_map: Dict[str, set], required: s
     return found
 
 def _find_table_in_workbook(excel_path: str, aliases_map: Dict[str, set], required: set,
-                            extra_min_matches: int = 0, extras_pool: Optional[set] = None) -> Optional[TableInfo]:
+                            extra_min_matches: int = 0, extras_pool: Optional[set] = None,
+                            target_sheet: str = "") -> Optional[TableInfo]:
     wb = load_workbook(excel_path)
     try:
-        for ws in _iter_sheets_preferred(wb):
+        if target_sheet and target_sheet in wb.sheetnames:
+            sheets_to_search = [wb[target_sheet]]
+            print(f"[detect] Buscando tabla solo en hoja '{target_sheet}' (sheet_name recibido)")
+        else:
+            sheets_to_search = _iter_sheets_preferred(wb)
+        for ws in sheets_to_search:
             max_r = ws.max_row
             max_c = ws.max_column
             if max_r <= 0 or max_c <= 0:
@@ -676,7 +682,7 @@ def update_student_in_excel(excel_path: str, row_index: str, idx: int, data: dic
             pass
 
 
-def actualizar_excel_materias_para_estudiante(materias_in, est, materias_path: str):
+def actualizar_excel_materias_para_estudiante(materias_in, est, materias_path: str, sheet_name: str = ""):
     """
     Modo seguro:
     - edita en la misma fila (por orden) las materias existentes del alumno
@@ -721,6 +727,7 @@ def actualizar_excel_materias_para_estudiante(materias_in, est, materias_path: s
         MATERIAS_REQUIRED,
         extra_min_matches=2,
         extras_pool={"origen", "universidad_origen", "cuat", "firmado"},
+        target_sheet=sheet_name or "",
     )
     if not table_info:
         raise RuntimeError("No se ha encontrado tabla de Materias IN en el Excel.")

@@ -144,6 +144,7 @@ def load_materias_in(config):
                     for key, col_idx in header_map.items():
                         record[key] = df_raw.iat[j, col_idx] if col_idx < df_raw.shape[1] else None
 
+                    record["_sheet_name"] = sheet_name
                     print(f"[DEBUG]   Registro extraído: {record}")
                     rows_data.append(record)
                     j += 1
@@ -175,7 +176,7 @@ def load_materias_in(config):
         df = pd.concat(bloques, ignore_index=True)
 
         # Asegurar columnas estándar (por si alguna tabla no trae todas)
-        columnas_relevantes = ["asignatura", "estudiante", "origen", "universidadorigen", "cuat", "firmado", "la"]
+        columnas_relevantes = ["asignatura", "estudiante", "origen", "universidadorigen", "cuat", "firmado", "la", "_sheet_name"]
         for c in columnas_relevantes:
             if c not in df.columns:
                 df[c] = None
@@ -192,6 +193,7 @@ def load_materias_in(config):
             "cuat": "Cuat",
             "firmado": "Firmado",
             "la": "LA",
+            "_sheet_name": "SheetName",
         })
 
         # Limpieza básica
@@ -246,6 +248,7 @@ def build_materias_in_por_estudiante(df_materias):
             # antes usabas 'Centro' (no existía); ahora usa UniversidadOrigen
             "centro":    getattr(row, 'UniversidadOrigen', None),
             "la":        getattr(row, 'LA', None),
+            "sheet_name": getattr(row, 'SheetName', None) or "",
         })
 
     return materias_por_est

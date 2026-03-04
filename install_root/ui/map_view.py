@@ -236,7 +236,10 @@ def show_map(dfs: dict, base_map, materias_in_por_estudiante=None, filtros_activ
             if program == PROGRAM_ERASMUS_IN:
                 for e in filtered_ests:
                     nombre = str(e.get("estudiante", "")).strip()
-                    e["materias_in"] = materias_in_por_estudiante.get(nombre, [])
+                    materias_list = materias_in_por_estudiante.get(nombre, [])
+                    e["materias_in"] = materias_list
+                    # Guardar la hoja origen para que el guardado vaya a la hoja correcta
+                    e["materias_sheet_name"] = materias_list[0].get("sheet_name", "") if materias_list else ""
 
             # Pass only filtered students to popup
             row_for_popup = row.copy()
