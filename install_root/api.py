@@ -50,6 +50,7 @@ API_TOKEN = get_api_token()
 app = Flask(__name__)
 CORS(app)
 logging.getLogger("werkzeug").setLevel(logging.WARNING)
+logger = logging.getLogger("movilidad_api")
 
 @app.get("/health")
 def health():
@@ -78,10 +79,8 @@ def require_token(f):
                 token = request.form.get("token") or request.args.get("token")
 
             if token != expected:
-                print("❌ Token inválido. Esperado:", expected, "Recibido:", token)
+                logger.warning("Token inválido en la petición.")
                 return jsonify({"ok": False, "error": "Unauthorized"}), 401
-            else:
-                print("Token válido recibido.")
 
         return f(*args, **kwargs)
     return wrapper
@@ -139,7 +138,7 @@ def parse_materias_raw(materias_raw: str):
                     })
                 return materias
         except Exception as e:
-            print(f"[API] parse_materias_raw: JSON inválido, pruebo formato legacy. Error: {e}")
+            logger.debug("parse_materias_raw: JSON inválido, pruebo formato legacy. Error: %s", e)
 
     # 2) Formato legacy: líneas con |
     for line in raw.splitlines():
@@ -218,24 +217,14 @@ def update_student():
     import sys
     from persistence import actualizar_excel_materias_para_estudiante, update_student_in_excel
 
-    def logf(*args):
-        print(*args, flush=True)
-
     try:
         form = request.form.to_dict()
-
 
         # Índices y ruta del Excel principal que vienen del popup
         row_index_str = form.get("row_index", "-1")
         idx = int(form.get("idx", "-1"))
         excel_path_raw = form.get("excel_path", "")
-        
-        logf(f"\n{'='*60}")
-        logf(f"[API] FORM recibido del frontend:")
-        for k, v in form.items():
-            if 'path' in k.lower():
-                logf(f"  {k} (raw)   = {repr(v)}")
-        
+
         # REPARAR y normalizar ruta (desde el formulario)
         excel_path = repair_windows_path(excel_path_raw)
 
@@ -251,24 +240,19 @@ def update_student():
                 excel_cfg_raw = (config.get(programa, "") or "").strip()
                 excel_cfg = repair_windows_path(excel_cfg_raw)
         except Exception as e:
-            logf(f"[API] No se pudo leer config.json para '{programa}': {e}")
+            logger.debug("No se pudo leer config.json para '%s': %s", programa, e)
 
         # Si la ruta de config existe, usarla; si no, mantener la del form
-        if excel_cfg:
-            logf(f"[API] excel (config) raw={repr(excel_cfg_raw)} -> {repr(excel_cfg)} exists={os.path.exists(excel_cfg)}")
-            if os.path.exists(excel_cfg):
-                excel_path = excel_cfg
-        
-        logf(f"\n[API] RUTA PROCESADA:")
-        logf(f"  excel_path_raw  = {repr(excel_path_raw)}")
-        logf(f"  excel_path (OK) = {repr(excel_path)}")
-        logf(f"  Existe archivo? {os.path.exists(excel_path)}")
-        logf(f"{'='*60}\n")
+        if excel_cfg and os.path.exists(excel_cfg):
+            excel_path = excel_cfg
+
+        logger.debug(
+            "Ruta Excel procesada: raw=%r -> final=%r (existe=%s)",
+            excel_path_raw, excel_path, os.path.exists(excel_path)
+        )
 
     except Exception as e:
-        import traceback
-        print(f"[API] EXCEPCION NO CAPTURADA EN update_student: {e}")
-        traceback.print_exc()
+        logger.exception("Excepción no capturada al procesar update_student")
         return _build_js_response(False, [f"EXCEPCION NO CAPTURADA: {e}"])
 
     old_email = (form.get("old_email") or "").strip()
@@ -302,10 +286,6 @@ def update_student():
     if idx < 0 or not excel_path:
         return _build_js_response(False, ["Índices o ruta del Excel principal inválidos."])
 
-
-    if idx < 0 or not excel_path:
-        return _build_js_response(False, ["Índices o ruta del Excel principal inválidos."])
-
     # 1) Actualizar Excel principal (alumnos)
     try:
         # Para Erasmus IN no existe tabla de alumnos separada: los datos del alumno
@@ -313,7 +293,7 @@ def update_student():
         # directamente al guardado de materias.
         es_erasmus_in = programa.lower() in ("erasmus in",)
         if es_erasmus_in:
-            logf("[API] Programa Erasmus IN: se omite update_student_in_excel (no hay tabla de alumnos separada).")
+            logger.debug("Programa Erasmus IN: se omite update_student_in_excel.")
             ok_main = True
         else:
             # Firma real: (excel_path: str, row_index: str, idx: int, data: dict)
@@ -323,16 +303,16 @@ def update_student():
             # messages.append("Datos del estudiante actualizados correctamente.")
             # 2) Procesar materias_raw
             materias_raw = form.get("materias_raw", "")
-            logf(f"[API] materias_raw (primeros 200 chars) = {repr((materias_raw or '')[:200])}")
+            logger.debug("materias_raw (primeros 200 chars) = %r", (materias_raw or '')[:200])
             materias_in = parse_materias_raw(materias_raw)
-            logf(f"[API] materias_in parseadas = {len(materias_in)}")
+            logger.debug("materias_in parseadas = %d", len(materias_in))
 
             # Validación Erasmus IN: debe tener al menos una asignatura
             if es_erasmus_in and not materias_in:
                 return _build_js_response(False, ["El alumno debe tener al menos una asignatura."])
 
             materias_sheet_name = (form.get("materias_sheet_name") or "").strip()
-            logf(f"[API] materias_sheet_name='{materias_sheet_name}'")
+            logger.debug("materias_sheet_name='%s'", materias_sheet_name)
 
             est = {
                 "estudiante": (form.get("estudiante") or "").strip(),
@@ -378,14 +358,13 @@ def update_student():
                 materias_path_raw = (config.get("Erasmus IN", "") or "").strip()
                 # REPARAR y normalizar ruta
                 materias_path = repair_windows_path(materias_path_raw)
-                logf(f"[update_student] materias_path_raw={materias_path_raw}")
-                logf(f"[update_student] materias_path (reparado)={materias_path}")
-                logf(f"[API] materias_path existe? {bool(materias_path)} -> {repr(materias_path)}")
-                logf(f"[API] materias_path os.path.exists = {os.path.exists(materias_path) if materias_path else False}")
+                logger.debug(
+                    "materias_path: raw=%r -> reparado=%r (existe=%s)",
+                    materias_path_raw, materias_path,
+                    os.path.exists(materias_path) if materias_path else False
+                )
             except Exception as e:
-                logf(f"[update_student] Error leyendo config.json: {e}")
-                import traceback
-                traceback.print_exc()
+                logger.exception("Error leyendo config.json para materias_path")
                 materias_path = ""
 
             # 4) Actualizar Excel de asignaturas (solo si hay ruta + nombre; materias_in puede ser [] si borró todas)
@@ -394,17 +373,15 @@ def update_student():
                     actualizar_excel_materias_para_estudiante(materias_in, est, materias_path, sheet_name=materias_sheet_name)
                 except PermissionError:
                     ok_global = False
-                    logf(f"[API] PermissionError al guardar el Excel de materias ({materias_path}): archivo abierto")
+                    logger.warning("PermissionError al guardar el Excel de materias (%s): archivo abierto.", materias_path)
                     messages.append("No se puede guardar: el archivo Excel de materias está abierto en otro programa. Ciérralo e inténtalo de nuevo.")
                 except Exception as e:
                     ok_global = False
-                    logf(f"[API] Error al actualizar el Excel de materias ({materias_path}): {e}")
-                    import traceback
-                    traceback.print_exc()
+                    logger.exception("Error al actualizar el Excel de materias '%s'", materias_path)
                     messages.append(f"Error al actualizar el Excel de materias: {e}")
             elif not materias_path and est.get("estudiante"):
                 ok_global = False
-                logf("[API] No se ha podido obtener la ruta del Excel de materias desde config.json (clave 'Materias IN').")
+                logger.error("No se pudo obtener la ruta del Excel de materias desde config.json.")
                 messages.append("No se ha podido obtener la ruta del Excel de materias desde config.json (clave 'Materias IN').")
 
 
@@ -416,14 +393,11 @@ def update_student():
                 "Puede que el archivo esté abierto en Excel o protegido."
             )
     except PermissionError:
-        import traceback
-        traceback.print_exc()
         ok_global = False
+        logger.warning("PermissionError al guardar el Excel principal: archivo abierto.")
         messages.append("No se puede guardar: el archivo Excel principal está abierto en otro programa. Ciérralo e inténtalo de nuevo.")
     except Exception as e:
-        import traceback
-        print(f"Error al actualizar el Excel principal ({excel_path}): {e}")
-        traceback.print_exc()
+        logger.exception("Error al actualizar el Excel principal '%s'", excel_path)
         ok_global = False
         messages.append(f"Error al actualizar el Excel principal: {e}")
     
@@ -465,11 +439,10 @@ def update_student():
                         'student': student_obj,
                     }
                 except Exception as e:
-                    print('[API] Error leyendo fila actualizada:', e)
+                    logger.debug("Error leyendo fila actualizada: %s", e)
         except Exception:
             pass
-    logf(f"[API] RESULTADO ok_global={ok_global}")
-    logf(f"[API] MESSAGES={messages}")
+    logger.info("update_student resultado: ok=%s messages=%s", ok_global, messages)
     return _build_js_response(ok_global, messages, extra)
 
 

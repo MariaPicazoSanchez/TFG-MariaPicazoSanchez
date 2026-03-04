@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 import os
 from openpyxl import load_workbook
 
@@ -11,6 +12,8 @@ from dataclasses import dataclass
 from datetime import datetime
 from typing import Any, Dict, List, Optional, Iterable
 from openpyxl import load_workbook
+
+logger = logging.getLogger("movilidad_persistence")
 
 # geocodificación (si falla/no hay internet, NO rompe el guardado)
 try:
@@ -271,7 +274,7 @@ def _find_table_in_workbook(excel_path: str, aliases_map: Dict[str, set], requir
     try:
         if target_sheet and target_sheet in wb.sheetnames:
             sheets_to_search = [wb[target_sheet]]
-            print(f"[detect] Buscando tabla solo en hoja '{target_sheet}' (sheet_name recibido)")
+            logger.debug("[detect] Buscando tabla solo en hoja '%s' (sheet_name recibido)", target_sheet)
         else:
             sheets_to_search = _iter_sheets_preferred(wb)
         for ws in sheets_to_search:
@@ -317,8 +320,10 @@ def _find_table_in_workbook(excel_path: str, aliases_map: Dict[str, set], requir
                     data_end=data_end,
                     cols=cols,
                 )
-                print(f"[detect] Tabla encontrada en hoja='{info.sheet_name}' header={info.header_row} "
-                      f"datos={info.data_start}..{info.data_end} cols={info.cols}")
+                logger.debug(
+                    "[detect] Tabla encontrada en hoja='%s' header=%s datos=%s..%s cols=%s",
+                    info.sheet_name, info.header_row, info.data_start, info.data_end, info.cols
+                )
                 return info
         return None
     finally:
@@ -363,7 +368,7 @@ def _set_ws_cell_if_field_exists(ws, excel_row: int, norm_to_col_1based: Dict[st
         return False
 
     ws.cell(row=excel_row, column=col).value = value
-    print(f"[excel][set] row={excel_row} col={col} field={field_name} value={value!r}")
+    logger.debug("[excel][set] row=%d col=%d field=%s value=%r", excel_row, col, field_name, value)
     return True
 
 def _split_full_name(full_name: str):
@@ -389,11 +394,11 @@ def _recalculate_coords_ws(ws, excel_row: int, norm_to_col_1based: Dict[str, int
 
     # Si es Erasmus IN o Erasmus OUT, saltar cálculo de coordenadas
     if programa in ("erasmus in", "erasmus out"):
-        print(f"[coords/ws] Programa '{programa}' detectado, se omite geocodificación.")
+        logger.debug("[coords/ws] Programa '%s' detectado, se omite geocodificación.", programa)
         return
 
     if _geolocator is None:
-        print("[coords/ws] geopy no disponible; se omite geocodificación.")
+        logger.debug("[coords/ws] geopy no disponible; se omite geocodificación.")
         return
 
     def _get_first(*aliases):
@@ -423,16 +428,16 @@ def _recalculate_coords_ws(ws, excel_row: int, norm_to_col_1based: Dict[str, int
     loc = None
     for query in queries:
         try:
-            print(f"[coords/ws] Geocodificando: {query!r}")
+            logger.debug("[coords/ws] Geocodificando: %r", query)
             loc = _geolocator.geocode(query, timeout=10)
         except Exception as e:
-            print(f"[coords/ws] Error geocodificando {query!r}: {e}")
+            logger.debug("[coords/ws] Error geocodificando %r: %s", query, e)
             loc = None
         if loc:
             break
 
     if not loc:
-        print("[coords/ws] No se encontraron coordenadas.")
+        logger.debug("[coords/ws] No se encontraron coordenadas.")
         return
 
     lat, lon = loc.latitude, loc.longitude
@@ -447,7 +452,7 @@ def _recalculate_coords_ws(ws, excel_row: int, norm_to_col_1based: Dict[str, int
     if col_coo:
         ws.cell(row=excel_row, column=col_coo).value = f"{lat},{lon}"
 
-    print(f"[coords/ws] Escritas coords lat={lat}, lon={lon}")
+    logger.debug("[coords/ws] Escritas coords lat=%s, lon=%s", lat, lon)
 
 
 def _recalculate_coords(df: "pd.DataFrame", row_idx: int):
@@ -457,7 +462,7 @@ def _recalculate_coords(df: "pd.DataFrame", row_idx: int):
     """
     import pandas as pd
     if _geolocator is None:
-        print("[coords/df] geopy no disponible; se omite geocodificación.")
+        logger.debug("[coords/df] geopy no disponible; se omite geocodificación.")
         return
 
     col_map = {str(c).strip().lower(): c for c in df.columns}
@@ -498,16 +503,16 @@ def _recalculate_coords(df: "pd.DataFrame", row_idx: int):
     loc = None
     for query in queries:
         try:
-            print(f"[coords/df] Geocodificando: {query!r}")
+            logger.debug("[coords/df] Geocodificando: %r", query)
             loc = _geolocator.geocode(query, timeout=10)
         except Exception as e:
-            print(f"[coords/df] Error geocodificando {query!r}: {e}")
+            logger.debug("[coords/df] Error geocodificando %r: %s", query, e)
             loc = None
         if loc:
             break
 
     if not loc:
-        print("[coords/df] No se encontraron coordenadas.")
+        logger.debug("[coords/df] No se encontraron coordenadas.")
         return
 
     lat, lon = float(loc.latitude), float(loc.longitude)
@@ -520,7 +525,7 @@ def _recalculate_coords(df: "pd.DataFrame", row_idx: int):
         df.at[row_idx, c_lat] = lat
     if c_lon:
         df.at[row_idx, c_lon] = lon
-    print(f"[coords/df] Escritas coords lat={lat}, lon={lon}")
+    logger.debug("[coords/df] Escritas coords lat=%s, lon=%s", lat, lon)
 
 
 def _normalize_firmado(v: Any) -> str:
@@ -539,7 +544,7 @@ def _ensure_rows_for_append(ws, insert_at: int, count: int):
             break
     if need_insert:
         ws.insert_rows(insert_at, count)
-        print(f"[materias] Insertadas {count} filas en {insert_at} para no pisar contenido inferior.")
+        logger.debug("[materias] Insertadas %d filas en %d para no pisar contenido inferior.", count, insert_at)
 
 
 def update_student_in_excel(excel_path: str, row_index: str, idx: int, data: dict, old_email: str = None, old_nombre: str = None) -> bool:
@@ -547,7 +552,7 @@ def update_student_in_excel(excel_path: str, row_index: str, idx: int, data: dic
     Actualiza SOLO la misma fila del alumno dentro de la tabla de alumnos.
     No crea hojas, no reemplaza hojas, no elimina filas.
     """
-    print("[update_student_in_excel] excel_path =", excel_path, "row_index =", row_index, "idx =", idx)
+    logger.debug("[update_student_in_excel] excel_path=%s row_index=%s idx=%s", excel_path, row_index, idx)
 
     try:
         table_info = _find_table_in_workbook(
@@ -558,11 +563,10 @@ def update_student_in_excel(excel_path: str, row_index: str, idx: int, data: dic
             extras_pool={"universidad_origen", "coordenadas", "email"},
         )
         if not table_info:
-            print("[update_student_in_excel] No se encontró tabla de alumnos.")
+            logger.warning("[update_student_in_excel] No se encontró tabla de alumnos.")
             return False
     except Exception as e:
-        print("[update_student_in_excel] Error localizando tabla:", e)
-        print(traceback.format_exc())
+        logger.exception("[update_student_in_excel] Error localizando tabla")
         return False
 
     wb = None
@@ -572,12 +576,12 @@ def update_student_in_excel(excel_path: str, row_index: str, idx: int, data: dic
 
 
         norm_to_col_1based, raw_headers = _build_header_maps_from_ws(ws, table_info.header_row - 1)
-        print("[update_student_in_excel] headers detectados:", raw_headers)
+        logger.debug("[update_student_in_excel] headers detectados: %s", raw_headers)
 
         # Si es matriz dinámica, solo impedir editar el nombre, pero permitir editar otros campos
         is_dynamic_matrix = _students_table_is_dynamic_unique(ws, table_info)
         if is_dynamic_matrix:
-            print("[update_student_in_excel] La tabla detectada de alumnos es una matriz dinámica (UNICOS). Solo se editarán campos distintos al nombre.")
+            logger.debug("[update_student_in_excel] Tabla de alumnos es una matriz dinámica (UNICOS). Solo se editarán campos distintos al nombre.")
 
 
         # Buscar solo la primera fila válida que coincida por email o nombre (robusto)
@@ -585,7 +589,7 @@ def update_student_in_excel(excel_path: str, row_index: str, idx: int, data: dic
         email_col = table_info.cols.get("email")
         email_target = (data.get("old_email") or old_email or "").strip().lower()
         if email_col and email_target:
-            print("[update_student_in_excel] Buscando por email:", email_target)
+            logger.debug("[update_student_in_excel] Buscando por email: %s", email_target)
             for r in range(table_info.data_start, table_info.data_end + 1):
                 v = ws.cell(row=r, column=email_col).value
                 cell_email = _name_to_scalar(v)
@@ -600,7 +604,7 @@ def update_student_in_excel(excel_path: str, row_index: str, idx: int, data: dic
                     cuat_val = ws.cell(row=r, column=cuat_col).value if cuat_col else None
                     if not _is_invalid_student_name_cell(pais_val) or not _is_invalid_student_name_cell(cuat_val):
                         row_found = r
-                        print("[update_student_in_excel] Fila válida localizada por email:", r)
+                        logger.debug("[update_student_in_excel] Fila válida localizada por email: %d", r)
                         break
 
         if row_found is None:
@@ -621,11 +625,11 @@ def update_student_in_excel(excel_path: str, row_index: str, idx: int, data: dic
                     if normalize_str(cell_name) == cand_norm:
                         if not _is_invalid_student_name_cell(pais_val) or not _is_invalid_student_name_cell(cuat_val):
                             row_found = r
-                            print("[update_student_in_excel] Fila válida localizada por nombre (robusto):", r)
+                            logger.debug("[update_student_in_excel] Fila válida localizada por nombre (robusto): %d", r)
                             break
 
         if row_found is None:
-            print("[update_student_in_excel] ERROR: no se ha encontrado ninguna fila válida con ese email/nombre. No se añadirá ninguna fila nueva.")
+            logger.warning("[update_student_in_excel] No se encontró ninguna fila válida con ese email/nombre.")
             return False
 
 
@@ -663,16 +667,15 @@ def update_student_in_excel(excel_path: str, row_index: str, idx: int, data: dic
         try:
             _recalculate_coords_ws(ws, row_found, norm_to_col_1based)
         except Exception as e:
-            print("[update_student_in_excel] Aviso: no se pudieron recalcular coords:", e)
+            logger.warning("[update_student_in_excel] No se pudieron recalcular coords: %s", e)
 
         # _make_backup(excel_path, tag="alumnos_before_update")  # Desactivado: no crear backup
         wb.save(excel_path)
-        print("[update_student_in_excel] Guardado OK (misma fila, in-place).")
+        logger.info("[update_student_in_excel] Guardado OK (misma fila, in-place).")
         return True
 
     except Exception as e:
-        print("[update_student_in_excel] Error guardando in-place:", e)
-        print(traceback.format_exc())
+        logger.exception("[update_student_in_excel] Error guardando in-place")
         return False
     finally:
         try:
@@ -759,7 +762,7 @@ def actualizar_excel_materias_para_estudiante(materias_in, est, materias_path: s
         })
 
     if not nuevas:
-        print("[materias] No hay materias válidas; no se modifica Excel.")
+        logger.debug("[materias] No hay materias válidas; no se modifica Excel.")
         return
 
     wb = load_workbook(materias_path)
@@ -791,12 +794,13 @@ def actualizar_excel_materias_para_estudiante(materias_in, est, materias_path: s
                 break
 
         if not c_uni:
-            print(
-                f"[materias] AVISO: No se detectó columna de universidad de origen. "
-                f"Alias buscados={uni_aliases} | Cabeceras detectadas={raw_headers}"
+            logger.warning(
+                "[materias] No se detectó columna de universidad de origen. "
+                "Alias buscados=%s | Cabeceras detectadas=%s",
+                uni_aliases, raw_headers
             )
         else:
-            print(f"[materias] Columna universidad detectada: c_uni={c_uni} header={raw_headers.get(c_uni)}")
+            logger.debug("[materias] Columna universidad detectada: c_uni=%s header=%s", c_uni, raw_headers.get(c_uni))
 
         c_cuat = table_info.cols.get("cuat")
         c_fir  = table_info.cols.get("firmado")
@@ -823,7 +827,7 @@ def actualizar_excel_materias_para_estudiante(materias_in, est, materias_path: s
                 "_origen_explicit": bool(item_origen),
                 "_uni_explicit": bool(item_uni),
             })
-        print(f"[materias] nuevas={len(nuevas)} asignaturas a guardar")
+        logger.debug("[materias] nuevas=%d asignaturas a guardar", len(nuevas))
 
         # ---- buscar filas existentes del alumno (escanea hasta max_row para cubrir filas añadidas) ----
         rows_student = []
@@ -838,7 +842,7 @@ def actualizar_excel_materias_para_estudiante(materias_in, est, materias_path: s
                         rows.append(r)
                 if rows:
                     rows_student = rows
-                    print(f"[materias] Filas existentes para '{candidate}': {rows_student}")
+                    logger.debug("[materias] Filas existentes para '%s': %s", candidate, rows_student)
                     break
 
         # ---- editar filas existentes (misma fila) ----
@@ -882,7 +886,7 @@ def actualizar_excel_materias_para_estudiante(materias_in, est, materias_path: s
                 else:
                     ws.cell(row=r, column=c_uni).value = old_uni
 
-            print(f"[materias] Editada fila {r}: {fila['asignatura']}")
+            logger.debug("[materias] Editada fila %d: %s", r, fila['asignatura'])
 
         # ---- eliminar filas sobrantes y compactar la tabla (sin insert/delete_rows) ----
         if len(rows_student) > len(nuevas):
@@ -906,18 +910,18 @@ def actualizar_excel_materias_para_estudiante(materias_in, est, materias_path: s
                     source = r + num_sobrantes
                     for col in cols_to_clear:
                         ws.cell(row=r, column=col).value = ws.cell(row=source, column=col).value
-                    print(f"[materias] Subida fila {source} -> {r}")
+                    logger.debug("[materias] Subida fila %d -> %d", source, r)
                 # Limpiar las filas duplicadas al final
                 for r in range(last_data_row - num_sobrantes + 1, last_data_row + 1):
                     for col in cols_to_clear:
                         ws.cell(row=r, column=col).value = None
-                    print(f"[materias] Limpiada cola fila {r}")
+                    logger.debug("[materias] Limpiada cola fila %d", r)
             else:
                 # No hay nada debajo: solo vaciar
                 for r in sobrantes:
                     for col in cols_to_clear:
                         ws.cell(row=r, column=col).value = None
-                    print(f"[materias] Vaciada fila sobrante {r}")
+                    logger.debug("[materias] Vaciada fila sobrante %d", r)
         # ---- añadir filas nuevas ----
         if len(nuevas) > len(rows_student):
             pendientes = nuevas[len(rows_student):]
@@ -967,17 +971,18 @@ def actualizar_excel_materias_para_estudiante(materias_in, est, materias_path: s
                 if c_ori:  ws.cell(row=r, column=c_ori).value  = fila["origen"] or ""
                 if c_uni:
                     ws.cell(row=r, column=c_uni).value = valor_uni or ""
-                    print(f"[materias] DEBUG: Escribiendo universidad en fila {r}, col {c_uni}: {valor_uni}")
+                    logger.debug("[materias] Escribiendo universidad en fila %d, col %d: %s", r, c_uni, valor_uni)
                 else:
-                    print(f"[materias] ERROR: No se encontró columna para universidad en fila {r}. Valor: {valor_uni}")
+                    logger.warning("[materias] No se encontró columna para universidad en fila %d. Valor: %s", r, valor_uni)
                 if c_cuat and cuat_default: ws.cell(row=r, column=c_cuat).value = cuat_default
                 if c_fir:                   ws.cell(row=r, column=c_fir).value   = firmado_default
                 if c_la and la_default:     ws.cell(row=r, column=c_la).value    = la_default
-                print(f"[materias] Añadida fila {r}: {fila['asignatura']} | universidad_origen={valor_uni}")
+                logger.debug("[materias] Añadida fila %d: %s | universidad_origen=%s",
+                             r, fila['asignatura'], valor_uni)
 
         # _make_backup(materias_path, tag="materias_before_update")  # Desactivado: no crear backup
         wb.save(materias_path)
-        print("[materias] Guardado OK")
+        logger.info("[materias] Guardado OK")
 
     finally:
         wb.close()

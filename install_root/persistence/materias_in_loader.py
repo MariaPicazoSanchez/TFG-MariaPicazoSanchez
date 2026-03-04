@@ -1,6 +1,9 @@
+import logging
 import os
 import unicodedata
 import pandas as pd
+
+logger = logging.getLogger("movilidad_persistence")
 
 
 def _norm(s):
@@ -87,10 +90,10 @@ def load_materias_in(config):
 
         bloques = []
 
-        print("[DEBUG] Buscando tablas Materias IN en todas las hojas...")
+        logger.debug("[DEBUG] Buscando tablas Materias IN en todas las hojas...")
 
         for sheet_name, df_raw in xls.items():
-            print(f"[DEBUG] Revisando hoja: {sheet_name}")
+            logger.debug("[DEBUG] Revisando hoja: %s", sheet_name)
             if df_raw is None or df_raw.empty:
                 continue
 
@@ -99,15 +102,15 @@ def load_materias_in(config):
 
             while i < n_rows:
                 row_vals = df_raw.iloc[i].tolist()
-                print(f"[DEBUG] Fila {i} hoja '{sheet_name}': {row_vals}")
+                logger.debug("[DEBUG] Fila %d hoja '%s': %s", i, sheet_name, row_vals)
                 header_map = _match_header_row(row_vals)
 
                 if header_map is None:
                     i += 1
                     continue
 
-                print(f"[DEBUG] Cabecera Materias IN encontrada en hoja '{sheet_name}', fila {i}: {row_vals}")
-                print(f"[DEBUG] header_map: {header_map}")
+                logger.debug("[DEBUG] Cabecera Materias IN encontrada en hoja '%s', fila %d: %s", sheet_name, i, row_vals)
+                logger.debug("[DEBUG] header_map: %s", header_map)
 
                 # Extraer filas de datos debajo de la cabecera hasta separador,
                 # o hasta que aparezca otra cabecera.
@@ -117,11 +120,11 @@ def load_materias_in(config):
 
                 while j < n_rows:
                     current_vals = df_raw.iloc[j].tolist()
-                    print(f"[DEBUG]   Fila datos {j} hoja '{sheet_name}': {current_vals}")
+                    logger.debug("[DEBUG]   Fila datos %d hoja '%s': %s", j, sheet_name, current_vals)
 
                     # Parar si fila vacía (separador típico)
                     if _is_separator_or_empty_row(current_vals):
-                        print(f"[DEBUG]   Fila {j} vacía/separador. Fin bloque.")
+                        logger.debug("[DEBUG]   Fila %d vacía/separador. Fin bloque.", j)
                         break
 
                     # Parar si las columnas CLAVE (asignatura + estudiante) están ambas vacías
@@ -131,12 +134,12 @@ def load_materias_in(config):
                     key_asig = _norm(current_vals[c_asig]) if c_asig is not None and c_asig < len(current_vals) else ""
                     key_est  = _norm(current_vals[c_est])  if c_est  is not None and c_est  < len(current_vals) else ""
                     if not key_asig and not key_est:
-                        print(f"[DEBUG]   Fila {j} sin asignatura ni estudiante. Fin bloque.")
+                        logger.debug("[DEBUG]   Fila %d sin asignatura ni estudiante. Fin bloque.", j)
                         break
 
                     # Parar si aparece otra cabecera (otra tabla)
                     if _match_header_row(current_vals) is not None:
-                        print(f"[DEBUG]   Fila {j} parece otra cabecera. Fin bloque.")
+                        logger.debug("[DEBUG]   Fila %d parece otra cabecera. Fin bloque.", j)
                         break
 
                     # Construir fila con solo columnas relevantes detectadas
@@ -145,7 +148,7 @@ def load_materias_in(config):
                         record[key] = df_raw.iat[j, col_idx] if col_idx < df_raw.shape[1] else None
 
                     record["_sheet_name"] = sheet_name
-                    print(f"[DEBUG]   Registro extraído: {record}")
+                    logger.debug("[DEBUG]   Registro extraído: %s", record)
                     rows_data.append(record)
                     j += 1
 
@@ -158,19 +161,22 @@ def load_materias_in(config):
                         try: float(s.replace(",", ".")); return True
                         except: return False
                     if est_vals_nonempty and all(_es_numerico(v) for v in est_vals_nonempty):
-                        print(f"[DEBUG] Bloque descartado en hoja '{sheet_name}' fila {i}: todos los 'estudiante' son numéricos ({est_vals_nonempty[:3]})")
+                        logger.debug(
+                            "[DEBUG] Bloque descartado en hoja '%s' fila %d: todos los 'estudiante' son numéricos (%s)",
+                            sheet_name, i, est_vals_nonempty[:3]
+                        )
                     else:
                         bloque = pd.DataFrame(rows_data)
                         bloques.append(bloque)
-                        print(f"[DEBUG] Bloque extraído en hoja '{sheet_name}': {len(bloque)} filas")
+                        logger.debug("[DEBUG] Bloque extraído en hoja '%s': %d filas", sheet_name, len(bloque))
                 else:
-                    print(f"[DEBUG] Cabecera detectada pero sin filas de datos en hoja '{sheet_name}', fila {i}")
+                    logger.debug("[DEBUG] Cabecera detectada pero sin filas de datos en hoja '%s', fila %d", sheet_name, i)
 
                 # Continuar desde donde terminó este bloque
                 i = j + 1
 
         if not bloques:
-            print("[DEBUG] No se encontró ninguna tabla de Materias IN.")
+            logger.debug("[DEBUG] No se encontró ninguna tabla de Materias IN.")
             return pd.DataFrame()
 
         df = pd.concat(bloques, ignore_index=True)
@@ -209,16 +215,19 @@ def load_materias_in(config):
             except: return False
         mask_num = df["Estudiante"].apply(_parece_numero)
         if mask_num.any():
-            print(f"[DEBUG] Descartando {mask_num.sum()} filas con Estudiante numérico: {df.loc[mask_num, 'Estudiante'].tolist()[:5]}")
+            logger.debug(
+                "[DEBUG] Descartando %d filas con Estudiante numérico: %s",
+                mask_num.sum(), df.loc[mask_num, 'Estudiante'].tolist()[:5]
+            )
         df = df[~mask_num].reset_index(drop=True)
 
-        print(f"[DEBUG] Filas finales Materias IN: {len(df)}")
-        print(f"[DEBUG] Columnas finales: {list(df.columns)}")
+        logger.debug("[DEBUG] Filas finales Materias IN: %d", len(df))
+        logger.debug("[DEBUG] Columnas finales: %s", list(df.columns))
 
         return df
 
     except Exception as e:
-        print(f"[DEBUG] Error leyendo materias: {e}")
+        logger.warning("[DEBUG] Error leyendo materias: %s", e)
         return pd.DataFrame()
 
 
@@ -372,9 +381,9 @@ def get_asignaturas_catalog(config):
             return (2, r["asignatura"])
 
         rows.sort(key=_sort_key)
-        print(f"[catalog] Catálogo cargado: {len(rows)} asignaturas")
+        logger.debug("[catalog] Catálogo cargado: %d asignaturas", len(rows))
         return rows
 
     except Exception as e:
-        print(f"[catalog] Error leyendo catálogo de asignaturas: {e}")
+        logger.warning("[catalog] Error leyendo catálogo de asignaturas: %s", e)
         return []

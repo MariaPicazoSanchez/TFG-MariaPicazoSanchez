@@ -813,9 +813,9 @@ def start_processes(api_enabled: bool = True, api_disabled_reason: str | None = 
 
         while True:
 
-            # 1. Shutdown explícito desde el navegador (botón "Cerrar aplicación")
+            # 1. Shutdown desde el servidor de control (cierre de pestaña detectado o endpoint /shutdown)
             if shutdown_event.is_set():
-                LOGGER.info("Shutdown explícito recibido desde el navegador.")
+                LOGGER.info("Shutdown recibido desde el servidor de control.")
                 break
 
             # 2. Streamlit terminó por sí solo

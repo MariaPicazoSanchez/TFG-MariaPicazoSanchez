@@ -1,6 +1,7 @@
 from __future__ import annotations
 import os
 import re
+import logging
 import streamlit as st
 from utils import open_in_system
 import pycountry
@@ -17,6 +18,8 @@ from persistence import get_asignaturas_catalog
 
 from .sidebar import pick_local_file
 USE_LOCAL_PICKER = True
+
+logger = logging.getLogger("movilidad_ui")
 
 
 def _clear_new_user_form_state():
@@ -65,7 +68,7 @@ def _load_asignaturas_catalog(config: dict) -> list:
         try:
             st.session_state[cache_key] = get_asignaturas_catalog(config)
         except Exception as e:
-            print(f"[new_user] No se pudo cargar catálogo de asignaturas: {e}")
+            logger.warning("No se pudo cargar catálogo de asignaturas: %s", e)
             st.session_state[cache_key] = []
     return st.session_state.get(cache_key, [])
 

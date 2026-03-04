@@ -1,5 +1,6 @@
 import os
 import re
+import logging
 from typing import Iterable, Tuple, Optional
 import pandas as pd
 import math
@@ -10,6 +11,8 @@ from .materias_in_loader import (
     get_materias_in_por_estudiante,
     get_alumnos_in
 )
+
+logger = logging.getLogger("movilidad_persistence")
 
 # ==============================
 # Helpers comunes
@@ -416,8 +419,8 @@ def load_erasmus_in(path: str, sheet_name: str | None = None) -> pd.DataFrame:
     """
     df = _read_table(path, sheet_name=sheet_name)
     df.columns = [str(col).strip() for col in df.columns]
-    print(f"[IN] Columnas leídas: {list(df.columns)}")
-    print(f"[IN] Total filas: {len(df)}")
+    logger.debug("[IN] Columnas leídas: %s", list(df.columns))
+    logger.debug("[IN] Total filas: %d", len(df))
 
     c_nombre     = _pick(df, "Nombre", "nombre")
     c_ap1        = _pick(df, "Apellido1", "apellido1")
@@ -438,7 +441,12 @@ def load_erasmus_in(path: str, sheet_name: str | None = None) -> pd.DataFrame:
         c_lat = None
     if c_lon == c_la:
         c_lon = None
-    print(f"[IN] Columnas detectadas → nombre={c_nombre}, estudiante={c_estudiante}, ap1={c_ap1}, ap2={c_ap2}, uni={c_uni}, pais={c_pais}, coords={c_coords}, lat={c_lat}, lon={c_lon}, cuatri={c_cuatri}, la={c_la}")
+    logger.debug(
+        "[IN] Columnas detectadas: nombre=%s, estudiante=%s, ap1=%s, ap2=%s, uni=%s, "
+        "pais=%s, coords=%s, lat=%s, lon=%s, cuatri=%s, la=%s",
+        c_nombre, c_estudiante, c_ap1, c_ap2, c_uni,
+        c_pais, c_coords, c_lat, c_lon, c_cuatri, c_la
+    )
 
     # Cargar coordenadas desde hoja "Coordenadas" cruzando por universidad
     coords_dict = {}
@@ -451,9 +459,9 @@ def load_erasmus_in(path: str, sheet_name: str | None = None) -> pd.DataFrame:
             coords_raw = str(row.get("col2", "") or "").strip()
             if uni and coords_raw and coords_raw.lower() not in ("nan", "none", ""):
                 coords_dict[uni] = coords_raw
-        print(f"[IN] Coordenadas cargadas desde hoja 'Coordenadas': {len(coords_dict)} universidades")
+        logger.debug("[IN] Coordenadas cargadas desde hoja 'Coordenadas': %d universidades", len(coords_dict))
     except Exception as e:
-        print(f"[IN] No se pudo leer hoja 'Coordenadas': {e}")
+        logger.debug("[IN] No se pudo leer hoja 'Coordenadas': %s", e)
 
     # estudiante
     if c_nombre or c_ap1 or c_ap2:
@@ -488,10 +496,11 @@ def load_erasmus_in(path: str, sheet_name: str | None = None) -> pd.DataFrame:
         parsed = df["_coords_lookup"].map(_parse_coords)
         df["_lat_lu"] = [p[0] for p in parsed]
         df["_lon_lu"] = [p[1] for p in parsed]
-        df["latitud"]  = df["latitud"].fillna(pd.to_numeric(df["_lat_lu"], errors="coerce"))
-        df["longitud"] = df["longitud"].fillna(pd.to_numeric(df["_lon_lu"], errors="coerce"))
+        df["latitud"]  = pd.to_numeric(df["latitud"], errors="coerce").fillna(pd.to_numeric(df["_lat_lu"], errors="coerce"))
+        df["longitud"] = pd.to_numeric(df["longitud"], errors="coerce").fillna(pd.to_numeric(df["_lon_lu"], errors="coerce"))
         df.drop(columns=["_coords_lookup", "_lat_lu", "_lon_lu"], inplace=True)
-        print(f"[IN] Coords tras lookup por universidad: {df['latitud'].notna().sum()} / {len(df)} filas con coords")
+        logger.debug("[IN] Coords tras lookup por universidad: %d / %d filas con coords",
+                     df['latitud'].notna().sum(), len(df))
 
     # normaliza campos
     df["universidad"] = df[c_uni].astype(str).str.strip() if c_uni else None
@@ -500,11 +509,12 @@ def load_erasmus_in(path: str, sheet_name: str | None = None) -> pd.DataFrame:
     df["link_LA"]      = df[c_la]     if c_la     else None
     df["cuatrimestre"] = df[c_cuatri] if c_cuatri else None
 
-    print(f"[IN] Muestra estudiantes (primeros 5): {df['estudiante'].head().tolist()}")
-    print(f"[IN] Muestra latitud:  {df['latitud'].head().tolist()}")
-    print(f"[IN] Muestra longitud: {df['longitud'].head().tolist()}")
-    print(f"[IN] Filas con coords válidas: {df['latitud'].notna().sum()} / {len(df)}")
-    print(f"[IN] Muestra universidad: {df['universidad'].head().tolist() if 'universidad' in df.columns else 'N/A'}")
+    logger.debug("[IN] Muestra estudiantes (primeros 5): %s", df['estudiante'].head().tolist())
+    logger.debug("[IN] Muestra latitud:  %s", df['latitud'].head().tolist())
+    logger.debug("[IN] Muestra longitud: %s", df['longitud'].head().tolist())
+    logger.debug("[IN] Filas con coords válidas: %d / %d", df['latitud'].notna().sum(), len(df))
+    logger.debug("[IN] Muestra universidad: %s",
+                 df['universidad'].head().tolist() if 'universidad' in df.columns else 'N/A')
 
     def _to_records(g: pd.DataFrame) -> list[dict]:
         # Deduplicar por estudiante (hay múltiples filas por alumno, una por asignatura)
@@ -540,7 +550,7 @@ def load_erasmus_in(path: str, sheet_name: str | None = None) -> pd.DataFrame:
     df["_lon_r"] = df["longitud"].round(2)
 
     df = filter_students_with_coords(df, "Erasmus IN")
-    print(f"[IN] Tras filtrar coords: {len(df)} filas")
+    logger.debug("[IN] Tras filtrar coords: %d filas", len(df))
 
     if df.empty:
         import streamlit as st
@@ -552,16 +562,7 @@ def load_erasmus_in(path: str, sheet_name: str | None = None) -> pd.DataFrame:
           .apply(_to_records, include_groups=False)
           .reset_index(name="estudiantes")
     )
-
-    grouped = (
-        df.groupby(["_lat_r", "_lon_r"], dropna=False)
-          .apply(_to_records, include_groups=False)
-          .reset_index(name="estudiantes")
-    )
-    print(f"[IN] Grupos tras groupby: {len(grouped)}")
-    for _, r in grouped.iterrows():
-        ests = [a.get('estudiante', '?') for a in r['estudiantes']]
-        print(f"[IN]   → alumnos: {ests}")
+    logger.debug("[IN] Grupos tras groupby: %d", len(grouped))
 
     if grouped.empty:
         import streamlit as st
@@ -584,7 +585,7 @@ def load_erasmus_in(path: str, sheet_name: str | None = None) -> pd.DataFrame:
                     grouped.at[i, "ciudad"] = str(grupo_df["ciudad"].mode()[0] if not grupo_df["ciudad"].mode().empty else grupo_df["ciudad"].iloc[0])
                 if not grupo_df["universidad"].isna().all():
                     grouped.at[i, "universidad"] = str(grupo_df["universidad"].mode()[0] if not grupo_df["universidad"].mode().empty else grupo_df["universidad"].iloc[0])
-                print(grupo_df[["estudiante", "universidad"]])
+
     # Limpiar columnas temporales
     grouped = grouped.drop(columns=["_lat_r", "_lon_r"], errors="ignore")
 
@@ -597,7 +598,7 @@ def load_erasmus_in(path: str, sheet_name: str | None = None) -> pd.DataFrame:
     materias_dict = get_materias_in_por_estudiante(config)
 
     if materias_dict:
-        print(f"[IN] Alumnos en materias_dict: {list(materias_dict.keys())[:10]}")
+        logger.debug("[IN] Alumnos en materias_dict: %s", list(materias_dict.keys())[:10])
         exact_idx, last_idx = _build_materias_index(materias_dict)
         for grupo in grouped["estudiantes"]:
             for alumno in grupo:
@@ -608,13 +609,13 @@ def load_erasmus_in(path: str, sheet_name: str | None = None) -> pd.DataFrame:
                 if not materias:
                     clave = _match_student_name(nombre, exact_idx, last_idx)
                     if clave:
-                        print(f"[IN] Matching '{nombre}' → '{clave}'")
+                        logger.debug("[IN] Matching '%s' -> '%s'", nombre, clave)
                         materias = materias_dict.get(clave, [])
                     else:
-                        print(f"[IN] Sin match para '{nombre}'")
+                        logger.debug("[IN] Sin match para '%s'", nombre)
                 alumno["materias"] = materias or []
     else:
-        print("[IN] materias_dict vacío — no se cargaron materias")
+        logger.debug("[IN] materias_dict vacío — no se cargaron materias")
 
     return grouped
 

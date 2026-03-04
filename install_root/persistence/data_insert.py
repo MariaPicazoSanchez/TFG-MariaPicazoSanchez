@@ -1,3 +1,4 @@
+import logging
 import os
 import json
 import pandas as pd
@@ -5,6 +6,8 @@ import streamlit as st
 from domain import COMMON_COLS, SPEC_COLS
 from openpyxl import load_workbook
 from domain.validators import safe_int_convert, DataValidator
+
+logger = logging.getLogger("movilidad_persistence")
 
 def first_sheet_name(xlsx_path: str) -> str:
     try:
@@ -41,7 +44,7 @@ def _pick_col(df: pd.DataFrame, *aliases):
                 return real
     # Si sigue sin encontrarse, advertir en consola
     if aliases:
-        print(f"[WARN] No se encontró columna para alias: {aliases} en columnas: {list(df.columns)}")
+        logger.warning("No se encontró columna para alias: %s en columnas: %s", aliases, list(df.columns))
     return None
 
 def _sheet_exists(xlsx_path: str, sheet_name: str) -> bool:
@@ -407,7 +410,7 @@ def append_user_to_excel(xlsx_path: str, tipo: str, row_data: dict, sheet_name: 
             from persistence.excel_update import _recalculate_coords
             _recalculate_coords(out, last_row_idx)
         except Exception as e:
-            print(f"[coords] Error al recalcular coordenadas: {e}")
+            logger.warning("Error al recalcular coordenadas: %s", e)
 
     try:
         with pd.ExcelWriter(xlsx_path, engine="openpyxl", mode="a", if_sheet_exists="replace") as w:

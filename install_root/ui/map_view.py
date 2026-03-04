@@ -1,10 +1,13 @@
 import folium
+import logging
 import pandas as pd
 import streamlit as st
 from streamlit_folium import st_folium
 from .popup_templates import generate_dynamic_popup
 from export import add_export_control, add_program_legend
 from constants import PROGRAM_ERASMUS_IN, PROGRAM_ERASMUS_OUT, PROGRAM_SICUE_OUT, PROGRAM_ICONS
+
+logger = logging.getLogger("movilidad_ui")
 
 
 def add_points_to_map(m, df, nombre_capa, color):
@@ -303,9 +306,9 @@ def show_map(dfs: dict, base_map, materias_in_por_estudiante=None, filtros_activ
             else:
                 html_map += inline_tag
         else:
-            print(f"[DEBUG] No se encontró JS de materias en: {js_path}")
+            logger.warning("No se encontró JS de materias en: %s", js_path)
     except Exception as e:
-        print(f"[DEBUG] Error inyectando materias_editor.js inline: {e}")
+        logger.warning("Error inyectando materias_editor.js inline: %s", e)
 
     # Guardamos el HTML completo del mapa para poder descargarlo luego
     st.session_state["last_map_html"] = html_map

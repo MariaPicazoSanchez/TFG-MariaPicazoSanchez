@@ -1,4 +1,5 @@
 import os
+import logging
 import unicodedata
 import streamlit as st
 import html
@@ -15,6 +16,8 @@ from .popup_helpers import (
 )
 from .popup_materias import build_materias_blocks
 
+logger = logging.getLogger("movilidad_ui")
+
 # URL del endpoint que guarda en Excel
 API_TOKEN = get_api_token()
 # Obtener la URL del API desde la variable de entorno (con puerto dinámico)
@@ -30,7 +33,7 @@ def _load_asignaturas_catalog(config: dict) -> list:
             from persistence import get_asignaturas_catalog
             st.session_state[cache_key] = get_asignaturas_catalog(config)
         except Exception as e:
-            print(f"[popup] No se pudo cargar catálogo de asignaturas: {e}")
+            logger.warning("No se pudo cargar catálogo de asignaturas: %s", e)
             st.session_state[cache_key] = []
     return st.session_state.get(cache_key, [])
 

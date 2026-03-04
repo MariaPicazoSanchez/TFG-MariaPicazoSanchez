@@ -332,9 +332,6 @@ def inject_js_heartbeat(interval_ms: int = 20_000) -> None:
 def main():
 
     # ==================== CONFIGURACIÓN ====================
-    control_port   = os.getenv("CONTROL_PORT", "")
-    shutdown_token = os.getenv("SHUTDOWN_TOKEN", "")
-
     st.set_page_config(
         page_title="Movilidad ESII",
         layout="wide",
@@ -375,19 +372,6 @@ def main():
     
 
     st.title("Visualización de Movilidad ESII")
-    # Botón de cierre manual
-    if control_port and shutdown_token:
-        if st.button("Cerrar aplicación", key="shutdown_btn"):
-            shutdown_url = f"http://127.0.0.1:{control_port}/shutdown?token={shutdown_token}"
-            try:
-                import requests
-                resp = requests.post(shutdown_url)
-                if resp.status_code == 200:
-                    st.success("La aplicación se ha cerrado correctamente.")
-                else:
-                    st.error(f"Error al cerrar: {resp.status_code}")
-            except Exception as e:
-                st.error(f"Error al cerrar: {e}")
 
     # Verificar si tenemos datos
     has_data = check_dataframes_have_data(dfs)
