@@ -724,10 +724,12 @@ cd TFG-MariaPicazoSanchez</code></pre>
       });
 
       document.querySelectorAll('.screenshot-img').forEach(function (img) {
-        var gifSrc  = img.getAttribute('src');
-        var canvas  = document.createElement('canvas');
-        var ctx     = canvas.getContext('2d');
-        canvas.className = img.className;
+        var gifSrc = img.getAttribute('src');
+        var canvas = document.createElement('canvas');
+        var ctx    = canvas.getContext('2d');
+        canvas.className    = img.className;
+        canvas.style.cursor = 'zoom-in';
+        img.style.cursor    = 'zoom-in';
 
         // Caption from the parent <figure>'s <figcaption>
         var caption = '';
@@ -737,35 +739,37 @@ cd TFG-MariaPicazoSanchez</code></pre>
           if (fc) caption = fc.textContent.trim();
         }
 
-        function drawFirstFrame() {
-          canvas.width  = img.naturalWidth;
-          canvas.height = img.naturalHeight;
-          ctx.drawImage(img, 0, 0);
-          img.parentNode.insertBefore(canvas, img);
-          img.style.display = 'none';
-          img.src = '';
-        }
+        // Insert canvas in place of the img; hide the img by default
+        img.parentNode.insertBefore(canvas, img);
+        img.style.display = 'none';
+        img.src = '';
 
-        if (img.complete && img.naturalWidth) {
-          drawFirstFrame();
-        } else {
-          img.addEventListener('load', drawFirstFrame, { once: true });
-        }
+        // Use a dedicated temp image to reliably grab the first frame
+        // (avoids capturing a mid-animation frame when the page loads)
+        var tempImg = new Image();
+        tempImg.onload = function () {
+          canvas.width  = tempImg.naturalWidth;
+          canvas.height = tempImg.naturalHeight;
+          ctx.drawImage(tempImg, 0, 0);
+        };
+        tempImg.src = gifSrc;
 
-        // Hover → play gif
+        // Mouse enters canvas → start GIF from frame 1
         canvas.addEventListener('mouseenter', function () {
           canvas.style.display = 'none';
-          img.src = gifSrc;
+          img.src = gifSrc;           // fresh assign restarts the GIF
           img.style.display = 'block';
         });
 
-        // Leave → freeze
+        // Mouse leaves GIF → freeze current frame to canvas
         img.addEventListener('mouseleave', function () {
-          canvas.width  = img.naturalWidth;
-          canvas.height = img.naturalHeight;
-          ctx.drawImage(img, 0, 0);
+          if (img.naturalWidth && img.naturalHeight) {
+            canvas.width  = img.naturalWidth;
+            canvas.height = img.naturalHeight;
+            ctx.drawImage(img, 0, 0);
+          }
           img.style.display = 'none';
-          img.src = '';
+          img.src = '';               // stop animation to save resources
           canvas.style.display = 'block';
         });
 
@@ -773,10 +777,6 @@ cd TFG-MariaPicazoSanchez</code></pre>
         function handleClick() { openLightbox(gifSrc, caption); }
         canvas.addEventListener('click', handleClick);
         img.addEventListener('click', handleClick);
-
-        // Cursor hint
-        canvas.style.cursor = 'zoom-in';
-        img.style.cursor   = 'zoom-in';
       });
     });
   </script>
