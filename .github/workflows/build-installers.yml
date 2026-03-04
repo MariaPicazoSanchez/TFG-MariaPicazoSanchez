@@ -36,7 +36,7 @@ jobs:
 
       - name: Crear instalador CON datos
         run: |
-          "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" instalar.iss
+          "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" installer.iss
 
       # =============================
       # LIMPIAR DIST
@@ -51,11 +51,11 @@ jobs:
 
       - name: Generar EXE SIN datos
         run: |
-          python -m PyInstaller --onedir --noconsole --clean --noconfirm --icon=./install_root/MovilidadESII.ico --name MovilidadESII_Clean launcher_system_sin_data.py
+          python -m PyInstaller --onedir --noconsole --clean --noconfirm --icon=./install_root/MovilidadESII.ico --name MovilidadESII_Clean launcher_system_sindata.py
 
       - name: Crear instalador SIN datos
         run: |
-          "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" instalar_sin_data.iss
+          "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" installer_sindata.iss
 
       # =============================
       # SUBIR ARTEFACTOS
