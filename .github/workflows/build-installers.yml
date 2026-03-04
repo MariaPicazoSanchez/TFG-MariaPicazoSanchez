@@ -36,7 +36,7 @@ jobs:
 
       - name: Crear instalador CON datos
         run: |
-          "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" installer.iss
+          & "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" installer.iss
 
       # =============================
       # LIMPIAR DIST
@@ -55,7 +55,7 @@ jobs:
 
       - name: Crear instalador SIN datos
         run: |
-          "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" installer_sindata.iss
+          & "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" installer_sindata.iss
 
       # =============================
       # SUBIR ARTEFACTOS
