@@ -307,7 +307,21 @@ def load_erasmus_out(path: str, sheet_name: str | None = None) -> pd.DataFrame:
     else:
         df["estudiante"] = ""
 
-    # coords
+    # Cargar coordenadas desde hoja "Coordenadas" cruzando por universidad
+    coords_dict = {}
+    try:
+        df_coords = pd.read_excel(path, sheet_name="Coordenadas", header=None, dtype=str)
+        df_coords.columns = [f"col{i}" for i in range(df_coords.shape[1])]
+        # Formato esperado: col0=País, col1=Universidad, col2=Coordenadas
+        for _, row in df_coords.iterrows():
+            uni = str(row.get("col1", "") or "").strip()
+            coords_raw = str(row.get("col2", "") or "").strip()
+            if uni and coords_raw and coords_raw.lower() not in ("nan", "none", ""):
+                coords_dict[uni] = coords_raw
+    except Exception:
+        coords_dict = {}
+
+    # coords: primero columna directa, luego lookup por universidad
     if c_coords:
         lats, lons = zip(*df[c_coords].map(_parse_coords))
         df["latitud"] = pd.to_numeric(lats, errors="coerce")
@@ -321,6 +335,17 @@ def load_erasmus_out(path: str, sheet_name: str | None = None) -> pd.DataFrame:
     df["pais"]        = df[c_pais] if c_pais else None
     # Normalizar país a mayúsculas para consistencia
     df["pais"] = df["pais"].str.upper() if c_pais else None
+
+    # Completar coordenadas faltantes por universidad desde hoja Coordenadas
+    if coords_dict and c_dest:
+        uni_col = df["universidad"].astype(str).str.strip()
+        df["_coords_lookup"] = uni_col.map(coords_dict)
+        parsed = df["_coords_lookup"].map(_parse_coords)
+        df["_lat_lu"] = [p[0] for p in parsed]
+        df["_lon_lu"] = [p[1] for p in parsed]
+        df["latitud"]  = pd.to_numeric(df["latitud"], errors="coerce").fillna(pd.to_numeric(df["_lat_lu"], errors="coerce"))
+        df["longitud"] = pd.to_numeric(df["longitud"], errors="coerce").fillna(pd.to_numeric(df["_lon_lu"], errors="coerce"))
+        df.drop(columns=["_coords_lookup", "_lat_lu", "_lon_lu"], inplace=True)
     df["ciudad"]      = df[c_ciudad] if c_ciudad else None
     df["link_LA"]     = df[c_la]   if c_la   else None
     df["link_plan"]   = df[c_plan] if c_plan else None

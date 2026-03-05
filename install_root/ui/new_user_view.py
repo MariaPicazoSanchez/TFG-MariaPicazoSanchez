@@ -271,6 +271,7 @@ def render_new_user_form(available_types: list[str], config: dict) -> dict | Non
                 with plan_col1:
                     extra["plan_out"] = st.text_input(
                         "Propuesta alumno LA (ruta o enlace)",
+                        key="nu_plan_out",
                     )
                 
             with col2:

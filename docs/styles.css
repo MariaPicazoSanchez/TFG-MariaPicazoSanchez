@@ -254,7 +254,7 @@ h1, h2, h3, h4 {
 
 .nav-links {
   display: flex;
-  gap: var(--space-lg);
+  gap: 0.75rem;
   flex-wrap: wrap;
 }
 
@@ -266,9 +266,14 @@ h1, h2, h3, h4 {
   white-space: nowrap;
 }
 
-.nav-links a:hover {
+.nav-links a:hover,
+.nav-links a.active {
   color: var(--color-primary);
   text-decoration: none;
+}
+
+.nav-links a.active {
+  font-weight: 600;
 }
 
 
@@ -355,6 +360,72 @@ h1, h2, h3, h4 {
   margin-top: var(--space-sm);
 }
 
+.hero-tagline {
+  font-size: 0.83rem;
+  color: #475569;
+  font-weight: 500;
+  letter-spacing: 0.01em;
+  margin-top: 0;
+}
+
+
+/* ----------------------------------------------------------------
+   STACK TECNOLÓGICO
+---------------------------------------------------------------- */
+.stack-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: var(--space-lg);
+}
+
+.stack-item {
+  background-color: var(--color-bg);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  padding: var(--space-lg);
+  box-shadow: var(--shadow-sm);
+  transition: box-shadow var(--transition), transform var(--transition);
+}
+
+.stack-item:hover {
+  box-shadow: var(--shadow-md);
+  transform: translateY(-2px);
+}
+
+.stack-category {
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--color-primary-light);
+  margin-bottom: var(--space-xs);
+}
+
+.stack-tech {
+  font-size: 1.05rem;
+  font-weight: 700;
+  color: var(--color-text);
+  margin-bottom: var(--space-sm);
+}
+
+.stack-desc {
+  font-size: 0.875rem;
+  color: var(--color-text-muted);
+  line-height: 1.55;
+  margin: 0;
+}
+
+@media (max-width: 700px) {
+  .stack-grid {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+@media (max-width: 480px) {
+  .stack-grid {
+    grid-template-columns: 1fr;
+  }
+}
 
 /* ----------------------------------------------------------------
    EL PROBLEMA
@@ -1028,6 +1099,84 @@ code {
 }
 
 
+/* ----------------------------------------------------------------
+   AUTORA DEL PROYECTO
+---------------------------------------------------------------- */
+.authorship-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-xl);
+  background-color: var(--color-bg);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  padding: var(--space-xl) var(--space-2xl);
+  flex-wrap: wrap;
+  box-shadow: var(--shadow-sm);
+}
+
+.authorship-degree {
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--color-text);
+  margin: 0 0 var(--space-xs) 0;
+}
+
+.authorship-meta {
+  font-size: 0.875rem;
+  color: var(--color-text-muted);
+  margin: 0;
+}
+
+.authorship-meta + .authorship-meta {
+  margin-top: 0.2rem;
+}
+
+.authorship-links {
+  flex-shrink: 0;
+  display: flex;
+  gap: var(--space-md);
+  flex-wrap: wrap;
+}
+
+
+/* ----------------------------------------------------------------
+   BOTÓN VOLVER ARRIBA
+---------------------------------------------------------------- */
+#back-to-top {
+  position: fixed;
+  bottom: 2rem;
+  right: 2rem;
+  z-index: 200;
+  width: 2.75rem;
+  height: 2.75rem;
+  border-radius: 50%;
+  background-color: var(--color-primary);
+  color: #fff;
+  border: none;
+  font-size: 1.3rem;
+  cursor: pointer;
+  box-shadow: var(--shadow-md);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.2s ease, background-color var(--transition), transform var(--transition);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
+}
+
+#back-to-top.visible {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+#back-to-top:hover {
+  background-color: var(--color-primary-dark);
+  transform: translateY(-3px);
+}
+
+
 /* ================================================================
    RESPONSIVE — MEDIA QUERIES
 ================================================================ */
@@ -1100,6 +1249,12 @@ code {
     grid-template-columns: 1fr;
   }
 
+  /* Autoría en columna */
+  .authorship-card {
+    flex-direction: column;
+    padding: var(--space-lg);
+  }
+
   /* Footer en columna */
   .footer-inner {
     flex-direction: column;
@@ -1153,5 +1308,13 @@ code {
 
   .sol-node {
     padding: var(--space-lg) var(--space-md);
+  }
+
+  #back-to-top {
+    bottom: 1rem;
+    right: 1rem;
+    width: 2.25rem;
+    height: 2.25rem;
+    font-size: 1.1rem;
   }
 }

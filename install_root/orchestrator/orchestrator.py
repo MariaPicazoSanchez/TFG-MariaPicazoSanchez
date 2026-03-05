@@ -46,6 +46,15 @@ flask_proc:     subprocess.Popen | None = None
 # Evento que señaliza al bucle principal que debe terminar
 _shutdown_event: asyncio.Event | None = None
 
+# Tarea de shutdown pendiente (se cancela si hay reconexión)
+_shutdown_task: asyncio.Task | None = None
+
+# Número de conexiones WebSocket activas
+_active_connections: int = 0
+
+# Segundos de gracia tras la última desconexión antes de matar procesos
+_SHUTDOWN_GRACE_SECONDS = 5
+
 
 def _kill_proc(proc: subprocess.Popen | None) -> None:
     """Mata un proceso hijo y todos sus descendientes usando psutil."""
@@ -66,28 +75,46 @@ def _kill_proc(proc: subprocess.Popen | None) -> None:
         pass
 
 
+async def _delayed_shutdown() -> None:
+    """Espera el periodo de gracia y luego apaga los procesos."""
+    await asyncio.sleep(_SHUTDOWN_GRACE_SECONDS)
+    logger.info("Periodo de gracia expirado. Cerrando procesos hijos…")
+    _kill_proc(streamlit_proc)
+    _kill_proc(flask_proc)
+    logger.info("Procesos terminados.")
+    if _shutdown_event is not None:
+        _shutdown_event.set()
+
+
 async def handler(websocket) -> None:
     """
     Manejador WebSocket.
 
-    Se ejecuta cuando el navegador se conecta. Bloquea en
-    ``websocket.wait_closed()`` y cuando el cliente cierra la conexión
-    (cierre de pestaña o de ventana), termina los procesos hijo y señaliza
-    al bucle principal que debe terminar.
+    Se ejecuta cuando el navegador se conecta. Al desconectarse, espera
+    _SHUTDOWN_GRACE_SECONDS antes de matar procesos, por si es un simple
+    recargo de página (en ese caso llega una nueva conexión que cancela
+    el shutdown pendiente).
     """
+    global _active_connections, _shutdown_task
+
     remote = getattr(websocket, "remote_address", "desconocido")
-    logger.info("Cliente WebSocket conectado desde %s", remote)
+    _active_connections += 1
+    logger.info("Cliente WebSocket conectado desde %s (activas: %d)", remote, _active_connections)
+
+    # Si había un shutdown pendiente por recarga, cancelarlo
+    if _shutdown_task is not None and not _shutdown_task.done():
+        _shutdown_task.cancel()
+        logger.info("Shutdown cancelado por nueva conexión.")
 
     await websocket.wait_closed()
 
-    logger.info("Cliente desconectado. Cerrando procesos hijos…")
-    _kill_proc(streamlit_proc)
-    _kill_proc(flask_proc)
-    logger.info("Procesos terminados.")
+    _active_connections -= 1
+    logger.info("Cliente desconectado (activas: %d). Esperando %ds antes de cerrar…",
+                _active_connections, _SHUTDOWN_GRACE_SECONDS)
 
-    # Señalizar al bucle principal que puede salir limpiamente.
-    if _shutdown_event is not None:
-        _shutdown_event.set()
+    # Solo programar shutdown si no quedan conexiones activas
+    if _active_connections == 0:
+        _shutdown_task = asyncio.create_task(_delayed_shutdown())
 
 
 async def main() -> None:

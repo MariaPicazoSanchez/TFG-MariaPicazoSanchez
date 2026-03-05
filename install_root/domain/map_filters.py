@@ -18,7 +18,7 @@ def filter_button(label: str, program_key: str, key: str, container: st.delta_ge
     btn_label = label if not is_active else f"✅ {label}"
 
     with container:
-        if st.button(btn_label, width='stretch', key=key):
+        if st.button(btn_label, use_container_width=True, key=key):
             # toggle
             st.session_state["selected_programs"][program_key] = not is_active
             st.rerun()
@@ -126,7 +126,7 @@ def render_filters_map(unique_sheets: list[str]) -> str:
         is_active_in = st.session_state["selected_programs"][PROGRAM_ERASMUS_IN]
         if st.button(
             "IN",
-            width='stretch',
+            use_container_width=True,
             key="btn_erasmus_in",
             type="primary" if is_active_in else "secondary",   # color sólo si activo
         ):
@@ -138,7 +138,7 @@ def render_filters_map(unique_sheets: list[str]) -> str:
         is_active_out = st.session_state["selected_programs"][PROGRAM_ERASMUS_OUT]
         if st.button(
             "OUT",
-            width='stretch',
+            use_container_width=True,
             key="btn_erasmus_out",
             type="primary" if is_active_out else "secondary",
         ):
@@ -156,7 +156,7 @@ def render_filters_map(unique_sheets: list[str]) -> str:
     with c_la_btn:
         if st.button(
             "OUT sin LA",
-            width='stretch',
+            use_container_width=True,
             key="btn_erasmus_out_no_la",
             type="primary" if is_only_no_la else "secondary",
         ):
@@ -172,7 +172,7 @@ def render_filters_map(unique_sheets: list[str]) -> str:
         is_active_sicue = st.session_state["selected_programs"][PROGRAM_SICUE_OUT]
         if st.button(
             "OUT",
-            width='stretch',
+            use_container_width=True,
             key="btn_sicue_out",
             type="primary" if is_active_sicue else "secondary",
         ):

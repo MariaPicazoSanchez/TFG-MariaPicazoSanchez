@@ -6,6 +6,12 @@
   <meta name="description" content="Movilidad ESII — Herramienta Python para la gestión y visualización de movilidad académica en la ESII." />
   <title>Movilidad ESII · Documentación del Proyecto</title>
   <link rel="stylesheet" href="styles.css" />
+  <!-- Open Graph / Social -->
+  <meta property="og:type"        content="website" />
+  <meta property="og:title"       content="Movilidad ESII · Documentación del Proyecto" />
+  <meta property="og:description" content="Aplicación de escritorio Python para la gestión centralizada y visualización geográfica de la movilidad académica en la ESIIAB." />
+  <meta property="og:url"         content="https://mariapicazo.github.io/TFG-MariaPicazoSanchez/" />
+  <meta property="og:image"       content="https://mariapicazo.github.io/TFG-MariaPicazoSanchez/figs/mapa.gif" />
 </head>
 <body>
 
@@ -16,10 +22,14 @@
     <nav class="nav-bar container">
       <span class="nav-logo">Movilidad ESII</span>
       <ul class="nav-links">
-        <li><a href="#problema">El Problema</a></li>
-        <li><a href="#solucion">La Solución</a></li>
+        <li><a href="#stack">Stack</a></li>
+        <li><a href="#problema">Problema</a></li>
+        <li><a href="#solucion">Solución</a></li>
+        <li><a href="#demostracion">Demo</a></li>
         <li><a href="#arquitectura">Arquitectura</a></li>
         <li><a href="#funcionalidades">Funcionalidades</a></li>
+        <li><a href="#decisiones">Decisiones</a></li>
+        <li><a href="#retos">Retos</a></li>
         <li><a href="#instalacion">Instalación</a></li>
       </ul>
     </nav>
@@ -43,17 +53,7 @@
           de la movilidad académica en la Escuela Superior de Ingeniería Informática en el campus de Albacete (ESIIAB).
         </p>
 
-        <!-- Badges de tecnologías -->
-        <div class="tech-badges" aria-label="Tecnologías utilizadas">
-          <span class="badge">Python 3.12</span>
-          <span class="badge">Streamlit</span>
-          <span class="badge">Flask</span>
-          <span class="badge">Folium</span>
-          <span class="badge">OpenPyXL</span>
-          <span class="badge">pandas</span>
-          <span class="badge">xlrd</span>
-          <span class="badge">PyInstaller</span>
-        </div>
+        <p class="hero-tagline">Instalador Windows autocontenido &middot; sin conexión a internet &middot; código abierto</p>
 
         <!-- CTA -->
         <div class="hero-actions">
@@ -64,6 +64,60 @@
             Ver repositorio en GitHub
           </a>
           <a href="#funcionalidades" class="btn btn-outline">Explorar funcionalidades</a>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================================================
+         STACK TECNOLÓGICO
+    ============================================================ -->
+    <section class="section" id="stack">
+      <div class="container">
+
+        <div class="section-header">
+          <span class="section-tag">Tecnologías</span>
+          <h2 class="section-title">Stack Tecnológico</h2>
+        </div>
+
+        <div class="stack-grid">
+
+          <div class="stack-item">
+            <div class="stack-category">Frontend</div>
+            <div class="stack-tech">Streamlit</div>
+            <p class="stack-desc">Interfaz web reactiva con mínimo código frontend, ideal para aplicaciones de datos.</p>
+          </div>
+
+          <div class="stack-item">
+            <div class="stack-category">Backend</div>
+            <div class="stack-tech">Flask</div>
+            <p class="stack-desc">API REST ligera que desacopla la lógica de negocio de la capa de presentación.</p>
+          </div>
+
+          <div class="stack-item">
+            <div class="stack-category">Procesamiento</div>
+            <div class="stack-tech">pandas</div>
+            <p class="stack-desc">Filtrado, agregación y transformación de datos en memoria sobre DataFrames.</p>
+          </div>
+
+          <div class="stack-item">
+            <div class="stack-category">Visualización</div>
+            <div class="stack-tech">Folium · Leaflet</div>
+            <p class="stack-desc">Mapas interactivos HTML autocontenidos sin dependencia de servicios externos.</p>
+          </div>
+
+          <div class="stack-item">
+            <div class="stack-category">Persistencia</div>
+            <div class="stack-tech">Excel · xlrd · openpyxl</div>
+            <p class="stack-desc">Lectura y escritura directa de los ficheros Excel institucionales ya existentes.</p>
+          </div>
+
+          <div class="stack-item">
+            <div class="stack-category">Empaquetado</div>
+            <div class="stack-tech">PyInstaller · Inno Setup</div>
+            <p class="stack-desc">Distribución como instalador Windows sin requerir Python en el equipo de destino.</p>
+          </div>
+
         </div>
 
       </div>
@@ -83,8 +137,8 @@
         <div class="problem-grid">
           <div class="problem-text">
             <p>
-              La gestión de la movilidad académica —programas Erasmus, convenios bilaterales e intercambios
-              nacionales— implica el manejo de <strong>grandes volúmenes de datos heterogéneos</strong>:
+              La gestión de la movilidad académica -programas Erasmus, convenios bilaterales e intercambios
+              nacionales- implica el manejo de <strong>grandes volúmenes de datos heterogéneos</strong>:
               universidades de destino, asignaturas reconocidas, estudiantes participantes, cursos académicos y
               países involucrados.
             </p>
@@ -127,7 +181,7 @@
               <span class="pain-icon" aria-hidden="true">⚠</span>
               <div>
                 <strong>Sin estadísticas integradas</strong>
-                <p>Obtener métricas agregadas exigía elaborar cálculos ad hoc fuera del sistema.</p>
+                <p>Obtener métricas agregadas exigía realizar cálculos manuales puntuales fuera del sistema.</p>
               </div>
             </li>
           </ul>
@@ -184,9 +238,63 @@
     </section>
 
     <!-- ============================================================
+         DEMOSTRACIÓN
+    ============================================================ -->
+    <section class="section section-alt" id="demostracion">
+      <div class="container">
+
+        <div class="section-header">
+          <span class="section-tag">Capturas de pantalla</span>
+          <h2 class="section-title">Demostración</h2>
+        </div>
+
+        <p class="section-intro">
+          A continuación se muestran las principales pantallas de la aplicación.
+        </p>
+
+        <div class="screenshots-grid">
+
+          <figure class="screenshot-item">
+            <img src="figs/mapa.gif"
+                 alt="Vista principal del mapa interactivo de destinos"
+                 class="screenshot-img"
+                 loading="lazy" />
+            <figcaption class="screenshot-caption">Mapa interactivo de destinos</figcaption>
+          </figure>
+
+          <figure class="screenshot-item">
+            <img src="figs/filtros.gif"
+                 alt="Panel de búsqueda y filtros del mapa"
+                 class="screenshot-img"
+                 loading="lazy" />
+            <figcaption class="screenshot-caption">Búsqueda y filtrado de datos</figcaption>
+          </figure>
+
+          <figure class="screenshot-item">
+            <img src="figs/stats.gif"
+                 alt="Módulo de estadísticas con gráficos"
+                 class="screenshot-img"
+                 loading="lazy" />
+            <figcaption class="screenshot-caption">Panel de estadísticas</figcaption>
+          </figure>
+
+          <figure class="screenshot-item">
+            <img src="figs/export_excel.gif"
+                 alt="Exportación de estadísticas a Excel"
+                 class="screenshot-img"
+                 loading="lazy" />
+            <figcaption class="screenshot-caption">Exportación a Excel</figcaption>
+          </figure>
+
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================================================
          ARQUITECTURA DEL SISTEMA
     ============================================================ -->
-    <section class="section section-alt" id="arquitectura">
+    <section class="section" id="arquitectura">
       <div class="container">
 
         <div class="section-header">
@@ -281,7 +389,7 @@
     <!-- ============================================================
          FUNCIONALIDADES PRINCIPALES
     ============================================================ -->
-    <section class="section" id="funcionalidades">
+    <section class="section section-alt" id="funcionalidades">
       <div class="container">
 
         <div class="section-header">
@@ -302,7 +410,7 @@
             <ul class="feature-list">
               <li>Búsqueda por nombre y código</li>
               <li>Filtros por ámbito y titulación</li>
-              <li>Sidebar configurable</li>
+              <li>Panel lateral de filtros combinables</li>
             </ul>
           </article>
 
@@ -326,12 +434,12 @@
             <h3 class="feature-title">Estadísticas Globales</h3>
             <p class="feature-desc">
               Módulo de análisis con gráficos nativos de Streamlit sobre DataFrames de pandas.
-              Distribución por países, evolución temporal, comparativa entre titulaciones
+              Distribución por países, progresión por curso académico, comparativa entre titulaciones
               y desglose por tipo de programa de movilidad.
             </p>
             <ul class="feature-list">
               <li>Gráficos de barras y líneas</li>
-              <li>Evolución por curso académico</li>
+              <li>Progresión anual de intercambios</li>
               <li>Comparativa por titulación</li>
             </ul>
           </article>
@@ -350,60 +458,6 @@
               <li>Actualización de ficheros existentes</li>
             </ul>
           </article>
-
-        </div>
-
-      </div>
-    </section>
-
-    <!-- ============================================================
-         DEMOSTRACIÓN
-    ============================================================ -->
-    <section class="section section-alt" id="demostracion">
-      <div class="container">
-
-        <div class="section-header">
-          <span class="section-tag">Capturas de pantalla</span>
-          <h2 class="section-title">Demostración</h2>
-        </div>
-
-        <p class="section-intro">
-          A continuación se muestran las principales pantallas de la aplicación.
-        </p>
-
-        <div class="screenshots-grid">
-
-          <figure class="screenshot-item">
-            <img src="figs/mapa.gif"
-                 alt="Vista principal del mapa interactivo de destinos"
-                 class="screenshot-img"
-                 loading="lazy" />
-            <figcaption class="screenshot-caption">Mapa interactivo de destinos</figcaption>
-          </figure>
-
-          <figure class="screenshot-item">
-            <img src="figs/filtros.gif"
-                 alt="Panel de búsqueda y filtros del mapa"
-                 class="screenshot-img"
-                 loading="lazy" />
-            <figcaption class="screenshot-caption">Búsqueda y filtrado de datos</figcaption>
-          </figure>
-
-          <figure class="screenshot-item">
-            <img src="figs/stats.gif"
-                 alt="Módulo de estadísticas con gráficos"
-                 class="screenshot-img"
-                 loading="lazy" />
-            <figcaption class="screenshot-caption">Panel de estadísticas</figcaption>
-          </figure>
-
-          <figure class="screenshot-item">
-            <img src="figs/export_excel.gif"
-                 alt="Exportación de estadísticas a Excel"
-                 class="screenshot-img"
-                 loading="lazy" />
-            <figcaption class="screenshot-caption">Exportación a Excel</figcaption>
-          </figure>
 
         </div>
 
@@ -442,8 +496,8 @@
             <h3 class="decision-title">¿Por qué visualización geográfica?</h3>
             <p>
               Los datos de movilidad tienen una dimensión espacial inherente: cada intercambio implica
-              un origen y un destino geolocalizable. Representar esto en un mapa transforma datos
-              abstractos en información accionable, permitiendo identificar de forma inmediata
+              un origen y un destino geolocalizable. Representar esto en un mapa convierte datos
+              abstractos en conocimiento visual inmediato, facilitando la identificación de
               patrones de concentración en determinados países o ciudades.
             </p>
             <p>
@@ -466,7 +520,7 @@
             <h3 class="decision-title">¿Por qué Excel como persistencia?</h3>
             <p>
               Los datos de movilidad ya existían en formato Excel en la ESII. Mantener Excel como
-              fuente de verdad elimina la fricción de migración: los coordinadores pueden seguir
+              registro oficial de datos elimina la fricción de migración: los coordinadores pueden seguir
               actualizando los ficheros con las herramientas que conocen, y la aplicación los
               lee directamente con <strong>xlrd</strong> y <strong>openpyxl</strong>.
             </p>
@@ -514,10 +568,13 @@
             <div class="challenge-content">
               <h3>Geolocalización sin API externa</h3>
               <p>
-                Para no depender de servicios de geocodificación externos (que requerirían conexión
-                a internet y posibles costes), se construyó un catálogo interno de ciudades y
-                coordenadas para los destinos más frecuentes, complementado con una capa de resolución
-                por país cuando la ciudad no se encuentra en el catálogo.
+                Para no depender de servicios de geocodificación externos, las coordenadas de cada
+                universidad de destino se mantienen en una hoja específica del propio fichero Excel
+                institucional (<em>Coordenadas</em>), con las columnas país, universidad y coordenadas.
+                Al cargar los datos, la aplicación cruza el nombre de la universidad de cada alumno con
+                esa hoja y asigna la coordenada correspondiente sin necesidad de conexión a internet.
+                Para el alta manual de nuevos registros se integra Nominatim (OpenStreetMap) como
+                geocodificador opcional, con degradación elegante si no hay red disponible.
               </p>
             </div>
           </div>
@@ -607,7 +664,7 @@ cd TFG-MariaPicazoSanchez</code></pre>
                 <pre class="code-block"><code>pip install -r install_root/requirements.txt</code></pre>
               </li>
               <li>Lanza la aplicación:
-                <pre class="code-block"><code>py launcher_system.py</code></pre>
+                <pre class="code-block"><code>py install_root/orchestrator/orchestrator.py</code></pre>
               </li>
             </ol>
           </div>
@@ -648,6 +705,36 @@ cd TFG-MariaPicazoSanchez</code></pre>
               </tr>
             </tbody>
           </table>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================================================
+         AUTORA DEL PROYECTO
+    ============================================================ -->
+    <section class="section section-alt" id="autoria">
+      <div class="container">
+
+        <div class="section-header">
+          <span class="section-tag">Autora</span>
+          <h2 class="section-title">María Picazo Sánchez</h2>
+        </div>
+
+        <div class="authorship-card">
+          <div class="authorship-main">
+            <p class="authorship-degree">Grado en Ingeniería Informática</p>
+            <p class="authorship-meta">Escuela Superior de Ingeniería Informática en el campus de Albacete (ESIIAB)</p>
+            <p class="authorship-meta">Universidad de Castilla-La Mancha &middot; Curso 2025–2026</p>
+          </div>
+          <div class="authorship-links">
+            <a href="https://github.com/mariapicazo/TFG-MariaPicazoSanchez"
+               class="btn btn-primary"
+               target="_blank"
+               rel="noopener noreferrer">
+              Ver en GitHub
+            </a>
+          </div>
         </div>
 
       </div>
@@ -787,7 +874,43 @@ cd TFG-MariaPicazoSanchez</code></pre>
         img.addEventListener('click', handleClick);
       });
     });
+
+    // ---- Scroll-spy ----
+    (function () {
+      var navLinks = document.querySelectorAll('.nav-links a[href^="#"]');
+      var sections = Array.from(navLinks).map(function (a) {
+        var id = a.getAttribute('href').slice(1);
+        return document.getElementById(id);
+      }).filter(Boolean);
+
+      var observer = new IntersectionObserver(function (entries) {
+        entries.forEach(function (entry) {
+          if (entry.isIntersecting) {
+            navLinks.forEach(function (a) { a.classList.remove('active'); });
+            var link = document.querySelector('.nav-links a[href="#' + entry.target.id + '"]');
+            if (link) link.classList.add('active');
+          }
+        });
+      }, { rootMargin: '-25% 0px -65% 0px', threshold: 0 });
+
+      sections.forEach(function (s) { observer.observe(s); });
+    }());
+
+    // ---- Botón volver arriba ----
+    (function () {
+      var btn = document.getElementById('back-to-top');
+      window.addEventListener('scroll', function () {
+        btn.classList.toggle('visible', window.scrollY > 500);
+      }, { passive: true });
+      btn.addEventListener('click', function () {
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+      });
+    }());
   </script>
+
+
+  <!-- Botón volver arriba -->
+  <button id="back-to-top" aria-label="Volver al inicio" title="Volver al inicio">&#8679;</button>
 
 </body>
 </html>
