@@ -225,6 +225,15 @@ def _inject_orchestrator_ws() -> None:
 
     if control_port and shutdown_token:
         # ── Modo launcher_system: HTTP control server ────────────────────
+        # Generar tabId UNA SOLA VEZ en Python y embeberlo como literal JS.
+        # Esto lo hace estable ante re-renders aunque sessionStorage no esté
+        # disponible (iframes con sandbox sin allow-same-origin), evitando
+        # que se acumulen múltiples tabIds en open_tabs y bloqueen el shutdown.
+        if "movilidad_tab_id" not in st.session_state:
+            import secrets as _sec
+            st.session_state["movilidad_tab_id"] = _sec.token_urlsafe(12)
+        tab_id = st.session_state["movilidad_tab_id"]
+
         base_url = f"http://127.0.0.1:{control_port}"
         components.html(
             f"""
@@ -240,49 +249,60 @@ def _inject_orchestrator_ws() -> None:
 
               var base  = "{base_url}";
               var token = "{shutdown_token}";
+              // tabId estable: generado en Python (st.session_state), NO en JS.
+              // Le evita depender de sessionStorage (puede no estar disponible
+              // en iframes sandboxed) y garantiza un único ID consistente en
+              // todos los re-renders de la misma sesión Streamlit.
+              var tabId = "{tab_id}";
 
-              // Obtener (o generar) un ID único para esta pestaña.
-              var tabId;
-              try {{
-                tabId = sessionStorage.getItem("movilidad_tab_id");
-                if (!tabId) {{
-                  tabId = Math.random().toString(36).slice(2) + Date.now().toString(36);
-                  sessionStorage.setItem("movilidad_tab_id", tabId);
-                }}
-              }} catch (e) {{
-                tabId = Math.random().toString(36).slice(2);
+              var _openUrl  = base + "/open?token="  + token + "&id=" + tabId;
+              var _closeUrl = base + "/close?token=" + token + "&id=" + tabId;
+
+              // Usar host.fetch (contexto del documento superior) para que la
+              // llamada no dependa del iframe efímero que Streamlit destruye y
+              // recrea en cada re-render.
+              function _fetch(url, opts) {{
+                try {{
+                  (host.fetch || window.fetch)(url, opts).catch(function() {{}});
+                }} catch(e) {{}}
               }}
 
-              function sendOpen() {{
-                fetch(base + "/open?token=" + token + "&id=" + tabId, {{method: "POST", mode: "no-cors"}})
-                  .catch(function() {{}});
-              }}
+              // /open en CADA render: cancela pending_close falsos provocados
+              // por el destroy/recreate del iframe en re-renders.
+              _fetch(_openUrl, {{method: "POST", mode: "no-cors"}});
 
-              // Enviar /open en CADA render de Streamlit (cancela pending_close falsos
-              // provocados por el destroy/recreate del iframe en re-renders).
-              sendOpen();
-
-              // Heartbeat cada 5 s: el servidor mueve al tab a pending_close si no
-              // recibe /open en HEARTBEAT_TIMEOUT (15 s), aunque pagehide no haya
-              // llegado (iframes sandboxed no garantizan los eventos de cierre).
+              // Heartbeat cada 5 s (anchored en host): si el servidor no recibe
+              // /open en HEARTBEAT_TIMEOUT (15 s), mueve el tab a pending_close.
               if (!host.__movilidad_heartbeat) {{
-                host.__movilidad_heartbeat = host.setInterval(sendOpen, 5000);
+                host.__movilidad_heartbeat = host.setInterval(function() {{
+                  _fetch(_openUrl, {{method: "POST", mode: "no-cors"}});
+                }}, 5000);
               }}
 
-              // Cierre rápido en window.top como best-effort (acelera shutdown
-              // si el evento llega; el heartbeat-timeout cubre el caso en que no).
+              // Listeners de cierre (una sola vez en host): aceleran el shutdown
+              // si el evento llega; el heartbeat-timeout cubre el caso en que no.
               if (!host.__movilidad_ctrl_close) {{
                 host.__movilidad_ctrl_close = true;
 
-                function notifyClose() {{
-                  host.clearInterval(host.__movilidad_heartbeat);
-                  host.__movilidad_heartbeat = null;
-                  navigator.sendBeacon(base + "/close?token=" + token + "&id=" + tabId);
-                }}
-                try {{ host.addEventListener("pagehide",     notifyClose); }} catch(e) {{}}
-                try {{ host.addEventListener("beforeunload", notifyClose); }} catch(e) {{}}
+                host.__movilidad_notify_close = function() {{
+                  if (host.__movilidad_heartbeat) {{
+                    host.clearInterval(host.__movilidad_heartbeat);
+                    host.__movilidad_heartbeat = null;
+                  }}
+                  // host.navigator: usar el navigator del documento superior para
+                  // evitar referencias a un iframe ya destruido durante el unload.
+                  var sent = false;
+                  try {{ sent = (host.navigator || navigator).sendBeacon(_closeUrl); }} catch(e) {{}}
+                  if (!sent) {{
+                    // Fallback: fetch keepalive (equivalente a sendBeacon)
+                    _fetch(_closeUrl, {{method: "POST", keepalive: true, mode: "no-cors"}});
+                  }}
+                }};
 
-                console.log("[MovilidadESII] Control HTTP registrado (tab=" + tabId + ").");
+                try {{ host.addEventListener("pagehide",     host.__movilidad_notify_close); }} catch(e) {{}}
+                try {{ host.addEventListener("beforeunload", host.__movilidad_notify_close); }} catch(e) {{}}
+
+                console.log("[MovilidadESII] Control HTTP listo (tab=" + tabId + ").");
               }}
             }})();
             </script>
