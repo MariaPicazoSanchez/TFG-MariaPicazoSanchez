@@ -257,7 +257,8 @@ def _inject_orchestrator_ws() -> None:
               }}
 
               // Notificar apertura al servidor de control.
-              fetch(base + "/open?token=" + token + "&id=" + tabId, {{method: "POST"}})
+              // mode:'no-cors' evita bloqueos CORS desde el iframe de Streamlit.
+              fetch(base + "/open?token=" + token + "&id=" + tabId, {{method: "POST", mode: "no-cors"}})
                 .catch(function() {{}});
 
               // Notificar cierre usando sendBeacon (garantiza entrega al salir).
