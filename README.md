@@ -8,7 +8,7 @@
 [![Flask 3.1](https://img.shields.io/badge/Flask-3.1-000000?logo=flask&logoColor=white)](https://flask.palletsprojects.com/)
 [![Platform Windows](https://img.shields.io/badge/Platform-Windows-0078D6?logo=windows&logoColor=white)](https://www.microsoft.com/windows)
 
-Aplicación de escritorio Windows que expone una interfaz web local (Streamlit) respaldada por un microservicio REST (Flask). Toda la persistencia se realiza directamente sobre los ficheros Excel existentes de la institución, sin necesidad de base de datos adicional.
+Windows desktop application that exposes a local web interface (Streamlit) backed by a REST microservice (Flask). All persistence is handled directly on the institution's existing Excel files — no additional database required.
 
 ---
 
@@ -27,20 +27,33 @@ Aplicación de escritorio Windows que expone una interfaz web local (Streamlit) 
 
 ## 1. Process Architecture
 
-`launcher_system.py` starts the orchestrator, which in turn spawns two independent subprocesses and supervises their lifecycle:
+The project has **two independent launchers** that both start Streamlit + Flask, but differ in how they coordinate shutdown:
+
+### `launcher_system.py` — installer mode
 
 ```text
 launcher_system.py
- └── install_root/orchestrator/orchestrator.py
-      ├── subprocess: streamlit run install_root/web_app/my_app.py  → http://127.0.0.1:<port_A>  (random free port)
-      └── subprocess: python   install_root/api/api.py              → http://127.0.0.1:<port_B>  (random free port)
+ ├── thread:     HTTP control server  (dynamic port)  — shutdown via /open /close /shutdown
+ ├── subprocess: streamlit run install_root/web_app/my_app.py  → http://127.0.0.1:<port_A>
+ └── subprocess: python   install_root/api/api.py              → http://127.0.0.1:<port_B>
 ```
 
-Both ports are allocated dynamically at startup via `pick_two_free_ports()` (OS-assigned, `socket.bind("127.0.0.1", 0)`), so they will differ between runs. The API port is passed to both subprocesses via the `API_PORT` environment variable.
+Both application ports are allocated dynamically at startup via `pick_two_free_ports()` (OS-assigned, `socket.bind("127.0.0.1", 0)`), so they will differ between runs. The API port is passed to both subprocesses via the `API_PORT` environment variable.
 
-The orchestrator runs a **WebSocket server on `ws://localhost:8765`**. The Streamlit app connects to it on load; when the browser tab is closed the WebSocket connection drops, the orchestrator kills both child processes and exits cleanly.
+A lightweight HTTP control server runs in a dedicated thread and handles coordinated shutdown when all browser tabs have been closed, via three internal endpoints: `/open`, `/close`, and `/shutdown`.
 
-Both subprocesses read `config.json` at startup to resolve the absolute paths of the Excel data files.
+### `install_root/orchestrator/orchestrator.py` — development mode
+
+```text
+orchestrator.py
+ ├── WebSocket server on ws://localhost:8765  — shutdown when browser tab closes
+ ├── subprocess: streamlit run install_root/web_app/my_app.py  → http://127.0.0.1:8501  (default)
+ └── subprocess: python   install_root/api/api.py              → http://127.0.0.1:5000  (default)
+```
+
+The orchestrator uses the default Streamlit and Flask ports (no dynamic allocation). The Streamlit app connects to the WebSocket server on load; when the browser tab is closed the connection drops, the orchestrator kills both child processes and exits cleanly.
+
+Both launchers read `config.json` at startup to resolve the absolute paths of the Excel data files.
 
 ---
 
@@ -48,7 +61,7 @@ Both subprocesses read `config.json` at startup to resolve the absolute paths of
 
 ```text
 TFG-MariaPicazoSanchez/
-├── launcher_system.py           # Main entry point — starts the orchestrator (demo build)
+├── launcher_system.py           # Launcher with dynamic ports (demo build)
 ├── launcher_system_sindata.py   # Production variant (no demo data)
 ├── config.json                  # Excel file paths per mobility programme
 ├── config.demo.json             # Example config pointing to data_demo/
@@ -126,7 +139,7 @@ Path resolution is handled by `utils/app_config.py`.
 |:---|:---|:---|
 | `APP_CONFIG_PATH` | `config.json` | Override the config file location |
 | `API_HOST` | `127.0.0.1` | Flask API bind address |
-| `API_PORT` | *(dynamic)* | Flask API port — set automatically by the launcher; override only in manual dev mode |
+| `API_PORT` | *(dynamic)* | Flask API port — set automatically by `launcher_system.py`; in orchestrator/manual mode defaults to `5000` |
 
 ---
 
@@ -160,6 +173,11 @@ pip install -r install_root/requirements.txt
 | `xlrd` | 2.0.2 | Legacy `.xls` read |
 | `altair` | 5.5.0 | Declarative chart generation |
 | `babel` | 2.16.0 | Locale-aware country/city name formatting |
+| `pycountry` | 24.6.1 | ISO country and language code lookups |
+| `geopy` | 2.4.1 | Geocoding — city/country coordinates |
+| `jinja2` | 3.1.6 | HTML templating for map popups |
+| `jsonschema` | 4.26.0 | JSON Schema validation |
+
 
 ### Offline wheelhouse
 
@@ -173,17 +191,13 @@ py -3.12 -m pip download -r install_root/requirements.txt -d wheelhouse --only-b
 
 ## 5. Running the Application
 
-### Normal mode
+### Recommended mode — Orchestrator
 
 ```bash
-py launcher_system.py
+py install_root/orchestrator/orchestrator.py
 ```
 
-Starts the orchestrator, which in turn spawns Streamlit, Flask, and a WebSocket server for coordinated shutdown.
-
-### Orchestrator only (development)
-
-Run the orchestrator directly from `install_root/` without the launcher wrapper:
+Or from inside `install_root/`:
 
 ```bash
 cd install_root
@@ -191,16 +205,24 @@ set APP_CONFIG_PATH=..\config.json
 python orchestrator/orchestrator.py
 ```
 
-Streamlit and Flask are started automatically. Close the browser tab to trigger a clean shutdown.
+Starts Streamlit (`http://127.0.0.1:8501`) and Flask (`http://127.0.0.1:5000`) automatically. Closing the browser tab shuts down both processes cleanly via the WebSocket signal.
+
+### Legacy mode — `launcher_system.py`
+
+```bash
+py launcher_system.py
+```
+
+Starts Streamlit and Flask with dynamically assigned ports and coordinates shutdown via an internal HTTP control server. Used mainly for the desktop installer build.
 
 ### Manual mode (individual processes)
 
-Useful when debugging a single component in isolation:
+Useful for debugging a single component in isolation:
 
 ```bash
 # Terminal 1 — Flask API
 cd install_root
-set APP_CONFIG_PATH=..\config.json
+set APP_CONFIG_PATH=..\.config.json
 python api/api.py
 # → http://127.0.0.1:5000
 
@@ -210,7 +232,7 @@ python -m streamlit run web_app/my_app.py
 # → http://localhost:8501
 ```
 
-> **Note:** In manual mode the WebSocket server is not running, so closing the browser tab will not shut down the processes. Stop them manually with `Ctrl+C`.
+> **Note:** In manual mode the WebSocket server is not active, so closing the browser will not stop the processes. Stop them manually with `Ctrl+C`.
 
 ---
 
@@ -218,7 +240,7 @@ python -m streamlit run web_app/my_app.py
 
 **Base URL:** `http://127.0.0.1:<API_PORT>`
 
-The port is allocated dynamically by the orchestrator. In manual dev mode it defaults to `5000` unless overridden by `API_PORT`.
+The port is dynamically allocated by `launcher_system.py`. In orchestrator or manual dev mode it defaults to `5000` unless overridden by `API_PORT`.
 
 Write endpoints require the `X-API-TOKEN` header (see [§7 Security Model](#7-security-model)). The token is also accepted as a `token` query parameter for form-based submissions.
 
