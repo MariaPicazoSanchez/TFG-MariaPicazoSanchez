@@ -230,16 +230,13 @@ def _inject_orchestrator_ws() -> None:
             f"""
             <script>
             (function() {{
+              // Intentar acceder a window.top para anclar estado entre re-renders.
               var host;
               try {{
                 host = (window.top && window.top.setInterval) ? window.top : window;
               }} catch (e) {{
                 host = window;
               }}
-
-              // Inicializar solo una vez por sesión de navegador.
-              if (host.__movilidad_ctrl_init) return;
-              host.__movilidad_ctrl_init = true;
 
               var base  = "{base_url}";
               var token = "{shutdown_token}";
@@ -256,19 +253,37 @@ def _inject_orchestrator_ws() -> None:
                 tabId = Math.random().toString(36).slice(2);
               }}
 
-              // Notificar apertura al servidor de control.
-              // mode:'no-cors' evita bloqueos CORS desde el iframe de Streamlit.
-              fetch(base + "/open?token=" + token + "&id=" + tabId, {{method: "POST", mode: "no-cors"}})
-                .catch(function() {{}});
-
-              // Notificar cierre usando sendBeacon (garantiza entrega al salir).
-              function notifyClose() {{
-                navigator.sendBeacon(base + "/close?token=" + token + "&id=" + tabId);
+              function sendOpen() {{
+                fetch(base + "/open?token=" + token + "&id=" + tabId, {{method: "POST", mode: "no-cors"}})
+                  .catch(function() {{}});
               }}
-              window.addEventListener("pagehide",     notifyClose);
-              window.addEventListener("beforeunload", notifyClose);
 
-              console.log("[MovilidadESII] Control HTTP registrado (tab=" + tabId + ").");
+              // Enviar /open en CADA render de Streamlit (cancela pending_close falsos
+              // provocados por el destroy/recreate del iframe en re-renders).
+              sendOpen();
+
+              // Heartbeat cada 5 s: el servidor mueve al tab a pending_close si no
+              // recibe /open en HEARTBEAT_TIMEOUT (15 s), aunque pagehide no haya
+              // llegado (iframes sandboxed no garantizan los eventos de cierre).
+              if (!host.__movilidad_heartbeat) {{
+                host.__movilidad_heartbeat = host.setInterval(sendOpen, 5000);
+              }}
+
+              // Cierre rápido en window.top como best-effort (acelera shutdown
+              // si el evento llega; el heartbeat-timeout cubre el caso en que no).
+              if (!host.__movilidad_ctrl_close) {{
+                host.__movilidad_ctrl_close = true;
+
+                function notifyClose() {{
+                  host.clearInterval(host.__movilidad_heartbeat);
+                  host.__movilidad_heartbeat = null;
+                  navigator.sendBeacon(base + "/close?token=" + token + "&id=" + tabId);
+                }}
+                try {{ host.addEventListener("pagehide",     notifyClose); }} catch(e) {{}}
+                try {{ host.addEventListener("beforeunload", notifyClose); }} catch(e) {{}}
+
+                console.log("[MovilidadESII] Control HTTP registrado (tab=" + tabId + ").");
+              }}
             }})();
             </script>
             """,

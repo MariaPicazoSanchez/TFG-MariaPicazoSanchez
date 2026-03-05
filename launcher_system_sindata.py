@@ -21,8 +21,12 @@ def start_control_server(port: int, token: str, shutdown_event: threading.Event)
 
     open_tabs: set[str] = set()
     pending_close: dict[str, float] = {}  # tab_id -> timestamp de cierre programado
+    last_heartbeat: dict[str, float] = {}  # tab_id -> timestamp del último /open
     CLOSE_DEBOUNCE = 1.0
     PENDING_CLOSE_GRACE = 5.0
+    # Si un tab no envía /open en HEARTBEAT_TIMEOUT segundos, se considera cerrado.
+    # El JS envía /open cada 5s; 15s = 3 intervalos fallidos antes de declararlo muerto.
+    HEARTBEAT_TIMEOUT = 15.0
     first_open_received = [False]  # guard: no cerrar antes del primer /open
     LOGGER = logging.getLogger("movilidad_launcher")
 
@@ -52,6 +56,7 @@ def start_control_server(port: int, token: str, shutdown_event: threading.Event)
                 tab_id = qs.get("id", [""])[0]
                 if tab_id:
                     open_tabs.add(tab_id)
+                    last_heartbeat[tab_id] = now   # registrar timestamp del heartbeat
                     first_open_received[0] = True
                     for cancel_key in (tab_id, "__shutdown__"):
                         if cancel_key in pending_close:
@@ -106,8 +111,21 @@ def start_control_server(port: int, token: str, shutdown_event: threading.Event)
             for tid in to_remove:
                 if tid in open_tabs:
                     open_tabs.remove(tid)
+                    last_heartbeat.pop(tid, None)
                     LOGGER.info("pending_close ejecutado: %s. Pestañas: %d", tid, len(open_tabs))
                 del pending_close[tid]
+
+            # ── Heartbeat timeout: mover tabs sin pulso a pending_close ───────
+            if first_open_received[0]:
+                for tid in list(open_tabs):
+                    if tid not in pending_close:
+                        age = now - last_heartbeat.get(tid, 0)
+                        if age > HEARTBEAT_TIMEOUT:
+                            pending_close[tid] = now + PENDING_CLOSE_GRACE
+                            LOGGER.info(
+                                "Tab %s sin heartbeat (%.0fs > %.0fs) → pending_close",
+                                tid, age, HEARTBEAT_TIMEOUT,
+                            )
 
             if first_open_received[0] and not open_tabs and not pending_close:
                 LOGGER.info("Todas las pestañas cerradas → shutdown.")
