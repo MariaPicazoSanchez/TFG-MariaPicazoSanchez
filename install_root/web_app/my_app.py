@@ -305,9 +305,15 @@ def _inject_orchestrator_ws() -> None:
                 host = window;
               }
 
-              // Crear el WebSocket solo una vez por sesión de navegador.
-              if (host.__movilidad_ws && host.__movilidad_ws.readyState < 2) {
-                return;  // ya conectado o conectándose
+              // Crear un WS nuevo en cada render salvo que ya haya uno conectándose
+              // (readyState=0, CONNECTING). NO bloquear si está OPEN (1) porque ese
+              // WS pertenece al iframe anterior, que va a ser destruido por Streamlit
+              // al montar este iframe; si no creamos uno nuevo ahora, habrá un instante
+              // en que _active_connections=0 y el orquestador dispararía un shutdown
+              // falso de 5s.  Dos conexiones simultáneas son inofensivas: la vieja
+              // desaparece en cuanto el iframe anterior se destruye.
+              if (host.__movilidad_ws && host.__movilidad_ws.readyState === 0) {
+                return;  // ya conectándose, evitar duplicado innecesario
               }
 
               try {
