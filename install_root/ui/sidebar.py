@@ -238,11 +238,11 @@ def route_editor(config: dict) -> None:
 
 
     col1, col2 = st.sidebar.columns(2)
-    if col1.button("❌", width='stretch'):
+    if col1.button("❌", use_container_width=True):
         st.sidebar.info("No se han guardado cambios.")
         st.session_state["show_routes"] = False
         st.rerun()
-    if col2.button("💾", width='stretch'):
+    if col2.button("💾", use_container_width=True):
         close_routes_editor(new_config)
 
 def _unique_sheets_from_config(cfg: dict) -> list[str]:
@@ -277,12 +277,12 @@ def sidebar_controls() -> tuple[str | None, st.delta_generator.DeltaGenerator | 
     search_slot = None
 
     if st.session_state["view"] == "new_user":
-        if st.sidebar.button("⬅️ Volver al mapa", width='stretch'):
+        if st.sidebar.button("⬅️ Volver al mapa", use_container_width=True):
             st.session_state["view"] = "map"
             st.rerun()
 
     elif st.session_state["view"] == "stats":
-        if st.sidebar.button("⬅️ Volver al mapa", width='stretch'):
+        if st.sidebar.button("⬅️ Volver al mapa", use_container_width=True):
             st.session_state["view"] = "map"
             st.rerun()
         st.sidebar.markdown(
@@ -316,7 +316,7 @@ def sidebar_controls() -> tuple[str | None, st.delta_generator.DeltaGenerator | 
 
         st.sidebar.markdown("---")
         # Botón para crear estudiante (esto no es filtro, lo dejamos aquí)
-        if st.sidebar.button("👤 Crear nuevo estudiante", width='stretch'):
+        if st.sidebar.button("👤 Crear nuevo estudiante", use_container_width=True):
             st.session_state["view"] = "new_user"
             st.rerun()
         st.sidebar.markdown(
@@ -327,7 +327,7 @@ def sidebar_controls() -> tuple[str | None, st.delta_generator.DeltaGenerator | 
         )
                 
         # Botón para estadísticas
-        if st.sidebar.button("📊 Ver estadísticas", width='stretch'):
+        if st.sidebar.button("📊 Ver estadísticas", use_container_width=True):
             st.session_state["view"] = "stats"
             st.rerun()
         st.sidebar.markdown(
@@ -347,7 +347,7 @@ def sidebar_controls() -> tuple[str | None, st.delta_generator.DeltaGenerator | 
         if st.session_state["show_routes"]:
             route_editor(st.session_state["config"])
         else:
-            if st.sidebar.button("✏️ Fuentes de datos", width='stretch'):
+            if st.sidebar.button("✏️ Fuentes de datos", use_container_width=True):
                 open_routes_editor()
             st.sidebar.markdown(
                 "<p style='font-size: 0.9rem; color: #6c757d;'>"

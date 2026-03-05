@@ -202,52 +202,113 @@ def _render_view(dfs, base_map, materias, config):
 
 
 def _inject_orchestrator_ws() -> None:
-    """Inyecta un fragmento de JavaScript que conecta el navegador con el
-    servidor WebSocket del orquestador (ws://localhost:8765).
+    """Inyecta el JS de señal de cierre según el modo de lanzamiento:
 
-    Mientras la pestaña esté abierta, la conexión permanece activa.
-    Al cerrar la pestaña, el navegador cierra el WebSocket y el orquestador
-    detecta el cierre mediante ``websocket.wait_closed()``, terminando los
-    procesos hijo de forma limpia.
+    - **Modo launcher_system** (instalador): si ``CONTROL_PORT`` y
+      ``SHUTDOWN_TOKEN`` están definidos en el entorno, inyecta JS que
+      llama a ``/open`` al cargar la página y a ``/close`` (via
+      ``sendBeacon``) al cerrarla, comunicándose con el servidor HTTP de
+      control que gestiona el shutdown en ``launcher_system.py``.
 
-    Se usa ``components.html`` porque, a diferencia de ``st.markdown``,
-    crea un iframe cuyo documento sí ejecuta etiquetas ``<script>``.
-    La conexión se ancla en ``window.top`` para sobrevivir a los re-renders
-    de Streamlit (que destruyen y recrean el iframe).
+    - **Modo orquestador** (desarrollo): si las variables anteriores no
+      están definidas, inyecta JS que abre una conexión WebSocket a
+      ``ws://localhost:8765`` y la mantiene activa mientras la pestaña
+      esté abierta. Al cerrarla el orquestador detecta el cierre y mata
+      los procesos hijo.
+
+    Se usa ``components.html`` en ambos casos para garantizar la ejecución
+    del script. La inicialización se ancla en ``window.top`` para sobrevivir
+    a los re-renders de Streamlit.
     """
-    components.html(
-        """
-        <script>
-        (function() {
-          // Anclar el socket en window.top para que sobreviva a los re-renders
-          // de Streamlit, que destruyen y recrean este iframe.
-          var host;
-          try {
-            host = (window.top && window.top.setInterval) ? window.top : window;
-          } catch (e) {
-            host = window;
-          }
+    control_port  = os.getenv("CONTROL_PORT", "")
+    shutdown_token = os.getenv("SHUTDOWN_TOKEN", "")
 
-          // Crear el WebSocket solo una vez por sesión de navegador.
-          if (host.__movilidad_ws && host.__movilidad_ws.readyState < 2) {
-            return;  // ya conectado o conectándose
-          }
+    if control_port and shutdown_token:
+        # ── Modo launcher_system: HTTP control server ────────────────────
+        base_url = f"http://127.0.0.1:{control_port}"
+        components.html(
+            f"""
+            <script>
+            (function() {{
+              var host;
+              try {{
+                host = (window.top && window.top.setInterval) ? window.top : window;
+              }} catch (e) {{
+                host = window;
+              }}
 
-          try {
-            var ws = new WebSocket("ws://localhost:8765/");
-            ws.onopen  = function() { console.log("[MovilidadESII] WebSocket conectado al orquestador."); };
-            ws.onclose = function() { console.log("[MovilidadESII] WebSocket cerrado."); };
-            ws.onerror = function(e) { console.warn("[MovilidadESII] WebSocket error:", e); };
-            host.__movilidad_ws = ws;
-          } catch (e) {
-            console.warn("[MovilidadESII] No se pudo abrir WebSocket al orquestador:", e);
-          }
-        })();
-        </script>
-        """,
-        height=0,
-        width=0,
-    )
+              // Inicializar solo una vez por sesión de navegador.
+              if (host.__movilidad_ctrl_init) return;
+              host.__movilidad_ctrl_init = true;
+
+              var base  = "{base_url}";
+              var token = "{shutdown_token}";
+
+              // Obtener (o generar) un ID único para esta pestaña.
+              var tabId;
+              try {{
+                tabId = sessionStorage.getItem("movilidad_tab_id");
+                if (!tabId) {{
+                  tabId = Math.random().toString(36).slice(2) + Date.now().toString(36);
+                  sessionStorage.setItem("movilidad_tab_id", tabId);
+                }}
+              }} catch (e) {{
+                tabId = Math.random().toString(36).slice(2);
+              }}
+
+              // Notificar apertura al servidor de control.
+              fetch(base + "/open?token=" + token + "&id=" + tabId, {{method: "POST"}})
+                .catch(function() {{}});
+
+              // Notificar cierre usando sendBeacon (garantiza entrega al salir).
+              function notifyClose() {{
+                navigator.sendBeacon(base + "/close?token=" + token + "&id=" + tabId);
+              }}
+              window.addEventListener("pagehide",     notifyClose);
+              window.addEventListener("beforeunload", notifyClose);
+
+              console.log("[MovilidadESII] Control HTTP registrado (tab=" + tabId + ").");
+            }})();
+            </script>
+            """,
+            height=0,
+            width=0,
+        )
+    else:
+        # ── Modo orquestador: WebSocket ──────────────────────────────────
+        components.html(
+            """
+            <script>
+            (function() {
+              // Anclar el socket en window.top para que sobreviva a los re-renders
+              // de Streamlit, que destruyen y recrean este iframe.
+              var host;
+              try {
+                host = (window.top && window.top.setInterval) ? window.top : window;
+              } catch (e) {
+                host = window;
+              }
+
+              // Crear el WebSocket solo una vez por sesión de navegador.
+              if (host.__movilidad_ws && host.__movilidad_ws.readyState < 2) {
+                return;  // ya conectado o conectándose
+              }
+
+              try {
+                var ws = new WebSocket("ws://localhost:8765/");
+                ws.onopen  = function() { console.log("[MovilidadESII] WebSocket conectado al orquestador."); };
+                ws.onclose = function() { console.log("[MovilidadESII] WebSocket cerrado."); };
+                ws.onerror = function(e) { console.warn("[MovilidadESII] WebSocket error:", e); };
+                host.__movilidad_ws = ws;
+              } catch (e) {
+                console.warn("[MovilidadESII] No se pudo abrir WebSocket al orquestador:", e);
+              }
+            })();
+            </script>
+            """,
+            height=0,
+            width=0,
+        )
 
 
 def main():
