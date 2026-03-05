@@ -1,21 +1,39 @@
+"""
+Microservicio Flask para la aplicación MovilidadESII.
+
+Expone los endpoints REST que consume la capa de presentación (Streamlit).
+El ciclo de vida del proceso (arranque / parada) se delega completamente
+al orquestador (orchestrator/orchestrator.py).
+
+Uso directo:
+    python api/api.py
+o a través del orquestador:
+    python orchestrator/orchestrator.py
+"""
+
 from flask import Flask, jsonify, request
 from flask_cors import CORS
-# from persistence import actualizar_excel_materias_para_estudiante, update_student_in_excel
 import json
 import os
 import sys
 import pandas as pd
 from functools import wraps
 
-# Asegurar que los módulos locales se encuentren (para cuando se ejecuta desde directorios diferentes)
-current_dir = os.path.dirname(os.path.abspath(__file__))
-if current_dir not in sys.path:
-    sys.path.insert(0, current_dir)
+# ---------------------------------------------------------------------------
+# Asegurar que install_root/ esté en el path para que los imports relativos
+# (security, persistence, …) se resuelvan correctamente aunque este fichero
+# viva en el subdirectorio api/.
+# ---------------------------------------------------------------------------
+_api_dir  = os.path.dirname(os.path.abspath(__file__))   # .../install_root/api/
+_root_dir = os.path.dirname(_api_dir)                    # .../install_root/
+if _root_dir not in sys.path:
+    sys.path.insert(0, _root_dir)
 
 from security import get_api_token
 import logging
 import warnings
 import time
+
 
 def repair_windows_path(path_str: str) -> str:
     """
@@ -24,49 +42,35 @@ def repair_windows_path(path_str: str) -> str:
     """
     if not path_str:
         return ""
-    
+
     # Si ya tiene barras invertidas, normalizarla
     if "\\" in path_str:
         return os.path.normpath(path_str)
-    
+
     # Si tiene barras diagonales, reemplazarlas
     if "/" in path_str:
         return os.path.normpath(path_str.replace("/", "\\"))
-    
+
     # Si NO tiene barras (ej: C:UsersmariaAppData...), insertar después de C:
     # Patrón: C:Users... -> C:\Users...
     if len(path_str) > 2 and path_str[1] == ":" and path_str[2] != "\\":
         path_str = path_str[0:2] + "\\" + path_str[2:]
-    
+
     return os.path.normpath(path_str)
 
-# None hasta que el navegador envíe el primer /ping.
-# Esto evita que el watchdog del launcher interprete el tiempo de arranque
-# (sin ningún cliente conectado todavía) como inactividad y cierre la app.
-LAST_PING: float | None = None
-API_TOKEN = get_api_token()
 
+API_TOKEN = get_api_token()
 
 app = Flask(__name__)
 CORS(app)
 logging.getLogger("werkzeug").setLevel(logging.WARNING)
 logger = logging.getLogger("movilidad_api")
 
+
 @app.get("/health")
 def health():
     return {"ok": True}
 
-@app.get("/ping")
-def ping():
-    global LAST_PING
-    LAST_PING = time.time()
-    return {"ok": True}
-
-@app.get("/last_ping")
-def last_ping():
-    # ts es None si todavía no ha llegado ningún ping del navegador.
-    # El launcher lo trata como "no inicializado" y no activa el watchdog.
-    return {"ok": True, "ts": LAST_PING}
 
 def require_token(f):
     @wraps(f)
@@ -84,7 +88,6 @@ def require_token(f):
 
         return f(*args, **kwargs)
     return wrapper
-
 
 
 def parse_materias_raw(materias_raw: str):
@@ -166,10 +169,10 @@ def parse_materias_raw(materias_raw: str):
 
     return materias
 
+
 def _build_js_response(ok: bool, messages: list[str], extra: dict | None = None):
     """
     Devuelve una página mínima que solo manda el resultado al iframe padre.
-    Nada más: sin window.addEventListener ni cosas raras para no romper el JS.
     """
     clean_msgs = [m.strip() for m in (messages or []) if m and m.strip()]
     payload = {
@@ -178,8 +181,6 @@ def _build_js_response(ok: bool, messages: list[str], extra: dict | None = None)
         "messages": clean_msgs,
     }
 
-    # Evita que aparezca </script> dentro del JSON
-    # Merge extra payload if provided (e.g., updated row info)
     if extra and isinstance(extra, dict):
         payload.update(extra)
 
@@ -208,7 +209,6 @@ def _build_js_response(ok: bool, messages: list[str], extra: dict | None = None)
 </html>
 """
     return html, 200
-
 
 
 @app.route("/update_student", methods=["POST"])
@@ -262,23 +262,23 @@ def update_student():
 
     messages = []
     ok_global = True
-    
+
     # Validación: la ruta debe venir y el archivo debe existir
     if not excel_path:
         return _build_js_response(False, [
             "ERROR: No se recibió ruta del Excel.",
             "Intenta recargar la página o revisa config.json."])
-    
+
     if not os.path.exists(excel_path):
         return _build_js_response(False, [
             f"ERROR: El archivo Excel no existe en: {excel_path}",
             "Verifica que el archivo esté en AppData\\Local\\MovilidadESII\\data_demo y que config.json apunte ahí."])
-    
+
     # === Validación de campos obligatorios ===
     nombre = (form.get("estudiante") or "").strip()
-    email = (form.get("email") or "").strip()
+    email  = (form.get("email") or "").strip()
     ciudad = (form.get("ciudad") or "").strip()
-    pais = (form.get("pais") or "").strip()
+    pais   = (form.get("pais") or "").strip()
 
     if not nombre:
         return _build_js_response(False, ["El nombre no puede estar vacío."])
@@ -302,7 +302,6 @@ def update_student():
             ok_main = update_student_in_excel(excel_path, row_index_str, idx, form, old_email=old_email, old_nombre=old_nombre, target_sheet=students_sheet_name)
 
         if ok_main:
-            # messages.append("Datos del estudiante actualizados correctamente.")
             # 2) Procesar materias_raw
             materias_raw = form.get("materias_raw", "")
             logger.debug("materias_raw (primeros 200 chars) = %r", (materias_raw or '')[:200])
@@ -317,13 +316,13 @@ def update_student():
             logger.debug("materias_sheet_name='%s'", materias_sheet_name)
 
             est = {
-                "estudiante": (form.get("estudiante") or "").strip(),
-                "old_nombre": (old_nombre or "").strip(),
-                "old_email": (old_email or "").strip(),
+                "estudiante":         (form.get("estudiante") or "").strip(),
+                "old_nombre":         (old_nombre or "").strip(),
+                "old_email":          (old_email or "").strip(),
 
                 # ORIGEN en materias = país (prioridad)
-                "pais": (form.get("pais") or "").strip(),
-                "origen": (form.get("pais") or form.get("origen") or "").strip(),
+                "pais":               (form.get("pais") or "").strip(),
+                "origen":             (form.get("pais") or form.get("origen") or "").strip(),
 
                 # UNIVERSIDAD (prioridad explícita)
                 "universidad_origen": (
@@ -343,10 +342,10 @@ def update_student():
                     or ""
                 ).strip(),
 
-                "ciudad": (form.get("ciudad") or "").strip(),
+                "ciudad":  (form.get("ciudad") or "").strip(),
 
                 # Campos globales del alumno (mismos para todas sus filas en el Excel de materias)
-                "cuat": (form.get("cuatrimestre") or "").strip(),
+                "cuat":    (form.get("cuatrimestre") or "").strip(),
                 "firmado": (form.get("firmado") or "").strip().lower(),
                 "link_la": (form.get("link_la") or "").strip(),
             }
@@ -369,7 +368,7 @@ def update_student():
                 logger.exception("Error leyendo config.json para materias_path")
                 materias_path = ""
 
-            # 4) Actualizar Excel de asignaturas (solo si hay ruta + nombre; materias_in puede ser [] si borró todas)
+            # 4) Actualizar Excel de asignaturas
             if materias_path and est.get("estudiante"):
                 try:
                     actualizar_excel_materias_para_estudiante(materias_in, est, materias_path, sheet_name=materias_sheet_name)
@@ -386,8 +385,6 @@ def update_student():
                 logger.error("No se pudo obtener la ruta del Excel de materias desde config.json.")
                 messages.append("No se ha podido obtener la ruta del Excel de materias desde config.json (clave 'Materias IN').")
 
-
-           
         else:
             ok_global = False
             messages.append(
@@ -402,15 +399,11 @@ def update_student():
         logger.exception("Error al actualizar el Excel principal '%s'", excel_path)
         ok_global = False
         messages.append(f"Error al actualizar el Excel principal: {e}")
-    
-    
-    
 
-    # If the save went OK, attempt to read the updated row from the Excel
+    # Si el guardado fue OK, leer la fila actualizada del Excel
     extra = None
     if ok_global:
         try:
-            # Leer el Excel y extraer la fila por índice
             if excel_path and os.path.exists(excel_path):
                 try:
                     df_check = pd.read_excel(excel_path)
@@ -420,7 +413,6 @@ def update_student():
                     if ri is not None and 0 <= ri < len(df_check):
                         row_series = df_check.iloc[ri]
                         row_dict = row_series.to_dict()
-                        # intentar extraer estudiante concreto si existe columna 'estudiantes'
                         try:
                             raw = row_series.get('estudiantes')
                             if isinstance(raw, str) and raw.strip():
@@ -434,19 +426,19 @@ def update_student():
                         except Exception:
                             student_obj = None
                     extra = {
-                        'programa': programa,
-                        'row_index': row_index_str,
-                        'idx': idx,
-                        'row': row_dict,
-                        'student': student_obj,
+                        'programa':    programa,
+                        'row_index':   row_index_str,
+                        'idx':         idx,
+                        'row':         row_dict,
+                        'student':     student_obj,
                     }
                 except Exception as e:
                     logger.debug("Error leyendo fila actualizada: %s", e)
         except Exception:
             pass
+
     logger.info("update_student resultado: ok=%s messages=%s", ok_global, messages)
     return _build_js_response(ok_global, messages, extra)
-
 
 
 if __name__ == "__main__":
@@ -468,4 +460,3 @@ if __name__ == "__main__":
     host = os.getenv("API_HOST", "127.0.0.1")
     port = int(os.getenv("API_PORT", "5000"))
     app.run(host=host, port=port, debug=False)
-

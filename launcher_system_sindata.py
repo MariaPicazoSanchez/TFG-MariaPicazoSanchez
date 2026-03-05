@@ -9,11 +9,24 @@ def start_control_server(port: int, token: str, shutdown_event: threading.Event)
     open_tabs = set()
     pending_close = dict()  # tab_id -> timestamp de cierre programado
     last_close_ts = [0.0]  # mutable para acceso desde handler
-    CLOSE_DEBOUNCE = 1.0  # cierre casi inmediato
-    PENDING_CLOSE_GRACE = 1.0  # cierre casi inmediato
+    CLOSE_DEBOUNCE = 1.0
+    PENDING_CLOSE_GRACE = 5.0
+    first_open_received = [False]  # guard: no cerrar antes del primer /open
     LOGGER = logging.getLogger("movilidad_launcher")
 
     class Handler(BaseHTTPRequestHandler):
+
+        def end_headers(self):
+            """CORS para que el iframe de Streamlit pueda hacer fetch al servidor."""
+            self.send_header("Access-Control-Allow-Origin", "*")
+            self.send_header("Access-Control-Allow-Methods", "POST, GET, OPTIONS")
+            self.send_header("Access-Control-Allow-Headers", "Content-Type")
+            super().end_headers()
+
+        def do_OPTIONS(self):
+            """Preflight CORS."""
+            self.send_response(204)
+            self.end_headers()
 
         def do_POST(self):
             u = urlparse(self.path)
@@ -25,25 +38,39 @@ def start_control_server(port: int, token: str, shutdown_event: threading.Event)
                 tab_id = qs.get("id", [""])[0]
                 if tab_id:
                     open_tabs.add(tab_id)
-                    # Si estaba pendiente de cierre, cancelar
-                    if tab_id in pending_close:
-                        del pending_close[tab_id]
-                        LOGGER.info(f"/open cancela pending_close: {tab_id}")
-                    LOGGER.info(f"/open recibido: {tab_id}. Pestañas abiertas: {len(open_tabs)}")
+                    first_open_received[0] = True
+                    for cancel_key in (tab_id, "__shutdown__"):
+                        if cancel_key in pending_close:
+                            del pending_close[cancel_key]
+                            if cancel_key in open_tabs and cancel_key != tab_id:
+                                open_tabs.discard(cancel_key)
+                            LOGGER.info(f"/open cancela pending: {cancel_key}")
+                    LOGGER.info(f"/open recibido: {tab_id}. Pestañas: {len(open_tabs)}")
                 self.send_response(200); self.end_headers(); return
             elif u.path == "/close":
                 tab_id = qs.get("id", [""])[0]
-                if tab_id and tab_id in open_tabs:
-                    # No eliminar inmediatamente, marcar como pendiente
-                    pending_close[tab_id] = now + PENDING_CLOSE_GRACE
-                    LOGGER.info(f"/close recibido: {tab_id}. Marcado como pending_close hasta {pending_close[tab_id]:.1f}")
-                else:
-                    LOGGER.info(f"/close recibido para id desconocido: {tab_id}")
+                if tab_id:
+                    if tab_id not in open_tabs and first_open_received[0]:
+                        open_tabs.add(tab_id)
+                        LOGGER.warning(f"/close tab desconocido {tab_id}: sintetizado.")
+                    if tab_id in open_tabs:
+                        pending_close[tab_id] = now + PENDING_CLOSE_GRACE
+                        LOGGER.info(f"/close: pending {tab_id} hasta +{PENDING_CLOSE_GRACE:.0f}s")
+                elif first_open_received[0]:
+                    LOGGER.warning("/close sin tab_id con sesión activa: shutdown directo.")
+                    shutdown_event.set()
                 last_close_ts[0] = now + CLOSE_DEBOUNCE
                 self.send_response(200); self.end_headers(); return
             elif u.path == "/shutdown":
-                shutdown_event.set()
-                LOGGER.info("/shutdown recibido")
+                tab_id = qs.get("id", [""])[0]
+                synthetic = "__shutdown__"
+                open_tabs.add(synthetic)
+                first_open_received[0] = True
+                pending_close[synthetic] = now + PENDING_CLOSE_GRACE
+                LOGGER.info(
+                    f"/shutdown recibido (id={tab_id or 'direct'}): "
+                    f"grace {PENDING_CLOSE_GRACE:.0f}s."
+                )
                 self.send_response(200); self.end_headers(); return
             else:
                 self.send_response(404); self.end_headers(); return
@@ -58,12 +85,20 @@ def start_control_server(port: int, token: str, shutdown_event: threading.Event)
             for tid in to_remove:
                 if tid in open_tabs:
                     open_tabs.remove(tid)
-                    LOGGER.info(f"pending_close ejecutado: {tid}. Pestañas abiertas: {len(open_tabs)}")
+                    LOGGER.info(f"pending_close ejecutado: {tid}. Pestañas: {len(open_tabs)}")
                 del pending_close[tid]
-            time.sleep(2)
+
+            if first_open_received[0] and open_tabs == set() and not pending_close:
+                LOGGER.info("Todas las pestañas cerradas → shutdown.")
+                shutdown_event.set()
+                return
+
+            time.sleep(1)
 
     httpd = HTTPServer(("127.0.0.1", port), Handler)
     httpd.open_tabs = open_tabs
+    httpd.pending_close = pending_close
+    httpd.first_open_received = first_open_received
     httpd.last_close_ts = last_close_ts
     httpd.CLOSE_DEBOUNCE = CLOSE_DEBOUNCE
     t = threading.Thread(target=httpd.serve_forever, daemon=True)
@@ -112,6 +147,106 @@ LOCK_NAME = "Global\\MovilidadESII_Launcher"
 NO_WINDOW = 0
 if os.name == "nt":
     NO_WINDOW = subprocess.CREATE_NO_WINDOW
+
+# Flags para procesos hijos: sin ventana + grupo propio para taskkill /T
+PROC_FLAGS = NO_WINDOW
+if os.name == "nt":
+    PROC_FLAGS |= subprocess.CREATE_NEW_PROCESS_GROUP
+
+
+# ── Helpers de terminación: nivel de módulo ────────────────────────────────────────
+
+def _taskkill_tree(pid: int) -> None:
+    """Mata el PID y toda su descendencia de forma forzada (Windows)."""
+    if os.name != "nt":
+        return
+    _log = logging.getLogger("movilidad_launcher")
+    try:
+        r = subprocess.run(
+            ["taskkill", "/F", "/T", "/PID", str(pid)],
+            capture_output=True, text=True,
+            creationflags=NO_WINDOW, timeout=8,
+        )
+        _log.info("taskkill /F /T PID=%s -> rc=%s  %s",
+                  pid, r.returncode, (r.stdout or r.stderr or "").strip())
+    except Exception as exc:
+        _log.warning("taskkill falló PID=%s: %s", pid, exc)
+
+
+def _pids_on_port(port: int) -> set[int]:
+    """PIDs LISTENING/ESTABLISHED en 127.0.0.1:port (Windows)."""
+    if os.name != "nt":
+        return set()
+    try:
+        out = subprocess.check_output(
+            ["netstat", "-ano", "-p", "TCP"],
+            text=True, creationflags=NO_WINDOW, timeout=3,
+        )
+    except Exception:
+        return set()
+    port_str = f":{port}"
+    pids: set[int] = set()
+    for line in out.splitlines():
+        parts = line.split()
+        if len(parts) < 5:
+            continue
+        local_addr, state, pid_s = parts[1], parts[3], parts[4]
+        if "127.0.0.1" in local_addr and port_str in local_addr and state in ("LISTENING", "ESTABLISHED"):
+            try:
+                pids.add(int(pid_s))
+            except ValueError:
+                pass
+    return pids
+
+
+def shutdown_processes(procs: list, ports: list[int] | None = None) -> None:
+    """
+    Termina de forma robusta todos los procesos hijos y sus árboles.
+    Estrategia: taskkill /F /T por PID del Popen + PIDs en los puertos conocidos.
+    """
+    _log = logging.getLogger("movilidad_launcher")
+    _log.info("shutdown_processes: iniciando.")
+
+    if os.name != "nt":
+        for proc in procs:
+            if proc and proc.poll() is None:
+                try:
+                    proc.terminate()
+                    proc.wait(timeout=5)
+                except Exception as exc:
+                    _log.warning("terminate fallo PID=%s: %s", getattr(proc, 'pid', '?'), exc)
+        return
+
+    pids: set[int] = set()
+    for proc in procs:
+        if proc is not None and proc.pid and proc.poll() is None:
+            pids.add(proc.pid)
+    for port in (ports or []):
+        try:
+            pids |= _pids_on_port(port)
+        except Exception:
+            pass
+
+    if not pids:
+        _log.info("shutdown_processes: ningún proceso vivo.")
+        return
+
+    _log.info("shutdown_processes: matando PIDs %s", sorted(pids))
+    for pid in sorted(pids):
+        _taskkill_tree(pid)
+
+    import time as _time
+    _time.sleep(0.5)
+    for proc in procs:
+        if proc is not None:
+            rc = proc.poll()
+            if rc is None:
+                _log.warning("PID=%s sigue vivo tras taskkill, segunda pasada.", proc.pid)
+                _taskkill_tree(proc.pid)
+            else:
+                _log.info("PID=%s terminado (rc=%s).", proc.pid, rc)
+    _log.info("shutdown_processes: completado.")
+
 
 if getattr(sys, "frozen", False):
     # Si está compilado con PyInstaller, el ejecutable está en la raíz de MovilidadESII
@@ -503,98 +638,6 @@ def wait_for_http(url: str, timeout: float = 20.0) -> bool:
             time.sleep(0.15)
     return False
 
-def has_active_streamlit_client(app_port: int) -> bool:
-    """
-    True si hay alguna conexión TCP ESTABLISHED hacia el puerto de Streamlit
-    Y además el servidor está respondiendo activamente a peticiones.
-    
-    Verificamos:
-    1. Conexiones TCP ESTABLISHED en netstat
-    2. Que el servidor responde a peticiones HTTP (heartbeat)
-    
-    El servidor de Streamlit responde aunque el usuario esté inactivo,
-    while hay connections TCP ESTABLISHED.
-    """
-    if os.name != "nt":
-        return False
-
-    try:
-        out = subprocess.check_output(
-            ["netstat", "-ano", "-p", "TCP"],
-            text=True,
-            creationflags=NO_WINDOW,
-            timeout=3,
-        )
-    except Exception as e:
-        LOGGER.debug("netstat falló (%s), asumiendo sin clientes", e)
-        return False
-
-    port_str = f":{app_port}"
-    tcp_pids = set()
-    for line in out.splitlines():
-        parts = line.split()
-        if len(parts) < 5:
-            continue
-        local_addr = parts[1]
-        state = parts[3] if len(parts) > 3 else ""
-        pid = parts[4]
-        if port_str in local_addr and "127.0.0.1" in local_addr and state == "ESTABLISHED":
-            tcp_pids.add(pid)
-
-    if not tcp_pids:
-        LOGGER.debug("No hay conexiones TCP en puerto %d", app_port)
-        return False
-
-    # Refuerzo: comprobar que al menos un PID corresponde a un navegador conocido
-    browser_names = ["chrome.exe", "msedge.exe", "firefox.exe", "brave.exe", "opera.exe", "vivaldi.exe"]
-    browser_found = False
-    try:
-        tasklist = subprocess.check_output(["tasklist", "/FO", "CSV", "/NH"], text=True, creationflags=NO_WINDOW, timeout=3)
-        for line in tasklist.splitlines():
-            for bname in browser_names:
-                if f'"{bname}"' in line:
-                    # CSV: "imagename","pid",...
-                    fields = line.split(",")
-                    if len(fields) > 1:
-                        pid = fields[1].strip('"')
-                        if pid in tcp_pids:
-                            browser_found = True
-                            break
-            if browser_found:
-                break
-    except Exception as e:
-        LOGGER.debug("tasklist falló (%s), asumiendo sin browser", e)
-
-    if not browser_found:
-        LOGGER.debug("No hay navegador asociado a conexiones TCP en puerto %d", app_port)
-        return False
-
-    # Si hay conexiones TCP y navegador, verificar que el servidor responde
-    try:
-        with urllib.request.urlopen(f"http://127.0.0.1:{app_port}/_stcore/health", timeout=2) as r:
-            if r.status in (200, 401):
-                LOGGER.debug("Clientes activos: navegador detectado y servidor respondiendo")
-                return True
-    except Exception:
-        pass
-
-    LOGGER.debug("Puerto %d tiene conexiones TCP y navegador, pero servidor no responde", app_port)
-    return False
-
-
-def get_last_ping_ts(api_port: int) -> float | None:
-    try:
-        with urllib.request.urlopen(f"http://127.0.0.1:{api_port}/last_ping", timeout=2) as r:
-            if r.status != 200:
-                return None
-            body = r.read().decode("utf-8", errors="ignore")
-            data = json.loads(body)
-            ts = data.get("ts")
-            return float(ts) if ts is not None else None
-    except Exception:
-        return None
-
-
 def start_processes(api_enabled: bool = True, api_disabled_reason: str | None = None) -> None:
     py = get_runtime_python()
 
@@ -632,7 +675,7 @@ def start_processes(api_enabled: bool = True, api_disabled_reason: str | None = 
         LOGGER.info("Iniciando Streamlit en 127.0.0.1:%s", app_port)
         app_proc = subprocess.Popen(
             [
-                str(py), "-m", "streamlit", "run", "my_app.py",
+                str(py), "-m", "streamlit", "run", "web_app/my_app.py",
                 "--server.address=127.0.0.1",
                 f"--server.port={app_port}",
                 "--server.headless=true",
@@ -644,7 +687,7 @@ def start_processes(api_enabled: bool = True, api_disabled_reason: str | None = 
             env=env_app,
             stdout=app_log,
             stderr=app_log,
-            creationflags=NO_WINDOW,
+            creationflags=PROC_FLAGS,
         )
 
         url = f"http://127.0.0.1:{app_port}"
@@ -655,12 +698,12 @@ def start_processes(api_enabled: bool = True, api_disabled_reason: str | None = 
         if api_enabled:
             LOGGER.info("Iniciando API en 127.0.0.1:%s", api_port)
             api_proc = subprocess.Popen(
-                [str(py), "api.py"],
+                [str(py), "api/api.py"],
                 cwd=str(ROOT),
                 env=env,
                 stdout=api_log,
                 stderr=api_log,
-                creationflags=NO_WINDOW,
+                creationflags=PROC_FLAGS,
             )
 
         # --- JOB OBJECT para evitar huérfanos en Windows ---
@@ -738,73 +781,57 @@ def start_processes(api_enabled: bool = True, api_disabled_reason: str | None = 
             write_api_status(False, api_url, reason=reason)
             LOGGER.warning(reason)
 
-        GRACE_STARTUP = 20
-        IDLE_TIMEOUT = 20 * 60  # 20 minutos de inactividad (fallback)
-        CHECK_INTERVAL = 1  # Verificar cada 1 segundo
-        MAX_RUNTIME = 8 * 60 * 60  # 8 horas máximo de ejecución total
+        GRACE_STARTUP      = 30
+        CHECK_INTERVAL     = 1
+        MAX_RUNTIME        = 8 * 60 * 60
 
-        start_time = time.time()
-        last_seen_client = time.time()
+        start_time        = time.time()
 
         LOGGER.info("=" * 60)
-        LOGGER.info("Monitor configurado:")
-        LOGGER.info("  - Periodo de gracia inicial: %ds", GRACE_STARTUP)
-        LOGGER.info("  - Timeout sin clientes TCP: %ds", IDLE_TIMEOUT)
-        LOGGER.info("  - Tiempo máximo de ejecución: %ds (%.1f horas)", MAX_RUNTIME, MAX_RUNTIME / 3600)
-        LOGGER.info("  - Intervalo de verificación: %ds", CHECK_INTERVAL)
-        LOGGER.info("  - API habilitada: %s", api_enabled)
-        LOGGER.info("  - NOTA: La aplicación se mantendrá abierta mientras haya navegadores conectados")
-        LOGGER.info("  - Para cerrar manualmente: crear archivo %s/.shutdown", APPDATA_DIR)
+        LOGGER.info("Watchdog configurado:")
+        LOGGER.info("  Gracia inicial          : %ds", GRACE_STARTUP)
+        LOGGER.info("  Cierre pestaña          : ~6s (beacon /close|/shutdown + grace 5s)")
+        LOGGER.info("  Tiempo máx. ejecución   : %.1fh", MAX_RUNTIME / 3600)
+        LOGGER.info("  Cerrar manualmente      : %s/.shutdown", APPDATA_DIR)
         LOGGER.info("=" * 60)
 
         while True:
 
-            # 1. Shutdown explícito desde el navegador
+            # 1. Shutdown desde el servidor de control
             if shutdown_event.is_set():
-                LOGGER.info("Shutdown recibido desde el navegador, cerrando aplicación.")
+                LOGGER.info("Shutdown recibido → cerrando.")
                 break
 
-            # 2. Verificar si Streamlit terminó
+            # 2. Streamlit terminó
             if app_proc.poll() is not None:
-                LOGGER.info("Streamlit finalizó.")
+                LOGGER.info("Streamlit finalizó (rc=%s).", app_proc.returncode)
                 break
 
-            # 3. Mecanismo de apagado manual (archivo de señal)
+            # 3. Apagado manual por archivo
             shutdown_file = APPDATA_DIR / ".shutdown"
             if shutdown_file.exists():
-                LOGGER.info("Archivo de apagado detectado, cerrando aplicación.")
+                LOGGER.info("Archivo .shutdown detectado — cerrando.")
                 try:
                     shutdown_file.unlink()
                 except Exception:
                     pass
                 break
 
-            now = time.time()
+            now     = time.time()
             elapsed = now - start_time
 
-            # 4. Timeout máximo absoluto (seguridad - aplicación ejecutándose demasiado tiempo)
+            # 4. Límite absoluto
             if elapsed > MAX_RUNTIME:
-                LOGGER.info("Tiempo máximo de ejecución alcanzado (%.1fs), cerrando.", elapsed)
+                LOGGER.info("Tiempo máximo alcanzado — cerrando.")
                 break
 
-            # 5. Periodo de gracia inicial (dar tiempo a que arranque todo)
+            # 5. Gracia inicial
             if elapsed <= GRACE_STARTUP:
-                remaining = GRACE_STARTUP - elapsed
-                LOGGER.debug("Periodo de gracia inicial, restantes %.1fs", remaining)
+                LOGGER.debug("Gracia inicial: %.1fs restantes.", GRACE_STARTUP - elapsed)
                 time.sleep(CHECK_INTERVAL)
                 continue
 
-
-            # 6. Nunca cerrar por pestañas abiertas/cerradas
-            open_tabs = getattr(control_httpd, "open_tabs", set())
-            LOGGER.debug(f"Pestañas registradas vía /open: {len(open_tabs)}. Los procesos seguirán vivos.")
-            last_seen_client = now
             time.sleep(CHECK_INTERVAL)
-            continue
-
-            # 7. Eliminar timeout por inactividad TCP: solo cerrar si no hay pestañas abiertas
-            time.sleep(CHECK_INTERVAL)
-
 
     except Exception as exc:
         write_api_status(False, api_url, reason=str(exc))
@@ -813,102 +840,14 @@ def start_processes(api_enabled: bool = True, api_disabled_reason: str | None = 
     finally:
         LOGGER.info("Deteniendo procesos...")
 
-        # 0) Apagar servidor de control
         try:
             control_httpd.shutdown()
             control_httpd.server_close()
         except Exception:
             pass
 
-        def _taskkill_tree(pid: int) -> None:
-            """Mata PID + descendencia (Windows)."""
-            if os.name != "nt":
-                return
-            try:
-                r = subprocess.run(
-                    ["taskkill", "/F", "/T", "/PID", str(pid)],
-                    capture_output=True,
-                    text=True,
-                    creationflags=NO_WINDOW,
-                    timeout=8,
-                )
-                LOGGER.warning(
-                    "taskkill /F /T PID=%s rc=%s stdout=%s stderr=%s",
-                    pid, r.returncode, (r.stdout or "").strip(), (r.stderr or "").strip()
-                )
-            except Exception as e:
-                LOGGER.warning("taskkill falló para PID=%s: %s", pid, e)
+        shutdown_processes([app_proc, api_proc], ports=[app_port, api_port])
 
-        def _pids_on_port(port: int) -> set[int]:
-            """PIDs que están LISTENING/ESTABLISHED en 127.0.0.1:port (Windows)."""
-            if os.name != "nt":
-                return set()
-            try:
-                out = subprocess.check_output(
-                    ["netstat", "-ano", "-p", "TCP"],
-                    text=True,
-                    creationflags=NO_WINDOW,
-                    timeout=3,
-                )
-            except Exception as e:
-                LOGGER.debug("netstat falló al buscar PIDs por puerto (%s)", e)
-                return set()
-
-            port_str = f":{port}"
-            pids: set[int] = set()
-            for line in out.splitlines():
-                parts = line.split()
-                if len(parts) < 5:
-                    continue
-                local_addr = parts[1]
-                state = parts[3] if len(parts) > 3 else ""
-                pid_s = parts[4]
-                if "127.0.0.1" in local_addr and port_str in local_addr and state in ("LISTENING", "ESTABLISHED"):
-                    try:
-                        pids.add(int(pid_s))
-                    except ValueError:
-                        pass
-            return pids
-
-        # 1) Intento suave: terminate
-        for proc in (app_proc, api_proc):
-            if proc and proc.poll() is None:
-                try:
-                    LOGGER.debug("terminate() PID=%s", proc.pid)
-                    proc.terminate()
-                except Exception as e:
-                    LOGGER.debug("terminate falló PID=%s: %s", proc.pid, e)
-
-        # 2) Espera corta a cierre limpio
-        for proc in (app_proc, api_proc):
-            if proc:
-                try:
-                    proc.wait(timeout=3)
-                except Exception:
-                    pass
-
-        # 3) Forzar cierre: matar árbol por PID del Popen
-        pids: set[int] = set()
-        for proc in (app_proc, api_proc):
-            if proc and proc.pid:
-                pids.add(int(proc.pid))
-
-        # 4) Cinturón y tirantes: matar lo que esté usando los puertos elegidos
-        try:
-            pids |= _pids_on_port(app_port)
-        except Exception:
-            pass
-        try:
-            pids |= _pids_on_port(api_port)
-        except Exception:
-            pass
-
-        # 5) taskkill /T a todo lo encontrado
-        if os.name == "nt":
-            for pid in sorted(pids):
-                _taskkill_tree(pid)
-
-        # 6) Cerrar logs
         for logfile in (app_log, api_log):
             try:
                 logfile.close()
@@ -916,6 +855,7 @@ def start_processes(api_enabled: bool = True, api_disabled_reason: str | None = 
                 pass
 
         LOGGER.info("Procesos detenidos.")
+        sys.exit(0)
 
 
 def run_launcher() -> int:
