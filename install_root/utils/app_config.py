@@ -1,6 +1,5 @@
 import os
 import streamlit as st
-from typing import Dict, Tuple, List, Optional
 from constants import PROGRAM_ERASMUS_OUT, PROGRAM_ERASMUS_IN, PROGRAM_SICUE_OUT
 
 
@@ -30,7 +29,7 @@ def init_session_defaults() -> None:
         st.session_state["view"] = "map"
 
 
-def get_query_param(key: str, default: Optional[str] = None) -> Optional[str]:
+def get_query_param(key: str, default: str | None = None) -> str | None:
     """Obtiene parámetro de consulta de forma segura, compatible con diferentes versiones de Streamlit."""
     try:
         params = st.query_params
@@ -50,12 +49,12 @@ def get_query_param(key: str, default: Optional[str] = None) -> Optional[str]:
             return default
 
 
-def get_config_mtimes(cfg: Dict) -> Tuple:
+def get_config_mtimes(cfg: dict) -> tuple:
     """Obtiene los tiempos de modificación de los archivos Excel configurados para invalidación de caché.
-    
+
     Args:
         cfg: Diccionario de configuración con rutas de archivos de programas
-    
+
     Returns:
         Tupla de mtimes en orden estable (uno por programa)
     """
@@ -72,13 +71,13 @@ def get_config_mtimes(cfg: Dict) -> Tuple:
     return tuple(mtimes)
 
 
-def get_active_programs() -> List[str]:
+def get_active_programs() -> list[str]:
     """Obtiene la lista de programas actualmente seleccionados."""
     selected = st.session_state.get("selected_programs", DEFAULT_PROGRAMS)
     return [prog for prog, is_selected in selected.items() if is_selected]
 
 
-def get_available_program_types(config: Dict) -> List[str]:
+def get_available_program_types(config: dict) -> list[str]:
     """Obtiene los tipos de programas que tienen archivos configurados y existentes."""
     return [
         prog for prog in AVAILABLE_PROGRAMS

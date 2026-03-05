@@ -2,17 +2,12 @@ from __future__ import annotations
 
 import logging
 import os
-from openpyxl import load_workbook
-
-import os
-import shutil
-import traceback
 import unicodedata
 from dataclasses import dataclass
-from datetime import datetime
-from typing import Any, Dict, List, Optional, Iterable
-from openpyxl import load_workbook
+from typing import Any, Iterable, Optional
+
 import pandas as pd
+from openpyxl import load_workbook
 
 
 logger = logging.getLogger("movilidad_persistence")
@@ -217,7 +212,7 @@ class TableInfo:
     header_row: int        # 1-based
     data_start: int        # 1-based
     data_end: int          # 1-based inclusive; puede ser header_row si no hay datos
-    cols: Dict[str, int]   # clave canónica -> columna 1-based
+    cols: dict[str, int]   # clave canónica -> columna 1-based
 
 
 def _norm_header(s: Any) -> str:
@@ -251,9 +246,9 @@ def _row_is_empty_ws(ws, row_num: int, max_col: Optional[int] = None) -> bool:
         return False
     return True
 
-def _match_header_row(ws, row_num: int, aliases_map: Dict[str, set], required: set,
-                      extra_min_matches: int = 0, extras_pool: Optional[set] = None) -> Optional[Dict[str, int]]:
-    found: Dict[str, int] = {}
+def _match_header_row(ws, row_num: int, aliases_map: dict[str, set], required: set,
+                      extra_min_matches: int = 0, extras_pool: Optional[set] = None) -> Optional[dict[str, int]]:
+    found: dict[str, int] = {}
     for c in range(1, ws.max_column + 1):
         v = ws.cell(row=row_num, column=c).value
         n = _norm_header(v)
@@ -272,7 +267,7 @@ def _match_header_row(ws, row_num: int, aliases_map: Dict[str, set], required: s
 
     return found
 
-def _iter_all_tables_in_workbook(wb, aliases_map: Dict[str, set], required: set,
+def _iter_all_tables_in_workbook(wb, aliases_map: dict[str, set], required: set,
                                  extra_min_matches: int = 0, extras_pool: Optional[set] = None):
     """
     Generador: devuelve TableInfo de TODAS las tablas encontradas en TODAS las hojas,
@@ -317,9 +312,9 @@ def _iter_all_tables_in_workbook(wb, aliases_map: Dict[str, set], required: set,
             r = data_end + 1
 
 
-def _find_table_in_workbook(excel_path: str, aliases_map: Dict[str, set], required: set,
+def _find_table_in_workbook(excel_path: str, aliases_map: dict[str, set], required: set,
                             extra_min_matches: int = 0, extras_pool: Optional[set] = None,
-                            target_sheet: str = "") -> Optional[TableInfo]:
+                            target_sheet: str = "") -> Optional["TableInfo"]:
     wb = load_workbook(excel_path)
     try:
         if target_sheet and target_sheet in wb.sheetnames:
@@ -381,8 +376,8 @@ def _find_table_in_workbook(excel_path: str, aliases_map: Dict[str, set], requir
 
 def _build_header_maps_from_ws(ws, header_row_idx_0based: int):
     row_excel = header_row_idx_0based + 1
-    norm_to_col = {}
-    raw_headers = {}
+    norm_to_col: dict[str, int] = {}
+    raw_headers: dict[str, str] = {}
     for c in range(1, ws.max_column + 1):
         v = ws.cell(row=row_excel, column=c).value
         if v is None:
@@ -396,14 +391,14 @@ def _build_header_maps_from_ws(ws, header_row_idx_0based: int):
             norm_to_col[n] = c
     return norm_to_col, raw_headers
 
-def _find_col_in_ws_by_aliases(norm_to_col_1based: Dict[str, int], aliases: List[str]) -> Optional[int]:
+def _find_col_in_ws_by_aliases(norm_to_col_1based: dict[str, int], aliases: list[str]) -> Optional[int]:
     for a in aliases:
         n = _norm_header(a)
         if n in norm_to_col_1based:
             return norm_to_col_1based[n]
     return None
 
-def _set_ws_cell_if_field_exists(ws, excel_row: int, norm_to_col_1based: Dict[str, int], field_name: str, data: dict):
+def _set_ws_cell_if_field_exists(ws, excel_row: int, norm_to_col_1based: dict[str, int], field_name: str, data: dict):
     if field_name not in data:
         return False
     value = data[field_name]
@@ -432,7 +427,7 @@ def _split_full_name(full_name: str):
         return parts[0], parts[1], ""
     return parts[0], parts[1], " ".join(parts[2:])
 
-def _recalculate_coords_ws(ws, excel_row: int, norm_to_col_1based: Dict[str, int]):
+def _recalculate_coords_ws(ws, excel_row: int, norm_to_col_1based: dict[str, int]):
 
     # Detectar el programa de movilidad
     col_programa = _find_col_in_ws_by_aliases(norm_to_col_1based, ["programa", "tipo", "program", "type"])
@@ -461,7 +456,7 @@ def _recalculate_coords_ws(ws, excel_row: int, norm_to_col_1based: Dict[str, int
     ciudad = _get_first("ciudad")
     pais = _get_first("país", "pais")
 
-    queries: List[str] = []
+    queries: list[str] = []
     partes = [str(x).strip() for x in (destino, ciudad, pais) if x is not None and str(x).strip() and str(x).strip().lower() != "none"]
     if partes:
         queries.append(", ".join(partes))
@@ -535,7 +530,7 @@ def _recalculate_coords(df: "pd.DataFrame", row_idx: int):
     ciudad = _val("ciudad")
     pais = _val("país", "pais")
 
-    queries: List[str] = []
+    queries: list[str] = []
     partes = [x for x in (destino, ciudad, pais) if x]
     if partes:
         queries.append(", ".join(partes))

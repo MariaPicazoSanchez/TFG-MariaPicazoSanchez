@@ -1,11 +1,15 @@
-import folium
 import logging
+from pathlib import Path
+
+import folium
 import pandas as pd
 import streamlit as st
 from streamlit_folium import st_folium
-from .popup_templates import generate_dynamic_popup
+
+from constants import PROGRAM_ERASMUS_IN, PROGRAM_ERASMUS_OUT, PROGRAM_SICUE_OUT
+from domain import PROGRAM_COLORS, PROGRAM_ICONS
 from export import add_export_control, add_program_legend
-from constants import PROGRAM_ERASMUS_IN, PROGRAM_ERASMUS_OUT, PROGRAM_SICUE_OUT, PROGRAM_ICONS
+from .popup_templates import generate_dynamic_popup
 
 logger = logging.getLogger("movilidad_ui")
 
@@ -77,11 +81,8 @@ def group_rows_by_location(df, decimals=2):
         grouped.append({"universidad": u, "pais": p, "latitud": lat, "longitud": lon, "estudiantes": estudiantes})
     return grouped
 
-def render_map(m: folium.Map):
-    # Asegura tiles base
-    # (si ya lo pones al crear el mapa, esto sobra)
-    # folium.TileLayer("OpenStreetMap", control=False).add_to(m)
-
+def render_map(m: folium.Map) -> None:
+    """Renderiza el mapa en Streamlit forzando un recálculo de tamaño."""
     map_id = m.get_name()
 
     # Fuerza a Leaflet a recalcular tamaño y repintar tiles
@@ -100,16 +101,25 @@ def render_map(m: folium.Map):
 
     st_folium(m, height=900, width='stretch', key="main_map")
 
-def show_map(dfs: dict, base_map, materias_in_por_estudiante=None, filtros_activos=None, only_no_la=False, auto_zoom_bounds=None):
+def show_map(
+    dfs: dict,
+    base_map,
+    materias_in_por_estudiante: dict | None = None,
+    filtros_activos=None,
+    only_no_la: bool = False,
+    auto_zoom_bounds=None,
+) -> None:
     """
     Muestra TODOS los programas disponibles en `dfs` sin filtrar.
-    dfs: dict con posibles claves "Erasmus OUT", "Erasmus IN", "SICUE OUT" -> DataFrames agrupados
-    auto_zoom_bounds: tuple ((min_lat, min_lon), (max_lat, max_lon)) para hacer auto-zoom
-    """
-    import folium
-    import pandas as pd
-    import streamlit as st
 
+    Args:
+        dfs: dict con posibles claves "Erasmus OUT", "Erasmus IN", "SICUE OUT" -> DataFrames agrupados
+        base_map: mapa folium base o cualquier objeto con ``add_child``
+        materias_in_por_estudiante: dict nombre_alumno -> lista de materias
+        filtros_activos: filtros aplicados (se reenvían a la leyenda)
+        only_no_la: si True, filtra sólo alumnos sin Learning Agreement
+        auto_zoom_bounds: tuple ((min_lat, min_lon), (max_lat, max_lon)) para auto-zoom
+    """
     if materias_in_por_estudiante is None:
         materias_in_por_estudiante = {}
 
@@ -185,7 +195,6 @@ def show_map(dfs: dict, base_map, materias_in_por_estudiante=None, filtros_activ
         </script>
         """))
 
-    from domain import PROGRAM_COLORS, PROGRAM_ICONS
     # 2) Pintar TODOS los programas presentes en dfs
     for program, df in dfs.items():
         if df is None or df.empty:
@@ -275,10 +284,6 @@ def show_map(dfs: dict, base_map, materias_in_por_estudiante=None, filtros_activ
 
     # Pasar el número de alumnos por tipo a la leyenda
     add_program_legend(m, filtros_activos, only_no_la, student_list=dfs)
-    overlay_html = ""
-    if st.session_state.get("export_include_country_stats", False):
-        top_n = int(st.session_state.get("export_country_top_n", 10))
-
 
     add_export_control(m)
 
@@ -289,8 +294,6 @@ def show_map(dfs: dict, base_map, materias_in_por_estudiante=None, filtros_activ
         except Exception:
             pass
 
-    from pathlib import Path
-    import html as py_html
     # 3) Render en Streamlit
     html_map = m.get_root().render()
 

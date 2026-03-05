@@ -1,6 +1,7 @@
 import os
 import re
 import logging
+import unicodedata
 from typing import Iterable, Tuple, Optional
 import pandas as pd
 import math
@@ -20,7 +21,6 @@ logger = logging.getLogger("movilidad_persistence")
 
 def _norm_name(s: str) -> str:
     """Normaliza un nombre: minúsculas, sin acentos, sin espacios extra."""
-    import unicodedata
     if not s or str(s).strip().lower() in ("", "nan", "none"):
         return ""
     s = str(s).strip().lower()

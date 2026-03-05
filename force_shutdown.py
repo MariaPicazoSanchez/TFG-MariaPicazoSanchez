@@ -11,6 +11,7 @@ También intentará matar los procesos de Python de Streamlit y Flask.
 """
 import os
 import subprocess
+import sys
 import time
 from pathlib import Path
 
@@ -20,7 +21,7 @@ def get_appdata_dir() -> Path:
     return Path(base) / "MovilidadESII"
 
 
-def main():
+def main() -> int:
     appdata = get_appdata_dir()
     shutdown_file = appdata / ".shutdown"
     
@@ -55,7 +56,7 @@ def main():
             )
             
             if result.returncode == 0 and result.stdout:
-                lines = result.stdout.strip().split("\n")[1:]  # Skip header
+                lines = result.stdout.strip().splitlines()[1:]  # Skip header
                 if lines and lines[0]:
                     print(f"Encontrados {len(lines)} procesos de python.exe")
                     print()
@@ -94,7 +95,7 @@ def main():
 
 if __name__ == "__main__":
     try:
-        exit(main())
+        sys.exit(main())
     except KeyboardInterrupt:
         print("\n\nCancelado por el usuario.")
-        exit(1)
+        sys.exit(1)

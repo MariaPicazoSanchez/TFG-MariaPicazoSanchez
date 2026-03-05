@@ -1,33 +1,36 @@
 from __future__ import annotations
+
 import unicodedata
-from typing import Dict, List, Tuple, Optional
+
 import pandas as pd
 import streamlit as st
 
 STOPWORDS = {"de", "del", "la", "las", "los", "y", "da", "do", "dos", "das"}
 
 def quitar_tildes(s: str) -> str:
-    """Remove accents/tildes from string."""
+    """Elimina acentos y diacríticos de una cadena."""
     return ''.join(
         c for c in unicodedata.normalize('NFD', s)
         if unicodedata.category(c) != 'Mn'
     )
 
+
 def _norm(s: str) -> str:
-    """Normalize text: remove accents, lowercase, trim."""
+    """Normaliza texto: elimina acentos, convierte a minúscula y elimina espacios extremos."""
     return quitar_tildes(str(s).strip().lower())
 
+
 def normalize_text(s: str) -> str:
-    """Alias for _norm - remove accents and convert to lowercase for comparison."""
+    """Alias de ``_norm``; normaliza texto para comparación."""
     return _norm(s)
 
-def build_search_index(dfs: Dict[str, pd.DataFrame]) -> None:
+def build_search_index(dfs: dict[str, pd.DataFrame]) -> None:
     if not isinstance(dfs, dict):
         st.session_state["search_index_options"] = [("", "")]
         st.session_state["search_index"] = []
         return
 
-    by_cat: Dict[str, Dict[str, str]] = {
+    by_cat: dict[str, dict[str, str]] = {
         "alumno": {},
         "nombre": {},
         "apellido": {},
@@ -37,7 +40,7 @@ def build_search_index(dfs: Dict[str, pd.DataFrame]) -> None:
         "email": {},
     }
 
-    particles = {"de", "del", "la", "las", "los", "da", "do", "dos", "das"}
+    particles = STOPWORDS  # reuse module-level constant
 
     def add(term: str, cat: str) -> None:
         term = str(term).strip()
@@ -152,7 +155,7 @@ def build_search_index(dfs: Dict[str, pd.DataFrame]) -> None:
         ("email", "Email"),
     ]
 
-    options: List[Tuple[str, str]] = [("", "")]
+    options: list[tuple[str, str]] = [("", "")]
     for cat, label in cat_order:
         vals = sorted(set(by_cat.get(cat, {}).values()), key=_norm)
         for v in vals:
@@ -196,14 +199,14 @@ def render_search_box(parent=None) -> str:
 
 
 def search_in_student(student: dict, search_term: str) -> bool:
-    """Check if search term matches any field in a student record.
-    
+    """Comprueba si el término de búsqueda está en alguno de los campos del alumno.
+
     Args:
-        student: Dictionary with student fields (estudiante, email, ciudad, etc.)
-        search_term: Normalized search term (lowercase, no accents)
-    
+        student: Diccionario con los campos del alumno (estudiante, email, ciudad, etc.).
+        search_term: Término ya normalizado (minúscula, sin acentos).
+
     Returns:
-        True if search term found in any student field
+        True si el término aparece en alguno de los campos buscados.
     """
     if not isinstance(student, dict):
         return False
@@ -217,19 +220,19 @@ def search_in_student(student: dict, search_term: str) -> bool:
 
 
 def filter_dataframes_by_search(
-    dfs: Dict[str, pd.DataFrame],
+    dfs: dict[str, pd.DataFrame],
     search_text: str,
-    search_fields: Optional[List[str]] = None
-) -> Dict[str, pd.DataFrame]:
-    """Filter all dataframes by search text.
-    
+    search_fields: list[str] | None = None,
+) -> dict[str, pd.DataFrame]:
+    """Filtra todos los DataFrames por el texto de búsqueda.
+
     Args:
-        dfs: Dictionary of program -> DataFrame
-        search_text: Raw search text
-        search_fields: Fields to search in. Defaults to common fields.
-    
+        dfs: Diccionario programa -> DataFrame.
+        search_text: Texto de búsqueda sin normalizar.
+        search_fields: Columnas en las que buscar. Por defecto, los campos comunes.
+
     Returns:
-        Filtered dictionary of dataframes
+        Diccionario filtrado de DataFrames que contienen el texto buscado.
     """
     if not search_text or len(search_text.strip()) < 2:
         return dfs

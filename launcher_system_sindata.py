@@ -1,14 +1,26 @@
+# ── Standard library ────────────────────────────────────────────────────────────
+import ctypes
+import json
+import logging
+import os
 import secrets
+import shutil
+import socket
+import subprocess
+import sys
 import threading
+import time
 from http.server import BaseHTTPRequestHandler, HTTPServer
+from pathlib import Path
 from urllib.parse import urlparse, parse_qs
+import urllib.request
+# ─────────────────────────────────────────────────────────────────────────────
+
+
 def start_control_server(port: int, token: str, shutdown_event: threading.Event):
 
-    import time
-    import logging
-    open_tabs = set()
-    pending_close = dict()  # tab_id -> timestamp de cierre programado
-    last_close_ts = [0.0]  # mutable para acceso desde handler
+    open_tabs: set[str] = set()
+    pending_close: dict[str, float] = {}  # tab_id -> timestamp de cierre programado
     CLOSE_DEBOUNCE = 1.0
     PENDING_CLOSE_GRACE = 5.0
     first_open_received = [False]  # guard: no cerrar antes del primer /open
@@ -32,7 +44,9 @@ def start_control_server(port: int, token: str, shutdown_event: threading.Event)
             u = urlparse(self.path)
             qs = parse_qs(u.query)
             if qs.get("token", [""])[0] != token:
-                self.send_response(403); self.end_headers(); return
+                self.send_response(403)
+                self.end_headers()
+                return
             now = time.time()
             if u.path == "/open":
                 tab_id = qs.get("id", [""])[0]
@@ -44,23 +58,26 @@ def start_control_server(port: int, token: str, shutdown_event: threading.Event)
                             del pending_close[cancel_key]
                             if cancel_key in open_tabs and cancel_key != tab_id:
                                 open_tabs.discard(cancel_key)
-                            LOGGER.info(f"/open cancela pending: {cancel_key}")
-                    LOGGER.info(f"/open recibido: {tab_id}. Pestañas: {len(open_tabs)}")
-                self.send_response(200); self.end_headers(); return
+                            LOGGER.info("/open cancela pending: %s", cancel_key)
+                    LOGGER.info("/open recibido: %s. Pestañas: %d", tab_id, len(open_tabs))
+                self.send_response(200)
+                self.end_headers()
+                return
             elif u.path == "/close":
                 tab_id = qs.get("id", [""])[0]
                 if tab_id:
                     if tab_id not in open_tabs and first_open_received[0]:
                         open_tabs.add(tab_id)
-                        LOGGER.warning(f"/close tab desconocido {tab_id}: sintetizado.")
+                        LOGGER.warning("/close tab desconocido %s: sintetizado.", tab_id)
                     if tab_id in open_tabs:
                         pending_close[tab_id] = now + PENDING_CLOSE_GRACE
-                        LOGGER.info(f"/close: pending {tab_id} hasta +{PENDING_CLOSE_GRACE:.0f}s")
+                        LOGGER.info("/close: pending %s hasta +%.0fs", tab_id, PENDING_CLOSE_GRACE)
                 elif first_open_received[0]:
                     LOGGER.warning("/close sin tab_id con sesión activa: shutdown directo.")
                     shutdown_event.set()
-                last_close_ts[0] = now + CLOSE_DEBOUNCE
-                self.send_response(200); self.end_headers(); return
+                self.send_response(200)
+                self.end_headers()
+                return
             elif u.path == "/shutdown":
                 tab_id = qs.get("id", [""])[0]
                 synthetic = "__shutdown__"
@@ -68,12 +85,16 @@ def start_control_server(port: int, token: str, shutdown_event: threading.Event)
                 first_open_received[0] = True
                 pending_close[synthetic] = now + PENDING_CLOSE_GRACE
                 LOGGER.info(
-                    f"/shutdown recibido (id={tab_id or 'direct'}): "
-                    f"grace {PENDING_CLOSE_GRACE:.0f}s."
+                    "/shutdown recibido (id=%s): grace %.0fs.",
+                    tab_id or "direct", PENDING_CLOSE_GRACE,
                 )
-                self.send_response(200); self.end_headers(); return
+                self.send_response(200)
+                self.end_headers()
+                return
             else:
-                self.send_response(404); self.end_headers(); return
+                self.send_response(404)
+                self.end_headers()
+                return
 
         def log_message(self, *args):  # silenciar logs del HTTPServer
             pass
@@ -85,10 +106,10 @@ def start_control_server(port: int, token: str, shutdown_event: threading.Event)
             for tid in to_remove:
                 if tid in open_tabs:
                     open_tabs.remove(tid)
-                    LOGGER.info(f"pending_close ejecutado: {tid}. Pestañas: {len(open_tabs)}")
+                    LOGGER.info("pending_close ejecutado: %s. Pestañas: %d", tid, len(open_tabs))
                 del pending_close[tid]
 
-            if first_open_received[0] and open_tabs == set() and not pending_close:
+            if first_open_received[0] and not open_tabs and not pending_close:
                 LOGGER.info("Todas las pestañas cerradas → shutdown.")
                 shutdown_event.set()
                 return
@@ -99,25 +120,12 @@ def start_control_server(port: int, token: str, shutdown_event: threading.Event)
     httpd.open_tabs = open_tabs
     httpd.pending_close = pending_close
     httpd.first_open_received = first_open_received
-    httpd.last_close_ts = last_close_ts
-    httpd.CLOSE_DEBOUNCE = CLOSE_DEBOUNCE
     t = threading.Thread(target=httpd.serve_forever, daemon=True)
     t.start()
     t2 = threading.Thread(target=cleanup_pending, daemon=True)
     t2.start()
     return httpd
-import ctypes
-import json
-import logging
-import os
-import shutil
-import socket
-import subprocess
-import sys
-import threading
-import time
-from pathlib import Path
-import urllib.request
+
 
 LAUNCHER_VERSION = "envfix-2026-01-05-1.0"
 
@@ -130,9 +138,6 @@ def get_appdata_dir() -> Path:
 APPDATA_DIR = get_appdata_dir()
 LOG_DIR = APPDATA_DIR / "logs"
 DATA_DEMO_DIR = APPDATA_DIR / "data"
-# Python embebido instalado por el installer (preferido)
-PYTHON_DIR = APPDATA_DIR / "runtime" / "python"
-
 # Python a usar para lanzar Streamlit y la API: preferimos el embebido,
 # fallback al Python del sistema si el embebido no existe.
 _PYTHON_EXE: Path | None = None
@@ -154,23 +159,23 @@ if os.name == "nt":
     PROC_FLAGS |= subprocess.CREATE_NEW_PROCESS_GROUP
 
 
-# ── Helpers de terminación: nivel de módulo ────────────────────────────────────────
+# ── Helpers de terminación: módulo global ──────────────────────────────────────────
 
 def _taskkill_tree(pid: int) -> None:
     """Mata el PID y toda su descendencia de forma forzada (Windows)."""
     if os.name != "nt":
         return
-    _log = logging.getLogger("movilidad_launcher")
+    logger = logging.getLogger("movilidad_launcher")
     try:
         r = subprocess.run(
             ["taskkill", "/F", "/T", "/PID", str(pid)],
             capture_output=True, text=True,
             creationflags=NO_WINDOW, timeout=8,
         )
-        _log.info("taskkill /F /T PID=%s -> rc=%s  %s",
-                  pid, r.returncode, (r.stdout or r.stderr or "").strip())
+        logger.info("taskkill /F /T PID=%s -> rc=%s  %s",
+                    pid, r.returncode, (r.stdout or r.stderr or "").strip())
     except Exception as exc:
-        _log.warning("taskkill falló PID=%s: %s", pid, exc)
+        logger.warning("taskkill falló PID=%s: %s", pid, exc)
 
 
 def _pids_on_port(port: int) -> set[int]:
@@ -202,10 +207,16 @@ def _pids_on_port(port: int) -> set[int]:
 def shutdown_processes(procs: list, ports: list[int] | None = None) -> None:
     """
     Termina de forma robusta todos los procesos hijos y sus árboles.
-    Estrategia: taskkill /F /T por PID del Popen + PIDs en los puertos conocidos.
+
+    Estrategia (Windows):
+      1. Recolectar PIDs desde los Popen + puertos conocidos.
+      2. taskkill /F /T /PID <pid> para cada uno — mata el árbol completo.
+      3. Verificar con poll() y registrar lo que siga vivo.
+
+    En plataformas no-Windows se usa terminate() como fallback sin árbol.
     """
-    _log = logging.getLogger("movilidad_launcher")
-    _log.info("shutdown_processes: iniciando.")
+    logger = logging.getLogger("movilidad_launcher")
+    logger.info("shutdown_processes: iniciando terminación forzada.")
 
     if os.name != "nt":
         for proc in procs:
@@ -214,7 +225,7 @@ def shutdown_processes(procs: list, ports: list[int] | None = None) -> None:
                     proc.terminate()
                     proc.wait(timeout=5)
                 except Exception as exc:
-                    _log.warning("terminate fallo PID=%s: %s", getattr(proc, 'pid', '?'), exc)
+                    logger.warning("terminate falló PID=%s: %s", getattr(proc, 'pid', '?'), exc)
         return
 
     pids: set[int] = set()
@@ -224,28 +235,27 @@ def shutdown_processes(procs: list, ports: list[int] | None = None) -> None:
     for port in (ports or []):
         try:
             pids |= _pids_on_port(port)
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.debug("_pids_on_port(%s) falló: %s", port, exc)
 
     if not pids:
-        _log.info("shutdown_processes: ningún proceso vivo.")
+        logger.info("shutdown_processes: ningún proceso vivo encontrado.")
         return
 
-    _log.info("shutdown_processes: matando PIDs %s", sorted(pids))
+    logger.info("shutdown_processes: matando PIDs %s", sorted(pids))
     for pid in sorted(pids):
         _taskkill_tree(pid)
 
-    import time as _time
-    _time.sleep(0.5)
+    time.sleep(0.5)
     for proc in procs:
         if proc is not None:
             rc = proc.poll()
             if rc is None:
-                _log.warning("PID=%s sigue vivo tras taskkill, segunda pasada.", proc.pid)
+                logger.warning("PID=%s sigue vivo tras taskkill, segunda pasada.", proc.pid)
                 _taskkill_tree(proc.pid)
             else:
-                _log.info("PID=%s terminado (rc=%s).", proc.pid, rc)
-    _log.info("shutdown_processes: completado.")
+                logger.info("PID=%s terminado (rc=%s).", proc.pid, rc)
+    logger.info("shutdown_processes: completado.")
 
 
 if getattr(sys, "frozen", False):
@@ -264,16 +274,6 @@ else:
 
 LOGGER = logging.getLogger("movilidad_launcher")
 LOGGER.addHandler(logging.NullHandler())
-
-
-def _is_under(child: Path, parent: Path) -> bool:
-    """Devuelve True si child está dentro de parent (resolviendo rutas)."""
-    try:
-        child_r = child.resolve()
-        parent_r = parent.resolve()
-        return os.path.commonpath([str(child_r), str(parent_r)]) == str(parent_r)
-    except Exception:
-        return False
 
 
 def _run_capture(cmd: list[str], timeout: float = 8.0) -> subprocess.CompletedProcess:
@@ -694,7 +694,6 @@ def start_processes(api_enabled: bool = True, api_disabled_reason: str | None = 
         (LOG_DIR / "last_url.txt").write_text(url, encoding="utf-8")
 
         # Arrancar API en paralelo si está habilitada
-        api_ok_event = threading.Event()
         if api_enabled:
             LOGGER.info("Iniciando API en 127.0.0.1:%s", api_port)
             api_proc = subprocess.Popen(
@@ -708,7 +707,6 @@ def start_processes(api_enabled: bool = True, api_disabled_reason: str | None = 
 
         # --- JOB OBJECT para evitar huérfanos en Windows ---
         if os.name == "nt":
-            import ctypes
             kernel32 = ctypes.windll.kernel32
             job = kernel32.CreateJobObjectW(None, None)
             class JOBOBJECT_BASIC_LIMIT_INFORMATION(ctypes.Structure):
@@ -749,7 +747,6 @@ def start_processes(api_enabled: bool = True, api_disabled_reason: str | None = 
                 health_url = f"{api_url}/health"
                 ok = wait_for_health(health_url, timeout=15.0)
                 if ok:
-                    api_ok_event.set()
                     write_api_status(True, api_url)
                     LOGGER.info("API saludable en %s", api_url)
                 else:

@@ -1,14 +1,18 @@
+import json
 import os
 import re
-import json
-import xlrd
+import subprocess
+
 import pandas as pd
 import streamlit as st
+import xlrd
+
+from constants import PROGRAM_ERASMUS_OUT, PROGRAM_ERASMUS_IN, PROGRAM_SICUE_OUT, CSV_SHEET_MARKER
+
 
 def _is_academic_year(name: str) -> bool:
     """Devuelve True si el nombre parece un curso académico (ej: 25-26, 2025/2026, 2016)."""
     return bool(re.search(r'\d{4}|\d{2}[-/]\d{2}', name))
-from constants import PROGRAM_ERASMUS_OUT, PROGRAM_ERASMUS_IN, PROGRAM_SICUE_OUT, CSV_SHEET_MARKER
 
 def repair_windows_path(path_str: str) -> str:
     """
@@ -86,7 +90,6 @@ def _unique_sheets_from_config_or_files(cfg: dict) -> list[str]:
 
 def pick_local_file(initial_path: str | None = None) -> str | None:
     """Abre el explorador de archivos usando PowerShell y devuelve la ruta seleccionada (solo Windows)."""
-    import subprocess
     script = r"""
 Add-Type -AssemblyName System.Windows.Forms
 $form = New-Object System.Windows.Forms.Form
@@ -169,12 +172,13 @@ def close_routes_editor(new_config: dict | None = None) -> None:
     st.rerun()
 
 
-def verify_paths(config):
+def verify_paths(config: dict) -> tuple[bool, list[str]]:
     """Verifica que todas las rutas existan. Devuelve (ok, lista_errores)."""
     errors = [f"{nombre}: {ruta}" for nombre, ruta in config.items() if not os.path.exists(ruta)]
     return (len(errors) == 0, errors)
 
-def get_placeholder(config, key):
+
+def get_placeholder(config: dict, key: str) -> str:
     """Devuelve un placeholder: usa la ruta guardada o un valor por defecto si está vacío."""
     ruta = config.get(key, "")
     return ruta if ruta else f"Inserte la ruta del archivo {key} aquí"

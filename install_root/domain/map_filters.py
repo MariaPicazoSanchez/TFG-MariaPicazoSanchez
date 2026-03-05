@@ -4,9 +4,6 @@ import re
 import streamlit as st
 from constants import PROGRAM_ERASMUS_IN, PROGRAM_ERASMUS_OUT, PROGRAM_SICUE_OUT
 
-def rerun() -> None:
-    st.rerun()
-
 def filter_button(label: str, program_key: str, key: str, container: st.delta_generator.DeltaGenerator) -> None:
     """
     label: texto que se muestra en el botón
@@ -47,14 +44,13 @@ def _latest_sheet_name(names: list[str]) -> str | None:
 
 
 def render_filters_map(unique_sheets: list[str]) -> str:
-    import streamlit as st
     """
     Pinta los filtros de la barra lateral.
     - unique_sheets: lista de hojas disponibles (cursos)
     """
     # --- ESTADO DE PROGRAMAS SELECCIONADOS ---
     if "selected_programs" not in st.session_state:
-            st.session_state["selected_programs"] = {
+        st.session_state["selected_programs"] = {
             PROGRAM_ERASMUS_IN: False,
             PROGRAM_ERASMUS_OUT: False,
             PROGRAM_SICUE_OUT: False,

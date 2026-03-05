@@ -5,15 +5,9 @@ import logging
 import streamlit as st
 from utils import open_in_system
 import pycountry
-import pandas as pd
 from babel import Locale
 from constants import PROGRAM_ERASMUS_OUT, PROGRAM_ERASMUS_IN, PROGRAM_SICUE_OUT
-from domain.validators import (
-    DataValidator, is_not_empty, is_email, is_duration_valid,
-    normalize_string, normalize_email, normalize_int,
-    get_erasmus_out_schema, get_erasmus_in_schema, get_sicue_out_schema,
-    safe_int_convert
-)
+from domain.validators import (DataValidator, safe_int_convert, is_duration_valid)
 from persistence import get_asignaturas_catalog
 
 from .sidebar import pick_local_file
@@ -63,7 +57,8 @@ COUNTRY_OPTIONS = get_country_options()
 
 def _load_asignaturas_catalog(config: dict) -> list:
     """Carga el catálogo de asignaturas, con caché en session_state."""
-    cache_key = "_asignaturas_catalog_cache"
+    ruta = (config.get("Materias IN") or config.get("Erasmus IN") or "").strip()
+    cache_key = f"_asignaturas_catalog_cache_{ruta}"
     if cache_key not in st.session_state:
         try:
             st.session_state[cache_key] = get_asignaturas_catalog(config)

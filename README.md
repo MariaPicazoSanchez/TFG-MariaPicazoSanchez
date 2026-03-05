@@ -27,17 +27,18 @@ Aplicación de escritorio Windows que expone una interfaz web local (Streamlit) 
 
 ## 1. Process Architecture
 
-`launcher_system.py` spawns two independent subprocesses and supervises their lifecycle:
+`launcher_system.py` starts the orchestrator, which in turn spawns two independent subprocesses and supervises their lifecycle:
 
 ```text
 launcher_system.py
- ├── subprocess: streamlit run install_root/my_app.py   → http://127.0.0.1:<port_A>  (random free port)
- └── subprocess: python   install_root/api.py           → http://127.0.0.1:<port_B>  (random free port)
+ └── install_root/orchestrator/orchestrator.py
+      ├── subprocess: streamlit run install_root/web_app/my_app.py  → http://127.0.0.1:<port_A>  (random free port)
+      └── subprocess: python   install_root/api/api.py              → http://127.0.0.1:<port_B>  (random free port)
 ```
 
 Both ports are allocated dynamically at startup via `pick_two_free_ports()` (OS-assigned, `socket.bind("127.0.0.1", 0)`), so they will differ between runs. The API port is passed to both subprocesses via the `API_PORT` environment variable.
 
-A lightweight HTTP control server runs in a dedicated thread inside the launcher. It handles coordinated shutdown when all browser tabs have been closed, via three internal endpoints: `/open`, `/close`, and `/shutdown`.
+The orchestrator runs a **WebSocket server on `ws://localhost:8765`**. The Streamlit app connects to it on load; when the browser tab is closed the WebSocket connection drops, the orchestrator kills both child processes and exits cleanly.
 
 Both subprocesses read `config.json` at startup to resolve the absolute paths of the Excel data files.
 
@@ -47,7 +48,7 @@ Both subprocesses read `config.json` at startup to resolve the absolute paths of
 
 ```text
 TFG-MariaPicazoSanchez/
-├── launcher_system.py           # Main entry point — starts Streamlit + Flask + control server
+├── launcher_system.py           # Main entry point — starts the orchestrator (demo build)
 ├── launcher_system_sindata.py   # Production variant (no demo data)
 ├── config.json                  # Excel file paths per mobility programme
 ├── config.demo.json             # Example config pointing to data_demo/
@@ -55,8 +56,12 @@ TFG-MariaPicazoSanchez/
 ├── installer_sindata.iss        # Inno Setup script (production build)
 ├── MovilidadESII.spec           # PyInstaller spec file
 └── install_root/
-    ├── my_app.py                # Streamlit entry point — view routing
-    ├── api.py                   # Flask microservice (see §6)
+    ├── orchestrator/
+    │   └── orchestrator.py      # Process manager — spawns Flask + Streamlit, shuts both down when the browser tab closes (WebSocket signal)
+    ├── api/
+    │   └── api.py               # Flask microservice (see §6)
+    ├── web_app/
+    │   └── my_app.py            # Streamlit entry point — view routing
     ├── constants.py             # Global constants (programme names, Excel columns, …)
     ├── requirements.txt         # Pinned Python dependencies
     ├── domain/
@@ -146,6 +151,8 @@ pip install -r install_root/requirements.txt
 | `streamlit` | 1.47.1 | Web UI framework |
 | `flask` | 3.1.2 | REST API server |
 | `flask-cors` | 6.0.1 | Cross-origin support for embedded iframes |
+| `websockets` | 16.0 | WebSocket server in the orchestrator (shutdown signal) |
+| `psutil` | 7.2.2 | Process-tree kill in the orchestrator |
 | `folium` | 0.20.0 | Interactive HTML map generation |
 | `streamlit-folium` | 0.25.3 | Folium embed in Streamlit |
 | `pandas` | 2.2.3 | In-memory DataFrame processing |
@@ -172,22 +179,38 @@ py -3.12 -m pip download -r install_root/requirements.txt -d wheelhouse --only-b
 py launcher_system.py
 ```
 
-Starts Streamlit, Flask, and the control server as coordinated subprocesses.
+Starts the orchestrator, which in turn spawns Streamlit, Flask, and a WebSocket server for coordinated shutdown.
 
-### Manual mode (development / debugging)
+### Orchestrator only (development)
+
+Run the orchestrator directly from `install_root/` without the launcher wrapper:
+
+```bash
+cd install_root
+set APP_CONFIG_PATH=..\config.json
+python orchestrator/orchestrator.py
+```
+
+Streamlit and Flask are started automatically. Close the browser tab to trigger a clean shutdown.
+
+### Manual mode (individual processes)
+
+Useful when debugging a single component in isolation:
 
 ```bash
 # Terminal 1 — Flask API
 cd install_root
 set APP_CONFIG_PATH=..\config.json
-python api.py
+python api/api.py
 # → http://127.0.0.1:5000
 
 # Terminal 2 — Streamlit UI
 cd install_root
-python -m streamlit run my_app.py
+python -m streamlit run web_app/my_app.py
 # → http://localhost:8501
 ```
+
+> **Note:** In manual mode the WebSocket server is not running, so closing the browser tab will not shut down the processes. Stop them manually with `Ctrl+C`.
 
 ---
 
@@ -195,7 +218,7 @@ python -m streamlit run my_app.py
 
 **Base URL:** `http://127.0.0.1:<API_PORT>`
 
-The port is allocated dynamically by the launcher. In manual dev mode it defaults to `5000` unless overridden by `API_PORT`.
+The port is allocated dynamically by the orchestrator. In manual dev mode it defaults to `5000` unless overridden by `API_PORT`.
 
 Write endpoints require the `X-API-TOKEN` header (see [§7 Security Model](#7-security-model)). The token is also accepted as a `token` query parameter for form-based submissions.
 
@@ -204,8 +227,6 @@ Write endpoints require the `X-API-TOKEN` header (see [§7 Security Model](#7-se
 | Method | Path | Auth | Description |
 |:---|:---|:---:|:---|
 | `GET` | `/health` | — | Liveness check. Returns `{"ok": true}`. |
-| `GET` | `/ping` | — | Updates the last-activity timestamp used by the launcher watchdog. |
-| `GET` | `/last_ping` | — | Returns the last-activity timestamp: `{"ok": true, "ts": <unix float>}`. |
 | `POST` | `/update_student` | ✔ | Updates a student record in the corresponding Excel file. |
 
 ### `POST /update_student`
@@ -256,17 +277,24 @@ Installers are produced by the **`Build EXE and Installers`** GitHub Actions wor
 | Stage | Tool | Output |
 |:---|:---|:---|
 | Install dependencies | `pip install pyinstaller -r install_root/requirements.txt` | — |
+| Build wheelhouse | `pip wheel -r install_root/requirements.txt -w install_root/wheelhouse` | `install_root/wheelhouse/` |
 | Install Inno Setup | `choco install innosetup` | — |
 | Build EXE — demo | `PyInstaller --onedir --noconsole … launcher_system.py` | `dist/MovilidadESII/` |
-| Build installer — demo | `ISCC.exe installer.iss` | `output/MovilidadESII_setup.exe` |
+| Build installer — demo | `ISCC.exe installer.iss` | `output/MovilidadESII_Installer_ConData.exe` |
 | Clean `dist/` + `build/` | `Remove-Item` | — |
 | Build EXE — production | `PyInstaller --onedir --noconsole … launcher_system_sindata.py` | `dist/MovilidadESII/` |
-| Build installer — production | `ISCC.exe installer_sindata.iss` | `output/MovilidadESII_sindata_setup.exe` |
-| Upload artifacts | `actions/upload-artifact@v4` path `output/*.exe` | GitHub Actions artifact `installers` |
+| Build installer — production | `ISCC.exe installer_sindata.iss` | `output/MovilidadESII_Installer_SinData.exe` |
+| Upload artifact — demo | `actions/upload-artifact@v4` | GitHub Actions artifact `installer-demo` |
+| Upload artifact — production | `actions/upload-artifact@v4` | GitHub Actions artifact `installer-clean` |
 
 ### Triggering a build
 
-Go to **Actions → Build EXE and Installers → Run workflow** in the GitHub UI. Once complete, download the `installers` artifact from the workflow run summary.
+Go to **Actions → Build EXE and Installers → Run workflow** in the GitHub UI. Once complete, two artifacts are available from the workflow run summary:
+
+| Artifact | File | Description |
+|:---|:---|:---|
+| `installer-demo` | `MovilidadESII_Installer_ConData.exe` | Includes sample data for demonstration |
+| `installer-clean` | `MovilidadESII_Installer_SinData.exe` | Production build — no data bundled |
 
 ### What the installer does
 

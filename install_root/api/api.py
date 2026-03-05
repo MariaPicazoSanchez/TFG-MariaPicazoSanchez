@@ -11,13 +11,15 @@ o a través del orquestador:
     python orchestrator/orchestrator.py
 """
 
-from flask import Flask, jsonify, request
-from flask_cors import CORS
 import json
+import logging
 import os
 import sys
-import pandas as pd
 from functools import wraps
+
+import pandas as pd
+from flask import Flask, jsonify, request
+from flask_cors import CORS
 
 # ---------------------------------------------------------------------------
 # Asegurar que install_root/ esté en el path para que los imports relativos
@@ -30,9 +32,6 @@ if _root_dir not in sys.path:
     sys.path.insert(0, _root_dir)
 
 from security import get_api_token
-import logging
-import warnings
-import time
 
 
 def repair_windows_path(path_str: str) -> str:
@@ -214,7 +213,6 @@ def _build_js_response(ok: bool, messages: list[str], extra: dict | None = None)
 @app.route("/update_student", methods=["POST"])
 @require_token
 def update_student():
-    import sys
     from persistence import actualizar_excel_materias_para_estudiante, update_student_in_excel
 
     try:

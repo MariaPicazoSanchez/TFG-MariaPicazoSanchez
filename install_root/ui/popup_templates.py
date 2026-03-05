@@ -27,7 +27,8 @@ FORM_ACTION = f"{API_URL}/update_student"
 
 def _load_asignaturas_catalog(config: dict) -> list:
     """Carga el catálogo de asignaturas, con caché en session_state."""
-    cache_key = "_asignaturas_catalog_cache"
+    ruta = (config.get("Materias IN") or config.get("Erasmus IN") or "").strip()
+    cache_key = f"_asignaturas_catalog_cache_{ruta}"
     if cache_key not in st.session_state:
         try:
             from persistence import get_asignaturas_catalog

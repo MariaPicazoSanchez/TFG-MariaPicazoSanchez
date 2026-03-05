@@ -2,15 +2,14 @@
 Map data processing and auto-zoom calculations.
 """
 import pandas as pd
-from typing import Dict, Optional, Tuple, List
 
 
 def calculate_auto_zoom_bounds(
-    dfs: Dict[str, pd.DataFrame],
+    dfs: dict[str, pd.DataFrame],
     has_search: bool = False,
     search_margin: float = 0.4,
-    filter_margin: float = 0.05
-) -> Optional[Tuple[Tuple[float, float], Tuple[float, float]]]:
+    filter_margin: float = 0.05,
+) -> tuple[tuple[float, float], tuple[float, float]] | None:
     """Calculate map bounds for auto-zoom based on data coordinates.
     
     Args:
@@ -60,73 +59,58 @@ def calculate_auto_zoom_bounds(
     )
 
 
-def check_dataframes_have_data(dfs: Dict[str, pd.DataFrame]) -> bool:
+def check_dataframes_have_data(dfs: dict[str, pd.DataFrame]) -> bool:
     """Check if any dataframe has data."""
     if not isinstance(dfs, dict):
         return False
     return any(df is not None and not df.empty for df in dfs.values())
 
 
-def filter_out_no_la(dfs: Dict[str, pd.DataFrame], program: str) -> Dict[str, pd.DataFrame]:
+def _filter_students_without_la(students: list) -> list:
+    """Returns only students that do NOT have a valid link_LA."""
+    if not isinstance(students, list):
+        return []
+    return [
+        s for s in students
+        if isinstance(s, dict)
+        and not (s.get("link_LA") and str(s["link_LA"]).strip() not in ("", "nan"))
+    ]
+
+
+def filter_out_no_la(dfs: dict[str, pd.DataFrame], program: str) -> dict[str, pd.DataFrame]:
     """Filter Erasmus OUT program to keep only students WITHOUT LA.
-    
+
     Filtra a nivel de ESTUDIANTE, no de registro.
     Mantiene solo estudiantes que NO tienen link_LA válido.
-    
+
     Args:
         dfs: Dictionary of program -> DataFrame
         program: Program key to filter (typically PROGRAM_ERASMUS_OUT)
-    
+
     Returns:
         Modified dfs dictionary with filtered program (only students WITHOUT LA)
     """
     if program not in dfs:
         return dfs
-    
+
     df = dfs[program]
-    
-    # Si existe columna 'link_LA' a nivel de fila, usarla
+
+    # If link_LA exists as a row-level column, use it directly
     if "link_LA" in df.columns:
         mask = df["link_LA"].isna() | (df["link_LA"].astype(str).str.strip() == "")
         dfs[program] = df[mask].copy()
         return dfs
-    
-    # Si no, filtrar dentro de 'estudiantes'
+
     if "estudiantes" not in df.columns:
         return dfs
-    
-    # Función para filtrar estudiantes de una lista
-    def filter_students_without_la(students):
-        """Mantiene solo estudiantes que NO tienen link_LA válido"""
-        if not students or not isinstance(students, list):
-            return []
-        
-        filtered = []
-        for student in students:
-            if isinstance(student, dict):
-                link_la = student.get('link_LA', None)
-                # Si NO tiene link_LA válido, mantenerlo
-                if not link_la or str(link_la).strip() == '' or str(link_la).lower() == 'nan':
-                    filtered.append(student)
-        
-        return filtered
-    
-    # Aplicar filtro a cada registro: mantener solo estudiantes sin LA
-    # Descartar registros que queden vacíos
+
     filtered_rows = []
-    for idx, row in df.iterrows():
-        estudiantes = row.get('estudiantes', [])
-        filtered_students = filter_students_without_la(estudiantes)
-        
-        # Solo mantener el registro si tiene estudiantes después del filtro
+    for _, row in df.iterrows():
+        filtered_students = _filter_students_without_la(row.get("estudiantes", []))
         if filtered_students:
             row_copy = row.copy()
-            row_copy['estudiantes'] = filtered_students
+            row_copy["estudiantes"] = filtered_students
             filtered_rows.append(row_copy)
-    
-    if filtered_rows:
-        dfs[program] = pd.DataFrame(filtered_rows)
-    else:
-        dfs[program] = pd.DataFrame()  # DataFrame vacío si no hay estudiantes sin LA
-    
+
+    dfs[program] = pd.DataFrame(filtered_rows) if filtered_rows else pd.DataFrame()
     return dfs

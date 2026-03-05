@@ -12,12 +12,9 @@ Características:
 
 from __future__ import annotations
 
-import math
 import re
-from typing import Any, TypeVar, Optional, Callable, Protocol
+from typing import Any, Callable, Protocol
 from dataclasses import dataclass
-
-T = TypeVar('T')
 
 
 # ============================================
@@ -43,9 +40,9 @@ class FieldRule:
     """Define validación y normalización para un campo."""
     name: str
     validators: list[Validator]  # Se ejecutan en orden
-    normalizers: list[Normalizer] = None  # Se ejecutan en orden
+    normalizers: list[Normalizer] | None = None  # Se ejecutan en orden
     required: bool = False
-    label: str = None  # Nombre amigable para mensajes de error
+    label: str | None = None  # Nombre amigable para mensajes de error
     
     def __post_init__(self):
         if self.normalizers is None:
@@ -240,7 +237,7 @@ def is_valid_coordinates() -> Validator:
     return validator
 
 
-def is_in_range(min_val: int | float = None, max_val: int | float = None) -> Validator:
+def is_in_range(min_val: int | float | None = None, max_val: int | float | None = None) -> Validator:
     """Valida que un número esté en rango."""
     def validator(value: Any) -> tuple[bool, str]:
         try:
@@ -298,7 +295,7 @@ def matches_pattern(pattern: str, description: str = "") -> Validator:
     """Valida contra patrón regex."""
     def validator(value: Any) -> tuple[bool, str]:
         if not value:
-            return False, f"Valor vacío"
+            return False, "Valor vacío"
         is_valid = bool(re.match(pattern, str(value)))
         msg = f"No coincide con patrón {description}" if description else "Patrón inválido"
         return is_valid, msg if not is_valid else ""
@@ -432,7 +429,7 @@ class DataValidator:
     
     def validate_batch(self, data: dict, field_configs: dict[str, dict]) -> bool:
         """
-        Valida en lote con configuración dinámmica.
+        Valida en lote con configuración dinámica.
         
         Formato de field_configs:
         {
@@ -608,9 +605,7 @@ def create_contextual_validator(context_validator: Callable[[dict], tuple[bool, 
         
         validator = create_contextual_validator(no_duplicate_emails)
     """
-    def validator(all_data: dict) -> tuple[bool, str]:
-        return context_validator(all_data)
-    return validator
+    return context_validator
 
 
 # ============================================

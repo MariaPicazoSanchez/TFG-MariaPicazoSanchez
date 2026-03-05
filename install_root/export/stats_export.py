@@ -10,11 +10,9 @@ from openpyxl.utils.dataframe import dataframe_to_rows
 
 
 def _safe_sheet(name: str) -> str:
-    bad = ['\\', '/', '*', '?', ':', '[', ']']
-    for b in bad:
-        name = name.replace(b, "-")
-    name = name.strip()
-    return (name[:31] or "Hoja")
+    _bad_chars = str.maketrans({c: "-" for c in '\\/*?:[]'})
+    name = name.translate(_bad_chars).strip()
+    return name[:31] or "Hoja"
 
 
 def _style_title(ws, row: int, max_col: int, title: str) -> None:
@@ -63,7 +61,8 @@ def _autosize(ws) -> None:
 
 
 def _write_block(ws, row: int, title: str, df: pd.DataFrame) -> int:
-    df = df if df is not None else pd.DataFrame()
+    if df is None:
+        df = pd.DataFrame()
 
     ncols = max(2, len(df.columns) if not df.empty else 2)
     _style_title(ws, row=row, max_col=ncols, title=title)
@@ -88,9 +87,9 @@ def _write_block(ws, row: int, title: str, df: pd.DataFrame) -> int:
 
 
 def build_stats_excel(
-    tables: list[tuple[str, Any]],  # DataFrame o list[(titulo, DataFrame)]
+    tables: list[tuple[str, Any]],
     meta: dict[str, str] | None = None,
-    warnings: list[str] | None = None,
+    export_warnings: list[str] | None = None,
 ) -> bytes:
     out = BytesIO()
     with pd.ExcelWriter(out, engine="openpyxl") as writer:
@@ -104,8 +103,8 @@ def build_stats_excel(
             pd.DataFrame(list(meta.items()), columns=["Campo", "Valor"]).to_excel(
                 writer, sheet_name="Resumen", index=False
             )
-        if warnings:
-            pd.DataFrame({"Avisos": warnings}).to_excel(
+        if export_warnings:
+            pd.DataFrame({"Avisos": export_warnings}).to_excel(
                 writer, sheet_name="Avisos", index=False
             )
 

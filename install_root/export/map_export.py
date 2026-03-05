@@ -1,6 +1,7 @@
 import folium
 import json
 
+
 def count_students_by_type(dfs, active_names):
     """
     Cuenta alumnos por tipo de movilidad a partir del dict de DataFrames `dfs`.
@@ -94,8 +95,9 @@ def add_program_legend(
             active_names = list(active_programs)
         else:
             active_names = []
-    from domain import PROGRAM_COLORS
+
     # Fallback: si no hay nada activo, usamos todos los programas definidos
+    from domain import PROGRAM_COLORS
     if not active_names:
         active_names = list(PROGRAM_COLORS.keys())
 
@@ -105,18 +107,17 @@ def add_program_legend(
         alumnos_por_tipo = count_students_by_type(student_list, active_names)
 
     # --- 3. Construir las filas HTML de la leyenda ---
-    legend_rows = ""
+    rows_html = []
     for name in active_names:
-        color = PROGRAM_COLORS.get(name, "#888")  # por si acaso
-        n_alumnos = 0
-        if alumnos_por_tipo and name in alumnos_por_tipo:
-            n_alumnos = alumnos_por_tipo[name]
-        legend_rows += f"""
-        <div class=\"map-legend-row\">
-            <span class=\"map-legend-color\" style=\"background-color: {color};\"></span>
-            <span>{name} ( {n_alumnos} )</span>
-        </div>
-        """
+        color = PROGRAM_COLORS.get(name, "#888")
+        n_alumnos = alumnos_por_tipo.get(name, 0) if alumnos_por_tipo else 0
+        rows_html.append(
+            f'<div class="map-legend-row">'
+            f'<span class="map-legend-color" style="background-color: {color};"></span>'
+            f'<span>{name} ( {n_alumnos} )</span>'
+            f'</div>'
+        )
+    legend_rows = "\n        ".join(rows_html)
 
     # HTML interior de la leyenda (solo el contenido, sin <style> ni <script>)
     legend_inner_html = f"""
@@ -130,52 +131,49 @@ def add_program_legend(
     legend_inner_html_js = json.dumps(legend_inner_html)
 
     # --- 4. CSS + definición de window.__PROGRAM_LEGEND_HTML__ ---
-    legend_html = (
-        '<style>'
-        '.map-legend {'
-        '    position: absolute;'
-        '    bottom: 18px;'
-        '    right: 18px;'
-        '    z-index: 9999;'
-        '    background: rgba(255, 255, 255, 0.85); /* fondo blanco semitransparente */'
-        '    padding: 10px 14px;'
-        '    border-radius: 8px;'
-        '    /* box-shadow eliminado para evitar sombra sin leyenda */'
-        '    font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;'
-        '    font-size: 12px;'
-        '    color: #222;'
-        '}'
-        '.map-legend-title {'
-        '    margin: 0 0 6px 0;'
-        '    font-size: 13px;'
-        '    font-weight: 600;'
-        '}'
-        '.map-legend-row {'
-        '    display: flex;'
-        '    align-items: center;'
-        '    gap: 6px;'
-        '    margin-bottom: 4px;'
-        '}'
-        '.map-legend-row:last-child {'
-        '    margin-bottom: 0;'
-        '}'
-        '.map-legend-color {'
-        '    width: 14px;'
-        '    height: 14px;'
-        '    border-radius: 3px;'
-        '    border: 1px solid rgba(0,0,0,0.4);'
-        '    opacity: 0.75;   /* colores más suaves que el original del mapa */'
-        '}'
-        '</style>'
-        f"""
-        <script>
-        (function () {{
-            // HTML completo de la leyenda que usará html2canvas en el clon
-            window.__PROGRAM_LEGEND_HTML__ = {legend_inner_html_js};
-        }})();
-        </script>
-        """
-    )
+    legend_html = """
+<style>
+.map-legend {
+    position: absolute;
+    bottom: 18px;
+    right: 18px;
+    z-index: 9999;
+    background: rgba(255, 255, 255, 0.85);
+    padding: 10px 14px;
+    border-radius: 8px;
+    font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    font-size: 12px;
+    color: #222;
+}
+.map-legend-title {
+    margin: 0 0 6px 0;
+    font-size: 13px;
+    font-weight: 600;
+}
+.map-legend-row {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin-bottom: 4px;
+}
+.map-legend-row:last-child {
+    margin-bottom: 0;
+}
+.map-legend-color {
+    width: 14px;
+    height: 14px;
+    border-radius: 3px;
+    border: 1px solid rgba(0,0,0,0.4);
+    opacity: 0.75;
+}
+</style>
+""" + f"""
+<script>
+(function () {{
+    window.__PROGRAM_LEGEND_HTML__ = {legend_inner_html_js};
+}})();
+</script>
+"""
 
     m.get_root().html.add_child(folium.Element(legend_html))
 

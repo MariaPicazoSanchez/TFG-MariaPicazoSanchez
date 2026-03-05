@@ -1,11 +1,11 @@
 from __future__ import annotations
 
+import streamlit as st
 from ui import stats_helpers as sh
 from constants import MOBILITY_OPTIONS, MOBILITY_LABELS
 
 
 def render_filters_stats(available_courses: list[str]) -> None:
-    import streamlit as st
     """
     Filtros para la vista de estadísticas.
     - Desplegable de curso académico (hoja).
@@ -105,27 +105,15 @@ def render_filters_stats(available_courses: list[str]) -> None:
             )
 
     st.sidebar.markdown("---")
-    # Estado antiguo no necesario; gestionamos con click del botón
-    st.session_state.pop("export_panel_open", None)
-    # Estado por defecto de opciones de exportación
-    st.session_state.setdefault("export_panel_open", False)
 
+    # Estado por defecto de opciones de exportación
+    st.session_state["export_panel_open"] = False
     st.session_state.setdefault("exp_mobility", True)
     st.session_state.setdefault("exp_country_all", True)
     st.session_state.setdefault("exp_country_by_type", False)
     st.session_state.setdefault("exp_country_by_type_types", ["Erasmus OUT", "Erasmus IN", "SICUE OUT"])
-
     st.session_state.setdefault("exp_subject_in", False)
-
     st.session_state.setdefault("exp_university", False)
-    st.session_state.setdefault("exp_university_types", ["Todos"])
-    # Botón SIEMPRE visible; la apertura del expander depende solo de este click
-    # --- init estado ---
-    if "export_open" not in st.session_state:
-        st.session_state["export_open"] = False
-
-    # Defaults para tus multiselect (evita KeyError si no existen)
-    st.session_state.setdefault("exp_country_by_type_types", ["Erasmus OUT", "Erasmus IN", "SICUE OUT"])
     st.session_state.setdefault("exp_university_types", ["Todos"])
 
     # ===========================

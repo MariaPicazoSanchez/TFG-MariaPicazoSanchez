@@ -158,8 +158,11 @@ def load_materias_in(config):
                     est_vals = [str(r.get("estudiante") or "").strip() for r in rows_data]
                     est_vals_nonempty = [v for v in est_vals if v and v.lower() not in ("nan", "none", "")]
                     def _es_numerico(s):
-                        try: float(s.replace(",", ".")); return True
-                        except: return False
+                        try:
+                            float(s.replace(",", "."))
+                            return True
+                        except (ValueError, TypeError):
+                            return False
                     if est_vals_nonempty and all(_es_numerico(v) for v in est_vals_nonempty):
                         logger.debug(
                             "[DEBUG] Bloque descartado en hoja '%s' fila %d: todos los 'estudiante' son numéricos (%s)",
@@ -211,8 +214,11 @@ def load_materias_in(config):
 
         # Filtro de seguridad: descartar filas donde Estudiante es puramente numérico
         def _parece_numero(s):
-            try: float(str(s).strip().replace(",", ".")); return True
-            except: return False
+            try:
+                float(str(s).strip().replace(",", "."))
+                return True
+            except (ValueError, TypeError):
+                return False
         mask_num = df["Estudiante"].apply(_parece_numero)
         if mask_num.any():
             logger.debug(
@@ -326,7 +332,9 @@ def get_asignaturas_catalog(config):
     Busca la hoja/tabla que tenga columnas Asignaturas + Cuatrimestre sin columna Estudiante.
     Devuelve lista de dicts [{asignatura: str, cuat: str}, ...] ordenados por cuat.
     """
-    ruta = config.get("Materias IN") or config.get("Erasmus IN")
+    ruta = config.get("Materias IN") or ""
+    if not ruta or not os.path.exists(ruta):
+        ruta = config.get("Erasmus IN") or ""
     if not ruta or not os.path.exists(ruta):
         return []
 
@@ -356,17 +364,19 @@ def get_asignaturas_catalog(config):
                         break
 
                     asig = str(df_raw.iat[j, asig_idx] or "").strip() if asig_idx < df_raw.shape[1] else ""
-                    cuat = str(df_raw.iat[j, cuat_idx] or "").strip() if cuat_idx < df_raw.shape[1] else ""
+                    cuat_raw = str(df_raw.iat[j, cuat_idx] or "").strip() if cuat_idx < df_raw.shape[1] else ""
+
+                    # Normalizar "1.0" -> "1", "2.0" -> "2", etc.
+                    if cuat_raw and cuat_raw.lower() not in ("nan", "none", ""):
+                        try:
+                            cuat = str(int(float(cuat_raw)))
+                        except (ValueError, TypeError):
+                            cuat = cuat_raw
+                    else:
+                        cuat = ""
 
                     if asig and asig.lower() not in ("nan", "none", ""):
-                        rows.append({
-                            "asignatura": asig,
-                            "cuat": "" if cuat.lower() in ("nan", "none") else cuat,
-                        })
-
-                if rows:
-                    # Encontramos la tabla, no seguir buscando en esta hoja
-                    break
+                        rows.append({"asignatura": asig, "cuat": cuat})
 
             if rows:
                 break

@@ -1,6 +1,8 @@
+import json
 import logging
 import os
-import json
+import re
+
 import pandas as pd
 import streamlit as st
 from domain import COMMON_COLS, SPEC_COLS, SICUE_OUT_COLS
@@ -17,7 +19,6 @@ def first_sheet_name(xlsx_path: str) -> str:
         return "Sheet1"
 
 def _norm(s: str) -> str:
-    import re
     return re.sub(r"\s+", " ", str(s).strip().lower())
 
 def _pick_col(df: pd.DataFrame, *aliases):

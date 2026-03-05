@@ -40,7 +40,7 @@
         <p class="hero-subtitle">
           Herramienta de escritorio desarrollada en Python para la
           <strong>gestión centralizada y visualización geográfica</strong>
-          de la movilidad académica en la Escuela Superior de Ingeniería Informática (ESII).
+          de la movilidad académica en la Escuela Superior de Ingeniería Informática en el campus de Albacete (ESIIAB).
         </p>
 
         <!-- Badges de tecnologías -->
@@ -539,12 +539,14 @@
           <div class="challenge-item">
             <div class="challenge-number" aria-hidden="true">04</div>
             <div class="challenge-content">
-              <h3>Diseño orientado a usuarios no técnicos</h3>
+              <h3>Diseño visual e intuitivo para la gestión de datos</h3>
               <p>
-                Los usuarios finales son coordinadores académicos sin perfil técnico. Esto
-                obligó a iterar repetidamente sobre la interfaz para eliminar terminología
-                ambigua, simplificar flujos de trabajo y garantizar que las acciones
-                más frecuentes fueran accesibles sin necesidad de formación.
+                Aunque la gestión de la movilidad se realizaba hasta ahora con hojas de cálculo Excel,
+                este enfoque resultaba tedioso, propenso a errores y difícil de mantener a medida que
+                el volumen de datos crecía. El reto consistió en diseñar una interfaz visual que
+                centralizase toda la información en un único sistema, simplificase los flujos de trabajo
+                más habituales y ofreciese una experiencia de consulta y edición de datos mucho más
+                ágil y clara que la navegación manual por múltiples ficheros desconectados.
               </p>
             </div>
           </div>
@@ -574,11 +576,17 @@
               Instalador Windows (.exe)
             </h3>
             <p>
-              Descarga el instalador generado con Inno Setup. No requiere Python instalado.
-              Incluye todas las dependencias empaquetadas.
+              Descarga el instalador generado con Inno Setup mediante el workflow de GitHub Actions.
+              No requiere Python instalado: incluye todas las dependencias empaquetadas.
+              Hay dos variantes disponibles:
             </p>
+            <ul class="install-steps" style="margin-bottom:0.75rem">
+              <li><strong>Con datos de demostración</strong> — <code>MovilidadESII_Installer_ConData.exe</code>: incluye datos de ejemplo para explorar la aplicación desde el primer momento.</li>
+              <li><strong>Sin datos</strong> — <code>MovilidadESII_Installer_SinData.exe</code>: instalación limpia para uso en producción con los ficheros Excel reales de la institución.</li>
+            </ul>
             <ol class="install-steps">
-              <li>Descarga <code>MovilidadESII_setup.exe</code> desde la sección <em>Releases</em> del repositorio.</li>
+              <li>Ve a <strong>Actions → Build EXE and Installers → Run workflow</strong> en el repositorio de GitHub y espera a que finalice la ejecución.</li>
+              <li>Descarga el artefacto <code>installer-demo</code> o <code>installer-clean</code> desde el resumen de la ejecución.</li>
               <li>Ejecuta el instalador y sigue los pasos del asistente.</li>
               <li>Abre <strong>Movilidad ESII</strong> desde el acceso directo del escritorio.</li>
             </ol>
@@ -656,7 +664,7 @@ cd TFG-MariaPicazoSanchez</code></pre>
         <span class="footer-project">Movilidad ESII</span>
         <span class="footer-author">
           Trabajo de Fin de Grado · María Picazo Sánchez ·
-          Escuela Superior de Ingeniería Informática, UCLM
+          Escuela Superior de Ingeniería Informática en el campus de Albacete, UCLM
         </span>
         <span class="footer-year">Curso 2025 - 2026</span>
       </div>

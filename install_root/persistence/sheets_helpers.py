@@ -1,5 +1,8 @@
+import os
+import re
+import unicodedata
+
 import pandas as pd
-import os, re, unicodedata
 
 def norm_sheet(s: str) -> str:
     if s is None: return ""

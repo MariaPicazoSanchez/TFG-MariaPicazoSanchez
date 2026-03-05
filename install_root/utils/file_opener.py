@@ -1,16 +1,20 @@
+import os
+import subprocess
+import sys
 import time
-import streamlit as st
+import urllib.parse as up
 from urllib.parse import unquote
-import os, sys, subprocess, urllib.parse as up
 
-def open_in_system(path: str):
-    if not path: return False, "Ruta vacía"
-    if not os.path.exists(path): return False, f"No existe: {path}"
-    raw = path
-    path = unquote(str(path))
-    path = path.strip().strip('"').strip("'")
-    path = os.path.expanduser(path)
-    path = os.path.abspath(path)
+import streamlit as st
+
+def open_in_system(path: str) -> tuple[bool, str | None]:
+    if not path:
+        return False, "Ruta vacía"
+    if not os.path.exists(path):
+        return False, f"No existe: {path}"
+
+    path = unquote(str(path)).strip().strip('"').strip("'")
+    path = os.path.abspath(os.path.expanduser(path))
 
     if not os.path.exists(path):
         return False, f"No existe: {path}"
@@ -20,16 +24,18 @@ def open_in_system(path: str):
             try:
                 os.startfile(path)  # type: ignore[attr-defined]
             except Exception:
-                subprocess.Popen(['cmd', '/c', 'start', '', path], shell=True)
+                subprocess.Popen(["cmd", "/c", "start", "", path], shell=True)
             return True, None
         elif sys.platform == "darwin":
-            subprocess.Popen(["open", path]);  return True, None
+            subprocess.Popen(["open", path])
+            return True, None
         else:
-            subprocess.Popen(["xdg-open", path]);  return True, None
+            subprocess.Popen(["xdg-open", path])
+            return True, None
     except Exception as e:
         if sys.platform.startswith("win"):
             try:
-                subprocess.Popen(["rundll32","url.dll,FileProtocolHandler", path])
+                subprocess.Popen(["rundll32", "url.dll,FileProtocolHandler", path])
                 return True, None
             except Exception as e2:
                 return False, f"{e}; fallback: {e2}"
@@ -60,11 +66,10 @@ def handle_open_excel_query():
     Se usa cuando el popup llama a /?open_excel=...
     """
     params = st.query_params
-    raw = params.get("open_excel")
-    if not raw:
-        return  # no hay nada que hacer
+    programa = params.get("open_excel")
+    if not programa:
+        return
 
-    programa = raw[0]  # 'Erasmus IN', 'Erasmus OUT', 'SICUE OUT'
     config = st.session_state.get("config", {})
 
     ruta = config.get(programa)

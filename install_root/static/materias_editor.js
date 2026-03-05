@@ -1,155 +1,192 @@
-(function () {
+(() => {
     if (window.__materiasEditorInitialized) return;
     window.__materiasEditorInitialized = true;
 
-    // ---------------------------------------------------------------------------
-    // Carga el catálogo desde data-catalog y rellena el <datalist> del editor
-    // ---------------------------------------------------------------------------
+    // ─── Constants ────────────────────────────────────────────────────────────
+    const PROGRAMA_ERASMUS_IN = "erasmus in";
+    const TOAST_STYLES_ID     = "save-toast-styles";
+    const TOAST_ID            = "global-save-toast";
+    const OVERLAY_ID          = "global-save-overlay";
+
+    // ─── Catalog ──────────────────────────────────────────────────────────────
+
+    /** Populates the <datalist> inside a block from its data-catalog attribute. */
     function buildCatalogSelect(block) {
-        var dl = block.querySelector('datalist');
-        if (!dl) return;
-        if (dl.childElementCount > 0) return;  // ya poblado
+        const dl = block.querySelector("datalist");
+        if (!dl || dl.childElementCount > 0) return;
 
-        var raw = block.getAttribute("data-catalog") || "[]";
-        var catalog = [];
-        try { catalog = JSON.parse(raw); } catch (e) { console.warn("[materias] catalog JSON inválido", e); }
-
+        let catalog = [];
+        try {
+            catalog = JSON.parse(block.getAttribute("data-catalog") || "[]");
+        } catch (e) {
+            console.warn("[materias] catalog JSON inválido", e);
+        }
         if (!catalog.length) return;
 
-        // Cuatrimestre del alumno (puede estar vacío -> mostrar todo)
-        var studentCuat = (block.getAttribute("data-student-cuat") || "").replace(".0","").trim();
+        const studentCuat = (block.getAttribute("data-student-cuat") || "").replace(".0", "").trim();
 
-        catalog.forEach(function(item) {
-            var c = (item.cuat || "").toString().replace(".0","").trim();
-            // Si el alumno tiene cuatrimestre, solo mostrar las del mismo
-            if (studentCuat && c && c !== studentCuat) return;
-            var opt = document.createElement("option");
+        for (const item of catalog) {
+            const c = (item.cuat ?? "").toString().replace(".0", "").trim();
+            if (studentCuat && c && c !== studentCuat) continue;
+
+            const opt = document.createElement("option");
             opt.value = item.asignatura;
-            opt.label = c ? item.asignatura + "  [Cuat. " + c + "]" : item.asignatura;
+            opt.label = c ? `${item.asignatura}  [Cuat. ${c}]` : item.asignatura;
             dl.appendChild(opt);
-        });
+        }
     }
 
-    // Inicializar todos los bloques ya presentes en el DOM
     function initAllBlocks() {
         document.querySelectorAll(".materias-block").forEach(buildCatalogSelect);
     }
 
-    // Utilidad: normaliza materia (acepta nombre/asignatura) y preserva campos extra
-    function normalizeMateria(m) {
-        m = m || {};
-        var nombre = m.nombre != null ? m.nombre : m.asignatura;
+    // ─── Data helpers ─────────────────────────────────────────────────────────
+
+    /** Normalises a materia object, accepting both nombre and asignatura as the name field. */
+    function normalizeMateria(m = {}) {
+        const nombre = m.nombre != null ? m.nombre : m.asignatura;
+        const str    = s => (s ?? "").toString();
         return {
-            nombre:     (nombre || "").toString(),
-            asignatura: (nombre || "").toString(),
-            cuat:       (m.cuat    || "").toString(),
-            firmado:    (m.firmado || "").toString(),
-            la:         (m.la || m.link_la || "").toString(),
-            origen:     (m.origen  || "").toString(),
-            centro:     (m.centro  || "").toString()
+            nombre:     str(nombre),
+            asignatura: str(nombre),
+            cuat:       str(m.cuat),
+            firmado:    str(m.firmado),
+            la:         str(m.la || m.link_la),
+            origen:     str(m.origen),
+            centro:     str(m.centro),
         };
     }
-    function normalizeMaterias(arr) {
-        if (!Array.isArray(arr)) return [];
-        return arr.map(normalizeMateria);
-    }
 
-    // Lee materias del DOM (usa data-materia si existe para no perder campos extra)
+    const normalizeMaterias = arr => Array.isArray(arr) ? arr.map(normalizeMateria) : [];
+
+    /** Reads materias from DOM rows, preserving extra fields stored in data-materia. */
     function getMateriasFromDOM(block) {
-        var rows = block.querySelectorAll(".materia-row:not(.add-row)");
-        var result = [];
-        for (var i = 0; i < rows.length; i++) {
-            var row = rows[i];
-            var raw = row.getAttribute("data-materia");
-            var m = {};
-            if (raw) { try { m = JSON.parse(raw); } catch(e) {} }
-            if (!m.nombre && !m.asignatura) { m.nombre = row.getAttribute("data-nombre") || ""; }
-            result.push(normalizeMateria(m));
-        }
-        return result;
+        return Array.from(block.querySelectorAll(".materia-row:not(.add-row)")).map(row => {
+            let m = {};
+            try { m = JSON.parse(row.getAttribute("data-materia") || "{}"); } catch (_) {}
+            if (!m.nombre && !m.asignatura) m.nombre = row.getAttribute("data-nombre") ?? "";
+            return normalizeMateria(m);
+        });
     }
 
-    // Renderiza la lista de materias (guarda data-materia con todos los campos)
+    // ─── Rendering ────────────────────────────────────────────────────────────
+
+    /** Re-renders the materia list items, preserving the add-row at the bottom. */
     function renderMateriasList(block, materias) {
-        var list = block.querySelector(".materias-list");
+        const list = block.querySelector(".materias-list");
         if (!list) return;
-        var addRow = list.querySelector(".add-row");
-        var olds = list.querySelectorAll(".materia-row:not(.add-row)");
-        for (var i = 0; i < olds.length; i++) list.removeChild(olds[i]);
-        for (var j = 0; j < materias.length; j++) {
-            var m = materias[j];
-            var li = document.createElement("li");
+
+        const addRow = list.querySelector(".add-row");
+        list.querySelectorAll(".materia-row:not(.add-row)").forEach(el => el.remove());
+
+        for (const [j, m] of materias.entries()) {
+            const li = document.createElement("li");
             li.className = "materia-row";
-            li.setAttribute("data-mindex", String(j));
-            li.setAttribute("data-nombre", m.nombre || "");
-            li.setAttribute("data-materia", JSON.stringify(m));
-            li.innerHTML =
-                '<span class="materia-name">' + (m.nombre || "") + '</span>' +
-                '<span class="materia-actions">' +
-                '<button type="button" class="icon-btn materia-edit" title="Editar">✏️</button>' +
-                '<button type="button" class="icon-btn materia-delete" title="Eliminar">🗑️</button>' +
-                '</span>';
+            li.dataset.mindex  = j;
+            li.dataset.nombre  = m.nombre;
+            li.dataset.materia = JSON.stringify(m);
+            li.innerHTML = `
+                <span class="materia-name">${m.nombre}</span>
+                <span class="materia-actions">
+                    <button type="button" class="icon-btn materia-edit"   title="Editar">✏️</button>
+                    <button type="button" class="icon-btn materia-delete" title="Eliminar">🗑️</button>
+                </span>`;
             list.insertBefore(li, addRow);
         }
     }
 
-    // Abre el editor
+    // ─── Editor open / close ──────────────────────────────────────────────────
+
     function openEditor(block, idx, materias) {
-        var editor = block.querySelector(".materia-editor");
-        var list = block.querySelector(".materias-list");
+        const editor = block.querySelector(".materia-editor");
+        const list   = block.querySelector(".materias-list");
         if (!editor || !list) return;
 
-        // Asegurar que el datalist tiene el catálogo
         buildCatalogSelect(block);
 
-        var inp = editor.querySelector('input[name="mat_nombre"]');
-        if (!inp) {
-            console.error("[materias] Falta input nombre", { inp });
-            return;
-        }
-        var mat = (idx >= 0 && idx < materias.length) ? normalizeMateria(materias[idx]) : { nombre: "" };
-        inp.value = mat.nombre || "";
-        editor.setAttribute("data-edit-index", String(idx));
+        const inp = editor.querySelector('input[name="mat_nombre"]');
+        if (!inp) { console.error("[materias] Falta input nombre"); return; }
+
+        const mat = (idx >= 0 && idx < materias.length) ? normalizeMateria(materias[idx]) : { nombre: "" };
+        inp.value = mat.nombre;
+        editor.dataset.editIndex = idx;
         editor.style.display = "";
-        list.style.display = "none";
+        list.style.display   = "none";
     }
 
     function closeEditor(block) {
-        var editor = block.querySelector(".materia-editor");
-        var list = block.querySelector(".materias-list");
+        const editor = block.querySelector(".materia-editor");
+        const list   = block.querySelector(".materias-list");
         if (!editor || !list) return;
         editor.style.display = "none";
-        list.style.display = "";
+        list.style.display   = "";
     }
 
-    // Handler global
-    document.addEventListener("click", function (ev) {
-        var target = ev.target || ev.srcElement;
+    // ─── Click action handlers ────────────────────────────────────────────────
+
+    function handleEdit(target, block, materias) {
+        const row = target.closest(".materia-row");
+        if (!row) return;
+        openEditor(block, parseInt(row.dataset.mindex ?? "-1", 10), materias);
+    }
+
+    function handleDelete(target, block, textarea, materias) {
+        if (!textarea) return;
+        const row = target.closest(".materia-row");
+        if (!row) return;
+        const idx = parseInt(row.dataset.mindex ?? "-1", 10);
+        if (idx >= 0 && idx < materias.length) {
+            materias.splice(idx, 1);
+            textarea.value = JSON.stringify(materias);
+            renderMateriasList(block, materias);
+        }
+    }
+
+    function handleSave(block, textarea, editor, materias) {
+        if (!textarea) return;
+        const inp = editor.querySelector('input[name="mat_nombre"]');
+        if (!inp) { console.error("[materias] Falta input nombre al guardar"); return; }
+
+        const nuevoNombre = inp.value.trim();
+        if (!nuevoNombre) { alert("Selecciona o escribe una asignatura."); return; }
+
+        const idx = parseInt(editor.dataset.editIndex ?? "-1", 10);
+        if (idx >= 0 && idx < materias.length) {
+            materias[idx] = normalizeMateria({ ...materias[idx], nombre: nuevoNombre });
+        } else {
+            materias.push(normalizeMateria({ nombre: nuevoNombre }));
+        }
+
+        textarea.value = JSON.stringify(materias);
+        renderMateriasList(block, materias);
+        closeEditor(block);
+    }
+
+    // ─── Global click dispatcher ──────────────────────────────────────────────
+
+    document.addEventListener("click", ev => {
+        const target = ev.target;
         if (!(target instanceof Element)) return;
 
-        var editBtn = target.closest(".materia-edit");
-        var delBtn = target.closest(".materia-delete");
-        var addBtn = target.closest(".materia-add");
-        var saveBtn = target.closest(".materia-save");
-        var cancelBtn = target.closest(".materia-cancel");
+        const editBtn   = target.closest(".materia-edit");
+        const delBtn    = target.closest(".materia-delete");
+        const addBtn    = target.closest(".materia-add");
+        const saveBtn   = target.closest(".materia-save");
+        const cancelBtn = target.closest(".materia-cancel");
+
         if (!editBtn && !delBtn && !addBtn && !saveBtn && !cancelBtn) return;
 
         ev.preventDefault();
         ev.stopPropagation();
 
-        var block = target.closest(".materias-block");
-        if (!block) {
-            console.warn("[materias] No se encontró .materias-block");
-            return;
-        }
-        var textarea = block.querySelector('textarea[name="materias_raw"]');
-        var editor = block.querySelector(".materia-editor");
-        if (!editor) {
-            console.warn("[materias] No se encontró .materia-editor");
-            return;
-        }
+        const block = target.closest(".materias-block");
+        if (!block) { console.warn("[materias] No se encontró .materias-block"); return; }
 
-        var materias = [];
+        const textarea = block.querySelector('textarea[name="materias_raw"]');
+        const editor   = block.querySelector(".materia-editor");
+        if (!editor) { console.warn("[materias] No se encontró .materia-editor"); return; }
+
+        let materias;
         try {
             materias = normalizeMaterias(getMateriasFromDOM(block));
         } catch (e) {
@@ -157,202 +194,133 @@
             materias = [];
         }
 
-        // EDITAR
-        if (editBtn) {
-            var rowE = editBtn.closest(".materia-row");
-            if (!rowE) return;
-            var idxE = parseInt(rowE.getAttribute("data-mindex") || "-1", 10);
-            openEditor(block, idxE, materias);
-            return;
-        }
-
-        // BORRAR
-        if (delBtn) {
-            if (!textarea) return;
-            var rowD = delBtn.closest(".materia-row");
-            if (!rowD) return;
-            var idxD = parseInt(rowD.getAttribute("data-mindex") || "-1", 10);
-            if (idxD >= 0 && idxD < materias.length) {
-                materias.splice(idxD, 1);
-                textarea.value = JSON.stringify(materias);
-                renderMateriasList(block, materias);
-            }
-            return;
-        }
-
-        // AÑADIR
-        if (addBtn) {
-            openEditor(block, -1, materias);
-            return;
-        }
-
-        // GUARDAR
-        if (saveBtn) {
-            if (!textarea) return;
-            var inpNombre = editor.querySelector('input[name="mat_nombre"]');
-            if (!inpNombre) {
-                console.error("[materias] Falta input nombre en editor al guardar");
-                return;
-            }
-            var idxS = parseInt(editor.getAttribute("data-edit-index") || "-1", 10);
-            var nuevoNombre = (inpNombre.value || "").trim();
-            if (!nuevoNombre) {
-                alert("Selecciona o escribe una asignatura.");
-                return;
-            }
-            if (idxS >= 0 && idxS < materias.length) {
-                // Preservar todos los campos; solo actualizar nombre/asignatura
-                var existing = materias[idxS];
-                materias[idxS] = normalizeMateria({
-                    nombre:     nuevoNombre,
-                    cuat:       existing.cuat    || "",
-                    firmado:    existing.firmado  || "",
-                    la:         existing.la       || "",
-                    origen:     existing.origen   || "",
-                    centro:     existing.centro   || ""
-                });
-            } else {
-                materias.push(normalizeMateria({ nombre: nuevoNombre }));
-            }
-            textarea.value = JSON.stringify(materias);
-            renderMateriasList(block, materias);
-            closeEditor(block);
-            return;
-        }
-
-        // CANCELAR
-        if (cancelBtn) {
-            closeEditor(block);
-            return;
-        }
+        if (editBtn)   return handleEdit(target, block, materias);
+        if (delBtn)    return handleDelete(target, block, textarea, materias);
+        if (addBtn)    return openEditor(block, -1, materias);
+        if (saveBtn)   return handleSave(block, textarea, editor, materias);
+        if (cancelBtn) return closeEditor(block);
     });
 
-    // Inicializar catálogos al cargar
-    initAllBlocks();
-    console.log("[materias] Editor de materias inicializado");
+    // ─── Init ─────────────────────────────────────────────────────────────────
 
-    // Toast flotante inyectado en window.top (sobrevive re-renders de Streamlit)
+    initAllBlocks();
+
+    // ─── Toast ────────────────────────────────────────────────────────────────
+
+    const TOAST_CSS = `
+        .st-save-toast {
+            position: fixed; top: 50%; left: 50%;
+            transform: translate(-50%, -50%) scale(1);
+            padding: 28px 40px; border-radius: 12px;
+            font-weight: 700; font-size: 1.1rem; text-align: center;
+            z-index: 9999999; box-shadow: 0 8px 32px rgba(0,0,0,0.25);
+            min-width: 280px; max-width: 480px;
+            cursor: pointer; font-family: sans-serif;
+        }
+        .st-save-toast-success { background: #dcfce7; color: #14532d; border: 2px solid #16a34a; }
+        .st-save-toast-error   { background: #fee2e2; color: #7f1d1d; border: 2px solid #dc2626; }
+        .st-save-toast small   { display: block; font-size: 0.75rem; font-weight: 400; opacity: 0.7; margin-top: 6px; }
+    `;
+
     function getTopDoc() {
-        try { return window.top.document; } catch(e) { return document; }
+        try { return window.top.document; } catch (_) { return document; }
     }
 
     function ensureToastStyles() {
-        var topDoc = getTopDoc();
-        if (topDoc.getElementById("save-toast-styles")) return;
-        var s = topDoc.createElement("style");
-        s.id = "save-toast-styles";
-        s.textContent = [
-            ".st-save-toast{position:fixed;top:50%;left:50%;transform:translate(-50%,-50%) scale(1);",
-            "padding:28px 40px;border-radius:12px;font-weight:700;font-size:1.1rem;text-align:center;",
-            "z-index:9999999;box-shadow:0 8px 32px rgba(0,0,0,0.25);min-width:280px;max-width:480px;",
-            "cursor:pointer;font-family:sans-serif;}",
-            ".st-save-toast-success{background:#dcfce7;color:#14532d;border:2px solid #16a34a;}",
-            ".st-save-toast-error{background:#fee2e2;color:#7f1d1d;border:2px solid #dc2626;}",
-            ".st-save-toast small{display:block;font-size:0.75rem;font-weight:400;opacity:0.7;margin-top:6px;}"
-        ].join("");
-        topDoc.head.appendChild(s);
+        const topDoc = getTopDoc();
+        if (topDoc.getElementById(TOAST_STYLES_ID)) return;
+        const style = topDoc.createElement("style");
+        style.id = TOAST_STYLES_ID;
+        style.textContent = TOAST_CSS;
+        topDoc.head.appendChild(style);
     }
 
-    function getGlobalToast() {
-        var topDoc = getTopDoc();
-        ensureToastStyles();
-        var t = topDoc.getElementById("global-save-toast");
-        if (!t) {
-            t = topDoc.createElement("div");
-            t.id = "global-save-toast";
-            topDoc.body.appendChild(t);
-        }
-        return t;
+    /** Removes the toast and its backdrop overlay. Stored on window.top to survive iframe re-renders. */
+    function removeToast() {
+        const topDoc = window.top.document;
+        topDoc.getElementById(TOAST_ID)?.remove();
+        topDoc.getElementById(OVERLAY_ID)?.remove();
+        window.top._stRemoveToast = null;
     }
 
-    function showSaveToast(ok, messages) {
-        // Resetear botón
-        var btn = window._saveBtnRef;
-        if (btn) {
-            btn.textContent = "Guardar";
-            btn.disabled = false;
+    function showSaveToast(ok, messages = []) {
+        // Reset the save button as early as possible
+        if (window._saveBtnRef) {
+            window._saveBtnRef.textContent = "Guardar";
+            window._saveBtnRef.disabled    = false;
         }
 
-        var topDoc = getTopDoc();
+        const topDoc = getTopDoc();
 
-        // Eliminar toast y overlay anteriores si existen
-        var old = topDoc.getElementById("global-save-toast");
-        if (old && old.parentNode) old.parentNode.removeChild(old);
-        var oldOverlay = topDoc.getElementById("global-save-overlay");
-        if (oldOverlay && oldOverlay.parentNode) oldOverlay.parentNode.removeChild(oldOverlay);
+        // Remove any stale toast / overlay
+        topDoc.getElementById(TOAST_ID)?.remove();
+        topDoc.getElementById(OVERLAY_ID)?.remove();
 
         ensureToastStyles();
 
-        // Guardar removeToast en window.top para que sobreviva si el iframe se destruye
-        window.top._stRemoveToast = function() {
-            var topDoc = window.top.document;
-            var t = topDoc.getElementById("global-save-toast");
-            if (t && t.parentNode) t.parentNode.removeChild(t);
-            var ov = topDoc.getElementById("global-save-overlay");
-            if (ov && ov.parentNode) ov.parentNode.removeChild(ov);
-            window.top._stRemoveToast = null;
-        };
+        // Store removeToast on window.top so it survives iframe destruction.
+        // onclick attribute is intentional: it evaluates in window.top's context,
+        // not the iframe's, so it still works after Streamlit re-renders.
+        window.top._stRemoveToast = removeToast;
 
-        // Overlay invisible: cualquier clic cierra el toast
-        var overlay = topDoc.createElement("div");
-        overlay.id = "global-save-overlay";
+        const overlay = topDoc.createElement("div");
+        overlay.id = OVERLAY_ID;
         overlay.style.cssText = "position:fixed;top:0;left:0;width:100%;height:100%;z-index:9999998;cursor:pointer;";
         overlay.setAttribute("onclick", "window._stRemoveToast && window._stRemoveToast()");
         topDoc.body.appendChild(overlay);
 
-        var toast = topDoc.createElement("div");
-        toast.id = "global-save-toast";
+        const toast = topDoc.createElement("div");
+        toast.id = TOAST_ID;
         toast.setAttribute("onclick", "window._stRemoveToast && window._stRemoveToast()");
 
         if (ok) {
             toast.className = "st-save-toast st-save-toast-success";
-            toast.innerHTML = "Guardado correctamente.<br><small>Recarga la p\u00e1gina para ver los cambios actualizados. Clic para cerrar.</small>";
+            toast.innerHTML = `Guardado correctamente.<br><small>Recarga la p\u00e1gina para ver los cambios actualizados. Clic para cerrar.</small>`;
         } else {
-            var msgs = Array.isArray(messages) ? messages : [];
-            var displayMsg = msgs.length ? msgs.join(" ") : "Error al guardar.";
-            toast.className = "st-save-toast st-save-toast-error";
-            toast.innerHTML = "<strong>Error:</strong> " + displayMsg + "<br><small>Clic para cerrar</small>";
+            const displayMsg = messages.length ? messages.join(" ") : "Error al guardar.";
+            toast.className  = "st-save-toast st-save-toast-error";
+            toast.innerHTML  = `<strong>Error:</strong> ${displayMsg}<br><small>Clic para cerrar</small>`;
         }
 
         topDoc.body.appendChild(toast);
     }
 
-    // Validación Erasmus IN: impedir submit si no hay asignaturas
-    document.addEventListener("submit", function(ev) {
-        var form = ev.target;
-        if (!form || form.tagName !== "FORM") return;
-        var progInput = form.querySelector('input[name="programa"]');
-        if (!progInput) return;
-        if (progInput.value.toLowerCase() !== "erasmus in") return;
+    // ─── Form validation (Erasmus IN requires at least one subject) ───────────
 
-        var textarea = form.querySelector('textarea[name="materias_raw"]');
-        var materias = [];
-        if (textarea && textarea.value.trim()) {
-            try { materias = JSON.parse(textarea.value); } catch(e) {}
-        }
-        var tieneAsignaturas = Array.isArray(materias) && materias.some(function(m) {
-            return m && (m.asignatura || m.nombre || "").toString().trim() !== "";
-        });
-        if (!tieneAsignaturas) {
+    document.addEventListener("submit", ev => {
+        const form = ev.target;
+        if (!form || form.tagName !== "FORM") return;
+
+        const progInput = form.querySelector('input[name="programa"]');
+        if (!progInput || progInput.value.toLowerCase() !== PROGRAMA_ERASMUS_IN) return;
+
+        const textarea = form.querySelector('textarea[name="materias_raw"]');
+        let materias = [];
+        try { materias = JSON.parse(textarea?.value ?? "[]"); } catch (_) {}
+
+        const hasSubjects = Array.isArray(materias) && materias.some(
+            m => (m?.asignatura || m?.nombre || "").toString().trim() !== ""
+        );
+
+        if (!hasSubjects) {
             ev.preventDefault();
             ev.stopImmediatePropagation();
-            // Cancelar el setTimeout que deshabilita el botón
             clearTimeout(window._saveBtnTimeout);
-            // Restaurar botón si se había deshabilitado
-            var btn = window._saveBtnRef;
-            if (btn) { btn.disabled = false; btn.textContent = "Guardar"; }
+            if (window._saveBtnRef) {
+                window._saveBtnRef.disabled    = false;
+                window._saveBtnRef.textContent = "Guardar";
+            }
             showSaveToast(false, ["El alumno debe tener al menos una asignatura."]);
         }
-    }, true); // capture=true para actuar antes del handler de submit del form
+    }, /* capture */ true);
 
-    // Escucha mensajes de la API
-    window.addEventListener("message", function(event) {
-        var data = event.data || {};
+    // ─── API response messages ────────────────────────────────────────────────
+
+    window.addEventListener("message", ev => {
+        let data = ev.data ?? {};
         if (typeof data === "string") {
-            try { data = JSON.parse(data); } catch (e) { return; }
+            try { data = JSON.parse(data); } catch (_) { return; }
         }
-        if (data.type === "saveStatus") {
-            showSaveToast(data.ok, data.messages || []);
-        }
+        if (data.type === "saveStatus") showSaveToast(data.ok, data.messages ?? []);
     });
 })();

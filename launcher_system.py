@@ -1,14 +1,26 @@
+# ── Standard library ────────────────────────────────────────────────────────
+import ctypes
+import json
+import logging
+import os
 import secrets
+import shutil
+import socket
+import subprocess
+import sys
 import threading
+import time
 from http.server import BaseHTTPRequestHandler, HTTPServer
+from pathlib import Path
 from urllib.parse import urlparse, parse_qs
+import urllib.request
+# ─────────────────────────────────────────────────────────────────────────────
+
+
 def start_control_server(port: int, token: str, shutdown_event: threading.Event):
 
-    import time
-    import logging
-    open_tabs = set()
-    pending_close = dict()  # tab_id -> timestamp de cierre programado
-    last_close_ts = [0.0]  # mutable para acceso desde handler
+    open_tabs: set[str] = set()
+    pending_close: dict[str, float] = {}  # tab_id -> timestamp de cierre programado
     CLOSE_DEBOUNCE = 1.0
     # Tiempo que se espera antes de confirmar un cierre de pestaña.
     # Debe ser mayor que el tiempo de recarga de página (F5) para evitar
@@ -55,9 +67,10 @@ def start_control_server(port: int, token: str, shutdown_event: threading.Event)
                             del pending_close[cancel_key]
                             if cancel_key in open_tabs and cancel_key != tab_id:
                                 open_tabs.discard(cancel_key)
-                            LOGGER.info(f"/open cancela pending: {cancel_key}")
-                    LOGGER.info(f"/open recibido: {tab_id}. Pestañas abiertas: {len(open_tabs)}")
-                self.send_response(200); self.end_headers(); return
+                            LOGGER.info("/open cancela pending: %s", cancel_key)
+                LOGGER.info("/open recibido: %s. Pestañas abiertas: %d", tab_id, len(open_tabs))
+                self.send_response(200)
+                self.end_headers()
             elif u.path == "/close":
                 tab_id = qs.get("id", [""])[0]
                 if tab_id:
@@ -67,21 +80,21 @@ def start_control_server(port: int, token: str, shutdown_event: threading.Event)
                         # pueda disparar shutdown cuando expire la gracia.
                         open_tabs.add(tab_id)
                         LOGGER.warning(
-                            f"/close para tab desconocido {tab_id}: "
-                            "sintetizado en open_tabs para cierre controlado."
+                            "/close para tab desconocido %s: "
+                            "sintetizado en open_tabs para cierre controlado.", tab_id
                         )
                     if tab_id in open_tabs:
                         pending_close[tab_id] = now + PENDING_CLOSE_GRACE
                         LOGGER.info(
-                            f"/close recibido: {tab_id}. "
-                            f"Pending_close hasta +{PENDING_CLOSE_GRACE:.0f}s."
+                            "/close recibido: %s. Pending_close hasta +%.0fs.",
+                            tab_id, PENDING_CLOSE_GRACE,
                         )
                 elif first_open_received[0]:
                     # Sin tab_id pero ya hubo /open → shutdown directo con gracia
                     LOGGER.warning("/close sin tab_id con sesión activa: shutdown directo.")
                     shutdown_event.set()
-                last_close_ts[0] = now + CLOSE_DEBOUNCE
-                self.send_response(200); self.end_headers(); return
+                self.send_response(200)
+                self.end_headers()
             elif u.path == "/shutdown":
                 # Recibido desde el browser (sendBeacon) o manualmente.
                 # Usamos la misma gracia que /close para que F5 pueda cancelarlo:
@@ -92,12 +105,14 @@ def start_control_server(port: int, token: str, shutdown_event: threading.Event)
                 first_open_received[0] = True
                 pending_close[synthetic] = now + PENDING_CLOSE_GRACE
                 LOGGER.info(
-                    f"/shutdown recibido (id={tab_id or 'direct'}): "
-                    f"grace {PENDING_CLOSE_GRACE:.0f}s — F5 puede cancelarlo."
+                    "/shutdown recibido (id=%s): grace %.0fs — F5 puede cancelarlo.",
+                    tab_id or "direct", PENDING_CLOSE_GRACE,
                 )
-                self.send_response(200); self.end_headers(); return
+                self.send_response(200)
+                self.end_headers()
             else:
-                self.send_response(404); self.end_headers(); return
+                self.send_response(404)
+                self.end_headers()
 
         def log_message(self, *args):  # silenciar logs del HTTPServer
             pass
@@ -109,7 +124,7 @@ def start_control_server(port: int, token: str, shutdown_event: threading.Event)
             for tid in to_remove:
                 if tid in open_tabs:
                     open_tabs.remove(tid)
-                    LOGGER.info(f"pending_close ejecutado: {tid}. Pestañas abiertas: {len(open_tabs)}")
+                    LOGGER.info("pending_close ejecutado: %s. Pestañas abiertas: %d", tid, len(open_tabs))
                 del pending_close[tid]
 
             # ── Cierre inmediato cuando no queda ninguna pestaña ──────────────
@@ -117,7 +132,7 @@ def start_control_server(port: int, token: str, shutdown_event: threading.Event)
             # Sin este guard, al arrancar (open_tabs={}, pending_close={}) la
             # condición sería verdadera desde el primer tick y cerraría la app
             # antes de que el navegador siquiera abriera la página.
-            if first_open_received[0] and open_tabs == set() and not pending_close:
+            if first_open_received[0] and not open_tabs and not pending_close:
                 LOGGER.info(
                     "Todas las pestañas cerradas y sin gracias pendientes "
                     "→ señal de shutdown inmediata."
@@ -131,25 +146,12 @@ def start_control_server(port: int, token: str, shutdown_event: threading.Event)
     httpd.open_tabs = open_tabs
     httpd.pending_close = pending_close
     httpd.first_open_received = first_open_received
-    httpd.last_close_ts = last_close_ts
-    httpd.CLOSE_DEBOUNCE = CLOSE_DEBOUNCE
     t = threading.Thread(target=httpd.serve_forever, daemon=True)
     t.start()
     t2 = threading.Thread(target=cleanup_pending, daemon=True)
     t2.start()
     return httpd
-import ctypes
-import json
-import logging
-import os
-import shutil
-import socket
-import subprocess
-import sys
-import threading
-import time
-from pathlib import Path
-import urllib.request
+
 
 LAUNCHER_VERSION = "envfix-2026-01-05-1.0"
 
@@ -162,9 +164,6 @@ def get_appdata_dir() -> Path:
 APPDATA_DIR = get_appdata_dir()
 LOG_DIR = APPDATA_DIR / "logs"
 DATA_DEMO_DIR = APPDATA_DIR / "data"
-# Python embebido instalado por el installer (preferido)
-PYTHON_DIR = APPDATA_DIR / "runtime" / "python"
-
 # Python a usar para lanzar Streamlit y la API: preferimos el embebido,
 # fallback al Python del sistema si el embebido no existe.
 _PYTHON_EXE: Path | None = None
@@ -207,7 +206,7 @@ def _taskkill_tree(pid: int) -> None:
             pid, r.returncode, (r.stdout or r.stderr or "").strip(),
         )
     except Exception as exc:
-        logger.warning("taskkill fallo PID=%s: %s", pid, exc)
+        logger.warning("taskkill falló PID=%s: %s", pid, exc)
 
 
 def _pids_on_port(port: int) -> set[int]:
@@ -291,8 +290,7 @@ def shutdown_processes(
         _taskkill_tree(pid)
 
     # ── Verificación final ───────────────────────────────────────────────────
-    import time as _time
-    _time.sleep(0.5)   # pequeña espera para que el SO procese las señales
+    time.sleep(0.5)   # pequeña espera para que el SO procese las señales
     for proc in procs:
         if proc is not None:
             rc = proc.poll()
@@ -306,6 +304,12 @@ def shutdown_processes(
                 logger.info("PID=%s confirmado terminado (rc=%s).", proc.pid, rc)
 
     logger.info("shutdown_processes: completado.")
+
+
+# ── Verificación final ────────────────────────────────────────────────────────
+# Elimina el import local de time (ya importado a nivel de módulo)
+# que existía en versiones anteriores de shutdown_processes.
+# ─────────────────────────────────────────────────────────────────────────────
 
 
 if getattr(sys, "frozen", False):
@@ -324,16 +328,6 @@ else:
 
 LOGGER = logging.getLogger("movilidad_launcher")
 LOGGER.addHandler(logging.NullHandler())
-
-
-def _is_under(child: Path, parent: Path) -> bool:
-    """Devuelve True si child está dentro de parent (resolviendo rutas)."""
-    try:
-        child_r = child.resolve()
-        parent_r = parent.resolve()
-        return os.path.commonpath([str(child_r), str(parent_r)]) == str(parent_r)
-    except Exception:
-        return False
 
 
 def _run_capture(cmd: list[str], timeout: float = 8.0) -> subprocess.CompletedProcess:
@@ -754,7 +748,6 @@ def start_processes(api_enabled: bool = True, api_disabled_reason: str | None = 
         (LOG_DIR / "last_url.txt").write_text(url, encoding="utf-8")
 
         # Arrancar API en paralelo si está habilitada
-        api_ok_event = threading.Event()
         if api_enabled:
             LOGGER.info("Iniciando API en 127.0.0.1:%s", api_port)
             api_proc = subprocess.Popen(
@@ -768,7 +761,6 @@ def start_processes(api_enabled: bool = True, api_disabled_reason: str | None = 
 
         # --- JOB OBJECT para evitar huérfanos en Windows ---
         if os.name == "nt":
-            import ctypes
             kernel32 = ctypes.windll.kernel32
             job = kernel32.CreateJobObjectW(None, None)
             class JOBOBJECT_BASIC_LIMIT_INFORMATION(ctypes.Structure):
@@ -809,7 +801,6 @@ def start_processes(api_enabled: bool = True, api_disabled_reason: str | None = 
                 health_url = f"{api_url}/health"
                 ok = wait_for_health(health_url, timeout=15.0)
                 if ok:
-                    api_ok_event.set()
                     write_api_status(True, api_url)
                     LOGGER.info("API saludable en %s", api_url)
                 else:
