@@ -298,13 +298,15 @@ Installers are produced by the **`Build EXE and Installers`** GitHub Actions wor
 
 | Stage | Tool | Output |
 |:---|:---|:---|
+| Checkout repository | `actions/checkout@v4` | — |
+| Setup Python | `actions/setup-python@v5` (Python 3.12) | — |
 | Install dependencies | `pip install pyinstaller -r install_root/requirements.txt` | — |
 | Build wheelhouse | `pip wheel -r install_root/requirements.txt -w install_root/wheelhouse` | `install_root/wheelhouse/` |
 | Install Inno Setup | `choco install innosetup` | — |
-| Build EXE — demo | `PyInstaller --onedir --noconsole … launcher_system.py` | `dist/MovilidadESII/` |
+| Build EXE — demo | `python -m PyInstaller --onedir --noconsole --clean --noconfirm --icon=install_root/MovilidadESII.ico --name MovilidadESII launcher_system.py` | `dist/MovilidadESII/` |
 | Build installer — demo | `ISCC.exe installer.iss` | `output/MovilidadESII_Installer_ConData.exe` |
-| Clean `dist/` + `build/` | `Remove-Item` | — |
-| Build EXE — production | `PyInstaller --onedir --noconsole … launcher_system_sindata.py` | `dist/MovilidadESII/` |
+| Clean `dist/` + `build/` + `*.spec` | `Remove-Item -Recurse -Force` | — |
+| Build EXE — production | `python -m PyInstaller --onedir --noconsole --clean --noconfirm --icon=install_root/MovilidadESII.ico --name MovilidadESII launcher_system_sindata.py` | `dist/MovilidadESII/` |
 | Build installer — production | `ISCC.exe installer_sindata.iss` | `output/MovilidadESII_Installer_SinData.exe` |
 | Upload artifact — demo | `actions/upload-artifact@v4` | GitHub Actions artifact `installer-demo` |
 | Upload artifact — production | `actions/upload-artifact@v4` | GitHub Actions artifact `installer-clean` |

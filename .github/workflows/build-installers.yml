@@ -3,6 +3,9 @@ name: Build EXE and Installers
 on:
   workflow_dispatch:
 
+permissions:
+  contents: write
+
 jobs:
   build:
     runs-on: windows-latest
@@ -107,3 +110,13 @@ jobs:
           name: installer-clean
           path: output/MovilidadESII_Installer_SinData.exe
       
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v${{ github.run_number }}
+          name: MovilidadESII Build ${{ github.run_number }}
+          files: |
+            output/MovilidadESII_Installer_ConData.exe#MovilidadESII-DemoInstaller.exe
+            output/MovilidadESII_Installer_SinData.exe#MovilidadESII-CleanInstaller.exe
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
