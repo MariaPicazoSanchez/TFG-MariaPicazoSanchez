@@ -23,13 +23,14 @@ def start_control_server(port: int, token: str, shutdown_event: threading.Event)
     pending_close: dict[str, float] = {}  # tab_id -> timestamp de cierre programado
     last_heartbeat: dict[str, float] = {}  # tab_id -> timestamp del último /open
     CLOSE_DEBOUNCE = 1.0
-    # Tiempo que se espera antes de confirmar un cierre de pestaña.
-    # Debe ser mayor que el tiempo de recarga de página (F5) para evitar
-    # falsos positivos: una recarga envía /close y luego /open en ~2-4s.
-    PENDING_CLOSE_GRACE = 5.0
+    # Tiempo de gracia tras recibir /close antes de confirmar el cierre.
+    # Debe ser mayor que el tiempo de recarga/re-render de Streamlit para evitar
+    # falsos positivos: F5 o cambio de vista envían /close y luego /open en ~2-10s.
+    PENDING_CLOSE_GRACE = 2.0
     # Si un tab no envía /open en HEARTBEAT_TIMEOUT segundos, se considera cerrado.
-    # El JS envía /open cada 5s; 15s = 3 intervalos fallidos antes de declararlo muerto.
-    HEARTBEAT_TIMEOUT = 15.0
+    # El JS envía /open cada 2s; 5s = ~2 intervalos fallidos → margen para re-renders
+    # rápidos sin disparar shutdown falso al cambiar de vista.
+    HEARTBEAT_TIMEOUT = 5.0
     # Guard: cleanup_pending NO puede disparar shutdown hasta que al menos
     # una pestaña haya enviado /open.  Evita cierre prematuro al arrancar,
     # cuando open_tabs está vacío simplemente porque el navegador aún no abrió.
@@ -857,7 +858,7 @@ def start_processes(api_enabled: bool = True, api_disabled_reason: str | None = 
         LOGGER.info("=" * 60)
         LOGGER.info("Watchdog configurado:")
         LOGGER.info("  Gracia inicial          : %ds", GRACE_STARTUP)
-        LOGGER.info("  Cierre pestaña          : ~6s (beacon /close|/shutdown + grace 5s)")
+        LOGGER.info("  Cierre pestaña          : ~7s (heartbeat 5s + grace 2s)")
         LOGGER.info("  Tiempo máx. ejecución   : %ds (%.1fh)", MAX_RUNTIME, MAX_RUNTIME / 3600)
         LOGGER.info("  Intervalo watchdog      : %ds", CHECK_INTERVAL)
         LOGGER.info("  API habilitada          : %s", api_enabled)

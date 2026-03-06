@@ -240,69 +240,83 @@ def _inject_orchestrator_ws() -> None:
             <script>
             (function() {{
               // Intentar acceder a window.top para anclar estado entre re-renders.
+              // usingTop=true  → iframe con acceso al padre (same-origin).
+              // usingTop=false → iframe sandboxeado; host = window del iframe.
               var host;
+              var usingTop = false;
               try {{
-                host = (window.top && window.top.setInterval) ? window.top : window;
+                if (window.top && window.top.setInterval) {{
+                  host = window.top;
+                  usingTop = (host !== window);
+                }} else {{
+                  host = window;
+                }}
               }} catch (e) {{
-                host = window;
+                host = window; // SecurityError: sandbox bloquea window.top
               }}
 
               var base  = "{base_url}";
               var token = "{shutdown_token}";
-              // tabId estable: generado en Python (st.session_state), NO en JS.
-              // Le evita depender de sessionStorage (puede no estar disponible
-              // en iframes sandboxed) y garantiza un único ID consistente en
-              // todos los re-renders de la misma sesión Streamlit.
               var tabId = "{tab_id}";
 
               var _openUrl  = base + "/open?token="  + token + "&id=" + tabId;
               var _closeUrl = base + "/close?token=" + token + "&id=" + tabId;
 
-              // Usar host.fetch (contexto del documento superior) para que la
-              // llamada no dependa del iframe efímero que Streamlit destruye y
-              // recrea en cada re-render.
               function _fetch(url, opts) {{
                 try {{
                   (host.fetch || window.fetch)(url, opts).catch(function() {{}});
                 }} catch(e) {{}}
               }}
 
-              // /open en CADA render: cancela pending_close falsos provocados
-              // por el destroy/recreate del iframe en re-renders.
+              // Si la pestaña ya fue cerrada explícitamente, salir sin hacer nada.
+              // Esto evita que un re-render tardío reactive el heartbeat tras el cierre.
+              if (host.__movilidad_tab_closed) return;
+
+              // /open inmediato en cada render para cancelar cualquier pending_close
+              // provocado por el tiempo de re-render entre la destrucción del iframe
+              // anterior y la ejecución de este script.
               _fetch(_openUrl, {{method: "POST", mode: "no-cors"}});
 
-              // Heartbeat cada 5 s (anchored en host): si el servidor no recibe
-              // /open en HEARTBEAT_TIMEOUT (15 s), mueve el tab a pending_close.
-              if (!host.__movilidad_heartbeat) {{
-                host.__movilidad_heartbeat = host.setInterval(function() {{
-                  _fetch(_openUrl, {{method: "POST", mode: "no-cors"}});
-                }}, 5000);
+              // ── Heartbeat ────────────────────────────────────────────────
+              // SIEMPRE reinstalar el intervalo en cada render.
+              // Razón: con usingTop=true el intervalo se ancla en window.top y
+              // sobrevive a rerenders, pero puede haber quedado en estado zombie
+              // (referencia no nula, intervalo ya cancelado) si en un render
+              // anterior se llamó clearInterval(). Reinstalarlo garantiza que
+              // SIEMPRE hay un intervalo vivo.
+              // Con usingTop=false (iframe sandboxeado), window es fresco en cada
+              // render, así que host.__movilidad_heartbeat siempre es undefined
+              // y el resultado es el mismo.
+              if (host.__movilidad_heartbeat) {{
+                host.clearInterval(host.__movilidad_heartbeat);
               }}
+              host.__movilidad_heartbeat = host.setInterval(function() {{
+                if (!host.__movilidad_tab_closed) {{
+                  _fetch(_openUrl, {{method: "POST", mode: "no-cors"}});
+                }}
+              }}, 2000);
 
-              // Listeners de cierre (una sola vez en host): aceleran el shutdown
-              // si el evento llega; el heartbeat-timeout cubre el caso en que no.
-              if (!host.__movilidad_ctrl_close) {{
+              // ── Listeners de cierre ──────────────────────────────────────
+              // Solo en usingTop=true: pagehide/beforeunload del iframe (usingTop=false)
+              // se dispara en cada re-render → /close falso → shutdown al cambiar vista.
+              if (usingTop && !host.__movilidad_ctrl_close) {{
                 host.__movilidad_ctrl_close = true;
 
                 host.__movilidad_notify_close = function() {{
+                  host.__movilidad_tab_closed = true;
                   if (host.__movilidad_heartbeat) {{
                     host.clearInterval(host.__movilidad_heartbeat);
                     host.__movilidad_heartbeat = null;
                   }}
-                  // host.navigator: usar el navigator del documento superior para
-                  // evitar referencias a un iframe ya destruido durante el unload.
                   var sent = false;
                   try {{ sent = (host.navigator || navigator).sendBeacon(_closeUrl); }} catch(e) {{}}
                   if (!sent) {{
-                    // Fallback: fetch keepalive (equivalente a sendBeacon)
                     _fetch(_closeUrl, {{method: "POST", keepalive: true, mode: "no-cors"}});
                   }}
                 }};
 
                 try {{ host.addEventListener("pagehide",     host.__movilidad_notify_close); }} catch(e) {{}}
                 try {{ host.addEventListener("beforeunload", host.__movilidad_notify_close); }} catch(e) {{}}
-
-                console.log("[MovilidadESII] Control HTTP listo (tab=" + tabId + ").");
               }}
             }})();
             </script>
