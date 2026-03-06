@@ -99,7 +99,7 @@ def render_map(m: folium.Map) -> None:
     </script>
     """))
 
-    st_folium(m, height=900, width='stretch', key="main_map")
+    st_folium(m, height=900, use_container_width=True, key="main_map")
 
 def show_map(
     dfs: dict,

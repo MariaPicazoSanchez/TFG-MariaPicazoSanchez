@@ -399,7 +399,7 @@ def render_new_user_form(available_types: list[str], config: dict) -> dict | Non
                         key=f"{materias_key}_del_{i}",
                         help="Eliminar asignatura",
                         type="secondary",
-                        width='stretch'
+                        use_container_width=True
                     ):
                         delete_idx = i
 
@@ -464,10 +464,10 @@ def render_new_user_form(available_types: list[str], config: dict) -> dict | Non
     bcol1, bcol2 = st.columns([1, 1], gap="small")
     
     with bcol1:
-        open_clicked = st.button(open_label, width='stretch', type="secondary")
+        open_clicked = st.button(open_label, use_container_width=True, type="secondary")
     
     with bcol2:
-        submit_clicked = st.button("Crear estudiante", width='stretch', type="primary")
+        submit_clicked = st.button("Crear estudiante", use_container_width=True, type="primary")
     
     # ────────────────────────────────────────────────────────────────
     # ACCIONES DE BOTONES
