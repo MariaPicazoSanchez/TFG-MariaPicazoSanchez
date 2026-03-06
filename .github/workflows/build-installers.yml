@@ -26,7 +26,7 @@ jobs:
           python -m pip install --upgrade pip
           pip install pyinstaller
           pip install -r install_root/requirements.txt
-      
+
       - name: Build wheelhouse
         shell: pwsh
         run: |
@@ -37,9 +37,9 @@ jobs:
         shell: pwsh
         run: choco install innosetup --yes
 
-      # =================================
+      # =========================
       # BUILD VERSION CON DATOS
-      # =================================
+      # =========================
 
       - name: Build EXE (demo data)
         shell: pwsh
@@ -53,10 +53,6 @@ jobs:
             --name MovilidadESII `
             launcher_system.py
 
-      - name: Debug dist folder
-        shell: pwsh
-        run: dir dist
-
       - name: Create installer (demo data)
         shell: pwsh
         run: |
@@ -69,9 +65,9 @@ jobs:
           Remove-Item -Recurse -Force build -ErrorAction Ignore
           Remove-Item *.spec -ErrorAction Ignore
 
-      # =================================
+      # =========================
       # BUILD VERSION SIN DATOS
-      # =================================
+      # =========================
 
       - name: Build EXE (no demo data)
         shell: pwsh
@@ -85,38 +81,47 @@ jobs:
             --name MovilidadESII `
             launcher_system_sindata.py
 
-      - name: Debug dist folder (clean version)
-        shell: pwsh
-        run: dir dist
-
       - name: Create installer (no demo data)
         shell: pwsh
         run: |
           & "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" installer_sindata.iss
 
-      # =================================
-      # UPLOAD ARTIFACTS
-      # =================================
-      
-      - name: Subir instalador CON datos
+      # =========================
+      # DEBUG (ver que existen)
+      # =========================
+
+      - name: Check output folder
+        shell: pwsh
+        run: |
+          dir output
+
+      # =========================
+      # ARTIFACTS (opcional)
+      # =========================
+
+      - name: Upload installer demo
         uses: actions/upload-artifact@v4
         with:
           name: installer-demo
           path: output/MovilidadESII_Installer_ConData.exe
-          
-      - name: Subir instalador SIN datos
+
+      - name: Upload installer clean
         uses: actions/upload-artifact@v4
         with:
           name: installer-clean
           path: output/MovilidadESII_Installer_SinData.exe
-      
+
+      # =========================
+      # RELEASE
+      # =========================
+
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
           tag_name: v${{ github.run_number }}
           name: MovilidadESII Build ${{ github.run_number }}
           files: |
-            output/MovilidadESII_Installer_ConData.exe#MovilidadESII-DemoInstaller.exe
-            output/MovilidadESII_Installer_SinData.exe#MovilidadESII-CleanInstaller.exe
+            output/MovilidadESII_Installer_ConData.exe
+            output/MovilidadESII_Installer_SinData.exe
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
