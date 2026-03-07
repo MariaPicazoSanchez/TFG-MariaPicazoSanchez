@@ -1,7 +1,7 @@
 # Movilidad ESII
 
-> Herramienta de gestión y visualización de movilidad académica (Erasmus OUT/IN, SICUE)  
-> para la Escuela Superior de Ingeniería Informática — Universidad de Castilla-La Mancha.
+> Academic mobility management and visualisation tool (Erasmus OUT/IN, SICUE)  
+> for the School of Computer Science Engineering (Albacete campus) - University of Castilla-La Mancha.
 
 [![Python 3.12](https://img.shields.io/badge/Python-3.12-3776AB?logo=python&logoColor=white)](https://www.python.org/)
 [![Streamlit 1.47](https://img.shields.io/badge/Streamlit-1.47-FF4B4B?logo=streamlit&logoColor=white)](https://streamlit.io/)
