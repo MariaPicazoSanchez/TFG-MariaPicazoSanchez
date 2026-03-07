@@ -58,26 +58,27 @@ flowchart TD
     classDef store    fill:#f3e8ff,stroke:#9333ea,color:#581c87
 
     subgraph PROC ["⚙ Process Launcher"]
-        SYS["launcher_system.py\ndynamic ports · HTTP control"]:::launcher
-        ORC["orchestrator.py\nfixed ports · WebSocket"]:::launcher
+        SYS["launcher_system.py<br/>dynamic ports · HTTP control"]:::launcher
+        ORC["orchestrator.py<br/>fixed ports · WebSocket"]:::launcher
     end
 
     subgraph APP ["Application"]
-        UI["Streamlit UI · :8501\nmap · stats · new student"]:::app
-        API["Flask API · :5000\n/health · /update_student 🔒"]:::app
+        UI["Streamlit UI · :8501<br/>map · stats · new student"]:::app
+        API["Flask API · :5000<br/>/health · /update_student 🔒"]:::app
     end
 
-    subgraph CORE ["Domain & Infrastructure"]
-        DOM["Domain\nmodels · filters · validators"]:::domain
-        INF["Utils & Security\nconfig · geocoding · token"]:::domain
+    subgraph CORE ["Domain and Infrastructure"]
+        DOM["Domain<br/>models · filters · validators"]:::domain
+        INF["Utils and Security<br/>config · geocoding · token"]:::domain
     end
 
-    XL[("Excel Files\nSICUE · Erasmus OUT · Erasmus IN")]:::store
+    XL[("Excel Files<br/>SICUE · Erasmus OUT · Erasmus IN")]:::store
 
     PROC -->|spawns| UI
     PROC -->|spawns| API
     UI -->|"REST · X-API-TOKEN"| API
-    UI & API -->|business logic| DOM
+    UI -->|business logic| DOM
+    API -->|business logic| DOM
     DOM --> INF
     DOM -->|"openpyxl · xlrd"| XL
 ```
