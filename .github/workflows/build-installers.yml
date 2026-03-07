@@ -110,7 +110,30 @@ jobs:
         with:
           name: installer-clean
           path: output/MovilidadESII_Installer_SinData.exe
+          
+      # =========================
+      # FIRMA DE EJECUTABLES
+      # =========================
+      - name: Decode certificate
+        shell: pwsh
+        run: |
+          $bytes = [Convert]::FromBase64String("${{ secrets.CERTIFICATE_PFX }}")
+          [IO.File]::WriteAllBytes("$env:TEMP\cert.pfx", $bytes)
 
+      - name: Sign installers
+        shell: pwsh
+        run: |
+          $signtool = "C:\Program Files (x86)\Windows Kits\10\bin\10.0.22621.0\x64\signtool.exe"
+          $password = "${{ secrets.CERTIFICATE_PASSWORD }}"
+          $timestamp = "http://timestamp.digicert.com"
+
+          & $signtool sign -f "$env:TEMP\cert.pfx" -p $password -t $timestamp -fd SHA256 "output\MovilidadESII_Installer_ConData.exe"
+          & $signtool sign -f "$env:TEMP\cert.pfx" -p $password -t $timestamp -fd SHA256 "output\MovilidadESII_Installer_SinData.exe"
+
+      - name: Clean certificate
+        shell: pwsh
+        run: Remove-Item "$env:TEMP\cert.pfx" -Force
+        
       # =========================
       # RELEASE
       # =========================
