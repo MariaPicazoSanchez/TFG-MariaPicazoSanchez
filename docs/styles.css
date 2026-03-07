@@ -1043,6 +1043,234 @@ code {
 
 
 /* ----------------------------------------------------------------
+   SMARTSCREEN
+---------------------------------------------------------------- */
+.smartscreen-callout {
+  display: flex;
+  gap: var(--space-md);
+  align-items: flex-start;
+  background-color: #fffbeb;
+  border: 1px solid #f59e0b;
+  border-left: 4px solid #f59e0b;
+  border-radius: var(--radius-md);
+  padding: var(--space-lg);
+  margin-bottom: var(--space-2xl);
+}
+
+.smartscreen-callout-icon {
+  font-size: 1.25rem;
+  color: #b45309;
+  flex-shrink: 0;
+  margin-top: 0.1rem;
+}
+
+.smartscreen-callout strong {
+  display: block;
+  color: #92400e;
+  font-weight: 700;
+  margin-bottom: var(--space-sm);
+}
+
+.smartscreen-callout p {
+  font-size: 0.9rem;
+  color: #78350f;
+  margin: 0;
+  line-height: 1.6;
+}
+
+.smartscreen-reasons {
+  list-style: none;
+  padding: 0;
+  margin: var(--space-sm) 0 var(--space-md) 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+}
+
+.smartscreen-reasons li {
+  font-size: 0.875rem;
+  color: #78350f;
+  line-height: 1.6;
+  padding-left: 1.1rem;
+  position: relative;
+}
+
+.smartscreen-reasons li::before {
+  content: "–";
+  position: absolute;
+  left: 0;
+  color: #b45309;
+}
+
+.smartscreen-steps {
+  list-style: decimal;
+  padding-left: 1.4rem;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-lg);
+  margin-bottom: var(--space-xl);
+}
+
+.smartscreen-steps li {
+  font-size: 0.95rem;
+  color: var(--color-text);
+  line-height: 1.6;
+}
+
+.smartscreen-steps li strong {
+  color: var(--color-primary-dark);
+}
+
+.smartscreen-steps-note {
+  font-size: 0.8rem;
+  color: var(--color-text-muted);
+  margin-top: var(--space-md);
+  font-style: italic;
+  line-height: 1.6;
+}
+
+.smartscreen-dialog {
+  background-color: #f8fafc;
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-md);
+  padding: var(--space-md) var(--space-lg);
+  margin-top: var(--space-md);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+  max-width: 460px;
+  box-shadow: var(--shadow-sm);
+}
+
+.smartscreen-dialog-row {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-sm);
+}
+
+.smartscreen-dialog-icon {
+  font-size: 1.1rem;
+  color: #d97706;
+  flex-shrink: 0;
+  margin-top: 0.1rem;
+}
+
+.smartscreen-dialog p {
+  font-size: 0.875rem;
+  color: var(--color-text-muted);
+  margin: 0;
+  line-height: 1.5;
+}
+
+.smartscreen-dialog-check {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  font-size: 0.875rem;
+  color: var(--color-text);
+  font-weight: 500;
+  padding-left: 0.2rem;
+}
+
+.smartscreen-dialog-checkbox {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1rem;
+  height: 1rem;
+  border: 2px solid var(--color-primary);
+  border-radius: 3px;
+  background-color: var(--color-primary);
+  color: #fff;
+  font-size: 0.65rem;
+  flex-shrink: 0;
+}
+
+.smartscreen-subheading {
+  font-size: 1rem;
+  font-weight: 700;
+  color: var(--color-text);
+  margin-top: var(--space-2xl);
+  margin-bottom: var(--space-md);
+}
+
+.smartscreen-body {
+  font-size: 0.9rem;
+  color: var(--color-text-muted);
+  line-height: 1.7;
+  margin-bottom: var(--space-lg);
+}
+
+.smartscreen-pipeline {
+  list-style: decimal;
+  padding-left: 1.4rem;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+  margin-top: var(--space-sm);
+  margin-bottom: var(--space-md);
+}
+
+.smartscreen-pipeline li {
+  font-size: 0.875rem;
+  color: #78350f;
+  line-height: 1.6;
+}
+
+.smartscreen-options {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: var(--space-lg);
+  margin-top: var(--space-lg);
+  margin-bottom: var(--space-xl);
+}
+
+.smartscreen-option {
+  background-color: var(--color-bg-alt);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  padding: var(--space-xl);
+}
+
+.smartscreen-option--primary {
+  border-color: var(--color-primary-light);
+  background-color: #eff6ff;
+}
+
+.smartscreen-option-label {
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: var(--color-text);
+  margin-bottom: var(--space-md);
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  flex-wrap: wrap;
+}
+
+.smartscreen-option > p {
+  font-size: 0.875rem;
+  color: var(--color-text-muted);
+  margin-bottom: var(--space-md);
+  line-height: 1.6;
+}
+
+.smartscreen-note {
+  font-size: 0.875rem;
+  color: var(--color-text-muted);
+  background-color: var(--color-bg-alt);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  padding: var(--space-md) var(--space-lg);
+  line-height: 1.6;
+}
+
+.smartscreen-note strong {
+  color: var(--color-text);
+}
+
+
+/* ----------------------------------------------------------------
    FOOTER
 ---------------------------------------------------------------- */
 .site-footer {
@@ -1079,6 +1307,28 @@ code {
 .footer-year {
   font-size: 0.8rem;
   color: #64748b;
+}
+
+.footer-license {
+  font-size: 0.8rem;
+  color: #64748b;
+}
+
+.footer-license a {
+  color: #94a3b8;
+  text-decoration: none;
+}
+
+.footer-license a:hover {
+  color: #cbd5e1;
+  text-decoration: underline;
+}
+
+.install-sha-note {
+  font-size: 0.875rem;
+  color: #94a3b8;
+  margin-top: 0.75rem;
+  margin-bottom: 0;
 }
 
 .footer-links {
@@ -1246,6 +1496,11 @@ code {
 
   /* Instalación: una columna */
   .install-tabs {
+    grid-template-columns: 1fr;
+  }
+
+  /* SmartScreen opciones: una columna */
+  .smartscreen-options {
     grid-template-columns: 1fr;
   }
 

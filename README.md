@@ -7,8 +7,23 @@
 [![Streamlit 1.47](https://img.shields.io/badge/Streamlit-1.47-FF4B4B?logo=streamlit&logoColor=white)](https://streamlit.io/)
 [![Flask 3.1](https://img.shields.io/badge/Flask-3.1-000000?logo=flask&logoColor=white)](https://flask.palletsprojects.com/)
 [![Platform Windows](https://img.shields.io/badge/Platform-Windows-0078D6?logo=windows&logoColor=white)](https://www.microsoft.com/windows)
+[![Build](https://github.com/mariapicazo/TFG-MariaPicazoSanchez/actions/workflows/build-installers.yml/badge.svg)](https://github.com/mariapicazo/TFG-MariaPicazoSanchez/actions/workflows/build-installers.yml)
+[![GitHub release](https://img.shields.io/github/v/release/mariapicazo/TFG-MariaPicazoSanchez)](https://github.com/mariapicazo/TFG-MariaPicazoSanchez/releases/latest)
+[![License](https://img.shields.io/badge/License-CC%20BY--NC%204.0-lightgrey)](https://creativecommons.org/licenses/by-nc/4.0/)
 
 Windows desktop application that exposes a local web interface (Streamlit) backed by a REST microservice (Flask). All persistence is handled directly on the institution's existing Excel files — no additional database required.
+
+---
+
+## Preview
+
+| Mapa interactivo | Búsqueda y filtros |
+|:---:|:---:|
+| ![Mapa interactivo](docs/figs/mapa.gif) | ![Filtros](docs/figs/filtros.gif) |
+
+| Panel de estadísticas | Exportación a Excel |
+|:---:|:---:|
+| ![Estadísticas](docs/figs/stats.gif) | ![Exportación](docs/figs/export_excel.gif) |
 
 ---
 
@@ -22,12 +37,50 @@ Windows desktop application that exposes a local web interface (Streamlit) backe
 6. [REST API Reference](#6-rest-api-reference)
 7. [Security Model](#7-security-model)
 8. [Build & Distribution](#8-build--distribution)
+9. [Windows SmartScreen Warning](#9-windows-smartscreen-warning)
+10. [Licence](#10-licence)
+11. [Author](#11-author)
 
 ---
 
 ## 1. Process Architecture
 
 The project has **two independent launchers** that both start Streamlit + Flask, but differ in how they coordinate shutdown:
+
+### System overview
+
+```mermaid
+%%{init: {"theme": "base", "themeVariables": {"fontSize": "14px"}}}%%
+flowchart TD
+    classDef launcher fill:#dcfce7,stroke:#16a34a,color:#14532d
+    classDef app      fill:#dbeafe,stroke:#2563eb,color:#1e3a8a
+    classDef domain   fill:#fef9c3,stroke:#ca8a04,color:#713f12
+    classDef store    fill:#f3e8ff,stroke:#9333ea,color:#581c87
+
+    subgraph PROC ["⚙ Process Launcher"]
+        SYS["launcher_system.py\ndynamic ports · HTTP control"]:::launcher
+        ORC["orchestrator.py\nfixed ports · WebSocket"]:::launcher
+    end
+
+    subgraph APP ["Application"]
+        UI["Streamlit UI · :8501\nmap · stats · new student"]:::app
+        API["Flask API · :5000\n/health · /update_student 🔒"]:::app
+    end
+
+    subgraph CORE ["Domain & Infrastructure"]
+        DOM["Domain\nmodels · filters · validators"]:::domain
+        INF["Utils & Security\nconfig · geocoding · token"]:::domain
+    end
+
+    XL[("Excel Files\nSICUE · Erasmus OUT · Erasmus IN")]:::store
+
+    PROC -->|spawns| UI
+    PROC -->|spawns| API
+    UI -->|"REST · X-API-TOKEN"| API
+    UI & API -->|business logic| DOM
+    DOM --> INF
+    DOM -->|"openpyxl · xlrd"| XL
+```
 
 ### `launcher_system.py` — installer mode
 
@@ -308,17 +361,34 @@ Installers are produced by the **`Build EXE and Installers`** GitHub Actions wor
 | Clean `dist/` + `build/` + `*.spec` | `Remove-Item -Recurse -Force` | — |
 | Build EXE — production | `python -m PyInstaller --onedir --noconsole --clean --noconfirm --icon=install_root/MovilidadESII.ico --name MovilidadESII launcher_system_sindata.py` | `dist/MovilidadESII/` |
 | Build installer — production | `ISCC.exe installer_sindata.iss` | `output/MovilidadESII_Installer_SinData.exe` |
+| Decode certificate | Recover `.pfx` from `CERTIFICATE_PFX` secret (Base64) | — |
+| Sign installers | `signtool.exe` — Authenticode-signs both `.exe` artefacts with `CERTIFICATE_PASSWORD` | Signed `.exe` files |
+| Verify signatures | `signtool.exe verify /pa` — validates both signed `.exe` artefacts | — |
+| Generate SHA256 hashes | `certutil -hashfile` — computes SHA256 for both installers | `output/SHA256.txt` |
+| Clean certificate | Delete decoded `.pfx` from runner | — |
 | Upload artifact — demo | `actions/upload-artifact@v4` | GitHub Actions artifact `installer-demo` |
 | Upload artifact — production | `actions/upload-artifact@v4` | GitHub Actions artifact `installer-clean` |
 
 ### Triggering a build
 
-Go to **Actions → Build EXE and Installers → Run workflow** in the GitHub UI. Once complete, two artifacts are available from the workflow run summary:
+Go to **Actions → Build EXE and Installers → Run workflow** in the GitHub UI. Once complete, the installers are published automatically as a new GitHub Release and are available from the [Releases page](https://github.com/mariapicazo/TFG-MariaPicazoSanchez/releases/latest).
 
-| Artifact | File | Description |
-|:---|:---|:---|
-| `installer-demo` | `MovilidadESII_Installer_ConData.exe` | Includes sample data for demonstration |
-| `installer-clean` | `MovilidadESII_Installer_SinData.exe` | Production build — no data bundled |
+| File | Description |
+|:---|:---|
+| `MovilidadESII_Installer_ConData.exe` | Includes sample data for demonstration |
+| `MovilidadESII_Installer_SinData.exe` | Production build — no data bundled |
+| `SHA256.txt` | SHA256 checksums for both installers |
+
+### Verifying the download
+
+Each release includes a `SHA256.txt` file with the checksums for both installers.
+To verify the integrity of a downloaded file, run the following command in PowerShell or Command Prompt:
+
+```powershell
+certutil -hashfile MovilidadESII_Installer_ConData.exe SHA256
+```
+
+Compare the output with the corresponding entry in `SHA256.txt`. If they match, the file is intact and has not been modified.
 
 ### What the installer does
 
@@ -326,3 +396,59 @@ Go to **Actions → Build EXE and Installers → Run workflow** in the GitHub UI
 - Creates a desktop shortcut and a Start Menu entry.
 - Writes `config.json` to `%LOCALAPPDATA%\MovilidadESII\` with the correct data paths.
 - Does not require Python to be installed on the target machine.
+
+---
+
+## 9. Windows SmartScreen Warning
+
+The installers are **Authenticode-signed** with a self-signed certificate (`Maria Picazo Sanchez - TFG`, valid 5 years). Signing is applied automatically on every CI build; no manual step is required. The certificate is embedded directly in the `.exe`, so Windows correctly identifies the publisher as **Maria Picazo Sanchez - TFG** instead of *Unknown Publisher*.
+
+> **The application is safe to run.** Source code and build pipeline are fully auditable in this repository.
+
+### Why SmartScreen may still warn
+
+A warning may still appear for two independent reasons:
+
+- **Untrusted root.** The certificate is self-signed — not issued by a commercial CA (DigiCert, Sectigo, etc.) and not chained to any root that Windows trusts by default.
+- **No accumulated reputation.** SmartScreen also scores how many users have downloaded and run a given binary. A newly published file starts with zero reputation regardless of its signature.
+
+This is expected behaviour for academic projects and does not indicate any threat.
+
+### Resolving the warning
+
+**Option A — Unblock via file Properties** *(recommended)*
+
+1. Download the `.exe` file. **Do not run it yet.**
+2. Open the folder where the file was saved.
+3. Right-click the file → **Properties**.
+4. In the **General** tab, scroll to the very bottom. If Windows flagged the file as downloaded from the internet you will see:
+
+   ```
+   ⚠ This file came from another computer and might be
+     blocked to help protect this computer.
+
+     ☐ Unblock
+   ```
+
+5. Check the **Unblock** checkbox → **Apply** → **OK**.
+6. You can now run the installer.
+
+> If the *Unblock* checkbox is absent, the file was already unblocked or downloaded in a way that did not trigger the internet zone mark. No action needed.
+
+**Option B — Trust the certificate permanently**
+
+Install the public part of the certificate (`.cer`) into **Trusted Publishers** on the local machine (right-click → **Install Certificate** → **Local Machine** → **Trusted Publishers**). Any executable signed with this certificate will be silently trusted on that machine from then on.
+
+---
+
+## 10. Licence
+
+This project is released under the **Creative Commons Attribution-NonCommercial 4.0 International (CC BY-NC 4.0)** license. You are free to use, share, and adapt this work for non-commercial purposes with attribution. Commercial use requires explicit written permission from the author. See [`LICENSE`](LICENSE) for details.
+
+---
+
+## 11. Author
+
+**María Picazo Sánchez**  
+Grado en Ingeniería Informática — Escuela Superior de Ingeniería Informática en el campus de Albacete (ESIIAB)  
+Universidad de Castilla-La Mancha · Curso 2025–2026

@@ -6,6 +6,7 @@
   <meta name="description" content="Movilidad ESII — Herramienta Python para la gestión y visualización de movilidad académica en la ESII." />
   <title>Movilidad ESII · Documentación del Proyecto</title>
   <link rel="stylesheet" href="styles.css" />
+  <link rel="icon" href="figs/MovilidadESII.ico" />
   <!-- Open Graph / Social -->
   <meta property="og:type"        content="website" />
   <meta property="og:title"       content="Movilidad ESII · Documentación del Proyecto" />
@@ -31,6 +32,7 @@
         <li><a href="#decisiones">Decisiones</a></li>
         <li><a href="#retos">Retos</a></li>
         <li><a href="#instalacion">Instalación</a></li>
+        <li><a href="#smartscreen">SmartScreen</a></li>
       </ul>
     </nav>
   </header>
@@ -641,12 +643,23 @@
               <li><strong>Con datos de demostración</strong> — <code>MovilidadESII_Installer_ConData.exe</code>: incluye datos de ejemplo para explorar la aplicación desde el primer momento.</li>
               <li><strong>Sin datos</strong> — <code>MovilidadESII_Installer_SinData.exe</code>: instalación limpia para uso en producción con los ficheros Excel reales de la institución.</li>
             </ul>
+            <p style="margin-bottom:0.75rem">
+              <a href="https://github.com/mariapicazosanchez/TFG-MariaPicazoSanchez/releases/latest"
+                 class="btn btn-primary"
+                 target="_blank"
+                 rel="noopener noreferrer">
+                Ir a la última release
+              </a>
+            </p>
             <ol class="install-steps">
-              <li>Ve a <strong>Actions → Build EXE and Installers → Run workflow</strong> en el repositorio de GitHub y espera a que finalice la ejecución.</li>
-              <li>Descarga el artefacto <code>installer-demo</code> o <code>installer-clean</code> desde el resumen de la ejecución.</li>
+              <li>En la sección <strong>Assets</strong> de la release, descarga <code>MovilidadESII_Installer_ConData.exe</code> (con datos de demo) o <code>MovilidadESII_Installer_SinData.exe</code> (producción).</li>
               <li>Ejecuta el instalador y sigue los pasos del asistente.</li>
               <li>Abre <strong>Movilidad ESII</strong> desde el acceso directo del escritorio.</li>
             </ol>
+            <p class="install-sha-note">
+              La release también incluye un archivo <code>SHA256.txt</code> con los hashes de verificación
+              de ambos instaladores. Puedes usarlo para comprobar que el archivo descargado no ha sido alterado.
+            </p>
           </div>
 
           <!-- Opción 2: Desde código fuente -->
@@ -711,6 +724,157 @@ cd TFG-MariaPicazoSanchez</code></pre>
     </section>
 
     <!-- ============================================================
+         SMARTSCREEN DE WINDOWS
+    ============================================================ -->
+    <section class="section" id="smartscreen">
+      <div class="container">
+
+        <div class="section-header">
+          <span class="section-tag">Firma de código</span>
+          <h2 class="section-title">Firma Authenticode y SmartScreen</h2>
+        </div>
+
+        <p class="section-intro">
+          Los instaladores están <strong>firmados digitalmente con un certificado Authenticode</strong>
+          (<em>Maria Picazo Sanchez &ndash; TFG</em>, válido 5 años).
+          La firma se aplica de forma automática en cada compilación de CI y queda
+          <strong>incrustada en el propio <code>.exe</code></strong>, de modo que Windows
+          identifica correctamente al publicador como <em>Maria Picazo Sanchez &ndash; TFG</em>
+          en lugar de mostrarlo como desconocido.
+          <strong>La aplicación es completamente segura</strong>; el código fuente y el pipeline
+          de construcción son públicamente auditables en este repositorio.
+        </p>
+
+        <!-- Por qué puede seguir avisando -->
+        <div class="smartscreen-callout">
+          <span class="smartscreen-callout-icon" aria-hidden="true">&#9432;</span>
+          <div>
+            <strong>¿Por qué puede seguir apareciendo el aviso?</strong>
+            <p>El aviso puede aparecer por dos razones independientes:</p>
+            <ul class="smartscreen-reasons">
+              <li>
+                <strong>Raíz no de confianza.</strong>
+                El certificado es autofirmado: no está emitido por una CA comercial
+                (DigiCert, Sectigo&hellip;) ni encadenado a ninguna raíz que Windows
+                reconozca por defecto.
+              </li>
+              <li>
+                <strong>Sin reputación acumulada.</strong>
+                SmartScreen también evalúa cuántos usuarios han descargado y ejecutado
+                un archivo concreto. Un binario recién publicado parte de reputación
+                cero independientemente de su firma.
+              </li>
+            </ul>
+            <p>Es el comportamiento esperado en proyectos académicos y no indica ningún riesgo.</p>
+          </div>
+        </div>
+
+        <!-- Opciones para el usuario -->
+        <h3 class="smartscreen-subheading">Cómo resolver la advertencia</h3>
+
+        <div class="smartscreen-options">
+
+          <div class="smartscreen-option smartscreen-option--primary">
+            <div class="smartscreen-option-label">
+              <span class="install-badge install-badge--recommended">Recomendado</span>
+              Opción A &mdash; Desbloquear desde Propiedades
+            </div>
+            <p>El método más sencillo. No requiere ningún archivo adicional.</p>
+            <ol class="smartscreen-steps">
+              <li>
+                Descarga el archivo <code>.exe</code>.
+                <strong>No lo ejecutes todavía.</strong>
+              </li>
+              <li>Abre la carpeta donde se guardó el archivo.</li>
+              <li>
+                Haz clic derecho sobre el archivo
+                &rarr; <strong>Propiedades</strong>.
+              </li>
+              <li>
+                En la pestaña <strong>General</strong>, desplázate hasta la parte
+                inferior. Si Windows marcó el archivo como descargado de internet,
+                verás el siguiente aviso:
+                <div class="smartscreen-dialog" role="img" aria-label="Vista previa del aviso de Windows">
+                  <div class="smartscreen-dialog-row">
+                    <span class="smartscreen-dialog-icon" aria-hidden="true">&#9888;</span>
+                    <p>
+                      Este archivo proviene de otro equipo y podría bloquearse
+                      para ayudar a proteger este equipo.
+                    </p>
+                  </div>
+                  <label class="smartscreen-dialog-check">
+                    <span class="smartscreen-dialog-checkbox" aria-hidden="true">&#10003;</span>
+                    Desbloquear
+                  </label>
+                </div>
+              </li>
+              <li>
+                Marca la casilla <strong>Desbloquear</strong>
+                &rarr; <strong>Aplicar</strong> &rarr; <strong>Aceptar</strong>.
+              </li>
+              <li>Ya puedes ejecutar el instalador.</li>
+            </ol>
+            <p class="smartscreen-steps-note">
+              Si la casilla <em>Desbloquear</em> no aparece, el archivo ya fue desbloqueado
+              o se descargó de forma que no activó la marca de zona. No es necesaria ninguna
+              acción adicional.
+            </p>
+          </div>
+
+          <div class="smartscreen-option">
+            <div class="smartscreen-option-label">
+              Opción B &mdash; Confiar en el certificado de forma permanente
+            </div>
+            <p>
+              Instala la parte pública del certificado en
+              <strong>Editores de confianza</strong> del equipo local.
+              El certificado puede extraerse directamente del instalador:
+            </p>
+            <ol class="smartscreen-steps">
+              <li>
+                Haz clic derecho sobre el <code>.exe</code>
+                &rarr; <strong>Propiedades</strong>
+                &rarr; pestaña <strong>Firmas digitales</strong>.
+              </li>
+              <li>
+                Selecciona la firma <em>Maria Picazo Sanchez - TFG</em>
+                &rarr; <strong>Detalles</strong>
+                &rarr; <strong>Ver certificado</strong>.
+              </li>
+              <li>
+                En la pestaña <strong>General</strong> del certificado, haz clic en
+                <strong>Instalar certificado...</strong>
+                &rarr; <strong>Usuario actual</strong> (o <strong>Equipo local</strong>)
+                &rarr; <strong>Siguiente</strong>.
+              </li>
+              <li>
+                Deja la opción por defecto (<em>Seleccionar el almacén automáticamente</em>)
+                &rarr; <strong>Siguiente</strong>.
+              </li>
+              <li>
+                Haz clic en <strong>Finalizar</strong>.
+                Windows mostrará el mensaje <em>«La importación se realizó correctamente»</em>.
+              </li>
+            </ol>
+            <p>
+              A partir de ese momento cualquier ejecutable firmado con este
+              certificado será reconocido sin advertencias en ese equipo.
+            </p>
+          </div>
+
+        </div>
+
+        <p class="smartscreen-note">
+          <strong>Nota:</strong> para eliminar el aviso en cualquier equipo sin ninguna
+          configuración previa sería necesario un certificado comercial EV (DigiCert,
+          Sectigo&hellip;). Para los fines de este TFG, el certificado autofirmado
+          es más que suficiente.
+        </p>
+
+      </div>
+    </section>
+
+    <!-- ============================================================
          AUTORA DEL PROYECTO
     ============================================================ -->
     <section class="section section-alt" id="autoria">
@@ -754,6 +918,10 @@ cd TFG-MariaPicazoSanchez</code></pre>
           Escuela Superior de Ingeniería Informática en el campus de Albacete, UCLM
         </span>
         <span class="footer-year">Curso 2025 - 2026</span>
+        <span class="footer-license">
+          &copy; 2026 María Picazo Sánchez &middot;
+          <a href="https://creativecommons.org/licenses/by-nc/4.0/" target="_blank" rel="noopener noreferrer">CC BY-NC 4.0</a>
+        </span>
       </div>
       <div class="footer-links">
         <a href="https://github.com/mariapicazo/TFG-MariaPicazoSanchez"
@@ -875,8 +1043,9 @@ cd TFG-MariaPicazoSanchez</code></pre>
       });
     });
 
-    // ---- Scroll-spy ----
-    (function () {
+    document.addEventListener('DOMContentLoaded', function () {
+
+      // ---- Scroll-spy ----
       var navLinks = document.querySelectorAll('.nav-links a[href^="#"]');
       var sections = Array.from(navLinks).map(function (a) {
         var id = a.getAttribute('href').slice(1);
@@ -894,10 +1063,8 @@ cd TFG-MariaPicazoSanchez</code></pre>
       }, { rootMargin: '-25% 0px -65% 0px', threshold: 0 });
 
       sections.forEach(function (s) { observer.observe(s); });
-    }());
 
-    // ---- Botón volver arriba ----
-    (function () {
+      // ---- Botón volver arriba ----
       var btn = document.getElementById('back-to-top');
       window.addEventListener('scroll', function () {
         btn.classList.toggle('visible', window.scrollY > 500);
@@ -905,12 +1072,13 @@ cd TFG-MariaPicazoSanchez</code></pre>
       btn.addEventListener('click', function () {
         window.scrollTo({ top: 0, behavior: 'smooth' });
       });
-    }());
+
+    });
   </script>
 
 
   <!-- Botón volver arriba -->
-  <button id="back-to-top" aria-label="Volver al inicio" title="Volver al inicio">&#8679;</button>
+  <button id="back-to-top" aria-label="Volver al inicio" title="Volver al inicio">⬆</button>
 
 </body>
 </html>
