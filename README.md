@@ -23,7 +23,7 @@ Windows desktop application that exposes a local web interface (Streamlit) backe
 
 | Panel de estadísticas | Exportación a Excel |
 |:---:|:---:|
-| ![Estadísticas](docs/figs/stats.gif) | ![Exportación](docs/figs/export_excel.gif) |
+| ![Estadísticas](docs/figs/stats_panel.gif) | ![Exportación](docs/figs/export_excel.gif) |
 
 ---
 
