@@ -117,7 +117,6 @@ TFG-MariaPicazoSanchez/
 ├── launcher_system.py           # Launcher with dynamic ports (demo build)
 ├── launcher_system_sindata.py   # Production variant (no demo data)
 ├── config.json                  # Excel file paths per mobility programme
-├── config.demo.json             # Example config pointing to data_demo/
 ├── installer.iss                # Inno Setup script (demo build)
 ├── installer_sindata.iss        # Inno Setup script (production build)
 ├── MovilidadESII.spec           # PyInstaller spec file
