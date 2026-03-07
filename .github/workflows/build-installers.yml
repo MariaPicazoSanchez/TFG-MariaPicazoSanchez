@@ -12,8 +12,16 @@ jobs:
 
     steps:
 
+      # =========================
+      # CHECKOUT
+      # =========================
+
       - name: Checkout repository
         uses: actions/checkout@v4
+
+      # =========================
+      # PYTHON SETUP
+      # =========================
 
       - name: Setup Python
         uses: actions/setup-python@v5
@@ -27,11 +35,19 @@ jobs:
           pip install pyinstaller
           pip install -r install_root/requirements.txt
 
+      # =========================
+      # BUILD WHEELS
+      # =========================
+
       - name: Build wheelhouse
         shell: pwsh
         run: |
           mkdir install_root/wheelhouse -Force
           pip wheel -r install_root/requirements.txt -w install_root/wheelhouse
+
+      # =========================
+      # INSTALL INNO SETUP
+      # =========================
 
       - name: Install Inno Setup
         shell: pwsh
@@ -87,13 +103,68 @@ jobs:
           & "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" installer_sindata.iss
 
       # =========================
-      # DEBUG (ver que existen)
+      # DEBUG
       # =========================
 
       - name: Check output folder
         shell: pwsh
+        run: dir output
+
+      # =========================
+      # FIRMA DE EJECUTABLES
+      # =========================
+
+      - name: Decode certificate
+        shell: pwsh
         run: |
-          dir output
+          $bytes = [Convert]::FromBase64String("${{ secrets.CERTIFICATE_PFX }}")
+          [IO.File]::WriteAllBytes("$env:TEMP\cert.pfx", $bytes)
+
+      - name: Sign installers
+        shell: pwsh
+        run: |
+          $signtool = "${env:ProgramFiles(x86)}\Windows Kits\10\bin\x64\signtool.exe"
+          $password = "${{ secrets.CERTIFICATE_PASSWORD }}"
+
+          & $signtool sign `
+            -f "$env:TEMP\cert.pfx" `
+            -p $password `
+            -fd SHA256 `
+            -tr http://timestamp.digicert.com `
+            -td SHA256 `
+            "output\MovilidadESII_Installer_ConData.exe"
+
+          & $signtool sign `
+            -f "$env:TEMP\cert.pfx" `
+            -p $password `
+            -fd SHA256 `
+            -tr http://timestamp.digicert.com `
+            -td SHA256 `
+            "output\MovilidadESII_Installer_SinData.exe"
+
+      - name: Verify signatures
+        shell: pwsh
+        run: |
+          $signtool = "${env:ProgramFiles(x86)}\Windows Kits\10\bin\x64\signtool.exe"
+          & $signtool verify /pa "output\MovilidadESII_Installer_ConData.exe"
+          & $signtool verify /pa "output\MovilidadESII_Installer_SinData.exe"
+
+      - name: Clean certificate
+        shell: pwsh
+        run: |
+          if (Test-Path "$env:TEMP\cert.pfx") {
+            Remove-Item "$env:TEMP\cert.pfx" -Force
+          }
+
+      # =========================
+      # GENERATE HASH
+      # =========================
+
+      - name: Generate SHA256 hashes
+        shell: pwsh
+        run: |
+          certutil -hashfile output\MovilidadESII_Installer_ConData.exe SHA256 > output\SHA256.txt
+          certutil -hashfile output\MovilidadESII_Installer_SinData.exe SHA256 >> output\SHA256.txt
 
       # =========================
       # ARTIFACTS
@@ -110,31 +181,7 @@ jobs:
         with:
           name: installer-clean
           path: output/MovilidadESII_Installer_SinData.exe
-          
-      # =========================
-      # FIRMA DE EJECUTABLES
-      # =========================
-      - name: Decode certificate
-        shell: pwsh
-        run: |
-          $bytes = [Convert]::FromBase64String("${{ secrets.CERTIFICATE_PFX }}")
-          [IO.File]::WriteAllBytes("$env:TEMP\cert.pfx", $bytes)
 
-      - name: Sign installers
-        shell: pwsh
-        run: |
-          $signtool = Get-ChildItem -Path "C:\Program Files (x86)\Windows Kits" -Recurse -Filter "signtool.exe" | Select-Object -First 1 -ExpandProperty FullName
-          Write-Host "signtool found at: $signtool"
-          $password = "${{ secrets.CERTIFICATE_PASSWORD }}"
-          $timestamp = "http://timestamp.digicert.com"
-
-          & $signtool sign -f "$env:TEMP\cert.pfx" -p $password -t $timestamp -fd SHA256 "output\MovilidadESII_Installer_ConData.exe"
-          & $signtool sign -f "$env:TEMP\cert.pfx" -p $password -t $timestamp -fd SHA256 "output\MovilidadESII_Installer_SinData.exe"
-
-      - name: Clean certificate
-        shell: pwsh
-        run: Remove-Item "$env:TEMP\cert.pfx" -Force
-        
       # =========================
       # RELEASE
       # =========================
@@ -147,5 +194,6 @@ jobs:
           files: |
             output/MovilidadESII_Installer_ConData.exe
             output/MovilidadESII_Installer_SinData.exe
+            output/SHA256.txt
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
