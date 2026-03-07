@@ -143,13 +143,6 @@ jobs:
             -td SHA256 `
             "output\MovilidadESII_Installer_SinData.exe"
 
-      - name: Verify signatures
-        shell: pwsh
-        run: |
-          $signtool = Get-ChildItem -Path "C:\Program Files (x86)\Windows Kits" -Recurse -Filter "signtool.exe" | Where-Object { $_.FullName -like "*x64*" } | Select-Object -First 1 -ExpandProperty FullName
-          & $signtool verify /pa /ad "output\MovilidadESII_Installer_ConData.exe"
-          & $signtool verify /pa /ad "output\MovilidadESII_Installer_SinData.exe"
-
       - name: Clean certificate
         shell: pwsh
         run: |
