@@ -9,9 +9,9 @@
 ---------------------------------------------------------------- */
 :root {
   /* Colores primarios */
-  --color-primary:        #1d4ed8;
-  --color-primary-light:  #3b82f6;
-  --color-primary-dark:   #1e3a8a;
+  --color-primary:        #ea580c;
+  --color-primary-light:  #f97316;
+  --color-primary-dark:   #c2410c;
 
   /* Texto */
   --color-text:           #111827;
@@ -21,30 +21,30 @@
   /* Fondos */
   --color-bg:             #ffffff;
   --color-bg-alt:         #f8fafc;
-  --color-bg-dark:        #0f172a;
+  --color-bg-dark:        #18181b;
 
   /* Bordes y separadores */
   --color-border:         #e2e8f0;
   --color-border-strong:  #cbd5e1;
 
   /* Arquitectura: colores por capa */
-  --layer-ui:             #dbeafe;
-  --layer-ui-border:      #93c5fd;
-  --layer-api:            #dcfce7;
-  --layer-api-border:     #86efac;
-  --layer-domain:         #fef9c3;
-  --layer-domain-border:  #fde047;
-  --layer-persist:        #fce7f3;
-  --layer-persist-border: #f9a8d4;
-  --layer-utils:          #f3e8ff;
-  --layer-utils-border:   #d8b4fe;
+  --layer-ui:             #f9fafb;
+  --layer-ui-border:      #d1d5db;
+  --layer-api:            #fff7ed;
+  --layer-api-border:     #fed7aa;
+  --layer-domain:         #f3f4f6;
+  --layer-domain-border:  #9ca3af;
+  --layer-persist:        #fafafa;
+  --layer-persist-border: #d4d4d4;
+  --layer-utils:          #fff7ed;
+  --layer-utils-border:   #fdba74;
 
   /* Solución: colores por nodo */
-  --sol-input:            #e0f2fe;
-  --sol-input-border:     #38bdf8;
-  --sol-core:             #1d4ed8;
-  --sol-output:           #dcfce7;
-  --sol-output-border:    #4ade80;
+  --sol-input:            #f3f4f6;
+  --sol-input-border:     #9ca3af;
+  --sol-core:             #ea580c;
+  --sol-output:           #fff7ed;
+  --sol-output-border:    #fb923c;
 
   /* Tipografía */
   --font-sans: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto,
@@ -347,9 +347,9 @@ h1, h2, h3, h4 {
   border-radius: 999px;
   font-size: 0.78rem;
   font-weight: 600;
-  background-color: rgba(59,130,246,0.18);
-  color: #93c5fd;
-  border: 1px solid rgba(59,130,246,0.3);
+  background-color: rgba(234,88,12,0.15);
+  color: #fb923c;
+  border: 1px solid rgba(234,88,12,0.3);
   white-space: nowrap;
 }
 
@@ -877,7 +877,7 @@ h1, h2, h3, h4 {
 .challenge-number {
   font-size: 2rem;
   font-weight: 800;
-  color: var(--color-border-strong);
+  color: #d4d4d4;
   line-height: 1;
   flex-shrink: 0;
   min-width: 3rem;
@@ -936,9 +936,9 @@ h1, h2, h3, h4 {
 }
 
 .install-badge--recommended {
-  background-color: #dcfce7;
-  color: #15803d;
-  border: 1px solid #86efac;
+  background-color: #ea580c;
+  color: #ffffff;
+  border: 1px solid #c2410c;
 }
 
 .install-option > p {
@@ -962,8 +962,8 @@ h1, h2, h3, h4 {
 
 /* Bloque de código */
 .code-block {
-  background-color: #1e293b;
-  color: #e2e8f0;
+  background-color: #1c1c1c;
+  color: #e5e5e5;
   font-family: var(--font-mono);
   font-size: 0.82rem;
   padding: var(--space-sm) var(--space-md);
@@ -971,16 +971,17 @@ h1, h2, h3, h4 {
   overflow-x: auto;
   margin-top: var(--space-sm);
   line-height: 1.6;
-  border: 1px solid #334155;
+  border: 1px solid #333333;
 }
 
 code {
   font-family: var(--font-mono);
   font-size: 0.875em;
-  background-color: #f1f5f9;
+  background-color: #fff0e6;
   padding: 0.1em 0.35em;
   border-radius: var(--radius-sm);
-  color: var(--color-primary-dark);
+  color: #9a3412;
+  border: 1px solid #fdba74;
 }
 
 .code-block code {
@@ -1234,7 +1235,7 @@ code {
 
 .smartscreen-option--primary {
   border-color: var(--color-primary-light);
-  background-color: #eff6ff;
+  background-color: #fff7ed;
 }
 
 .smartscreen-option-label {
@@ -1276,7 +1277,7 @@ code {
 .site-footer {
   background-color: var(--color-bg-dark);
   padding-block: var(--space-2xl);
-  border-top: 1px solid #1e293b;
+  border-top: 1px solid #2d2d30;
 }
 
 .footer-inner {
