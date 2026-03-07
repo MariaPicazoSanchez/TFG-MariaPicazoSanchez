@@ -7,8 +7,8 @@
 [![Streamlit 1.47](https://img.shields.io/badge/Streamlit-1.47-FF4B4B?logo=streamlit&logoColor=white)](https://streamlit.io/)
 [![Flask 3.1](https://img.shields.io/badge/Flask-3.1-000000?logo=flask&logoColor=white)](https://flask.palletsprojects.com/)
 [![Platform Windows](https://img.shields.io/badge/Platform-Windows-0078D6?logo=windows&logoColor=white)](https://www.microsoft.com/windows)
-[![Build](https://github.com/mariapicazosanchez/TFG-MariaPicazoSanchez/actions/workflows/build-installers.yml/badge.svg)](https://github.com/mariapicazosanchez/TFG-MariaPicazoSanchez/actions/workflows/build-installers.yml)
-[![GitHub release](https://img.shields.io/github/v/release/mariapicazosanchez/TFG-MariaPicazoSanchez)](https://github.com/mariapicazosanchez/TFG-MariaPicazoSanchez/releases/latest)
+[![Build](https://github.com/MariaPicazoSanchez/TFG-MariaPicazoSanchez/actions/workflows/build-installers.yml/badge.svg)](https://github.com/MariaPicazoSanchez/TFG-MariaPicazoSanchez/actions/workflows/build-installers.yml)
+[![GitHub release](https://img.shields.io/github/v/release/MariaPicazoSanchez/TFG-MariaPicazoSanchez?include_prereleases)](https://github.com/MariaPicazoSanchez/TFG-MariaPicazoSanchez/releases/latest)
 [![License](https://img.shields.io/badge/License-CC%20BY--NC%204.0-lightgrey)](https://creativecommons.org/licenses/by-nc/4.0/)
 
 Windows desktop application that exposes a local web interface (Streamlit) backed by a REST microservice (Flask). All persistence is handled directly on the institution's existing Excel files — no additional database required.
@@ -200,7 +200,7 @@ Path resolution is handled by `utils/app_config.py`.
 **Prerequisites:** Python 3.12, pip.
 
 ```bash
-git clone https://github.com/mariapicazo/TFG-MariaPicazoSanchez
+git clone https://github.com/MariaPicazoSanchez/TFG-MariaPicazoSanchez
 cd TFG-MariaPicazoSanchez
 
 python -m venv .venv
@@ -370,7 +370,7 @@ Installers are produced by the **`Build EXE and Installers`** GitHub Actions wor
 
 ### Triggering a build
 
-Go to **Actions → Build EXE and Installers → Run workflow** in the GitHub UI. Once complete, the installers are published automatically as a new GitHub Release and are available from the [Releases page](https://github.com/mariapicazo/TFG-MariaPicazoSanchez/releases/latest).
+Go to **Actions → Build EXE and Installers → Run workflow** in the GitHub UI. Once complete, the installers are published automatically as a new GitHub Release and are available from the [Releases page](https://github.com/MariaPicazoSanchez/TFG-MariaPicazoSanchez/releases/latest).
 
 | File | Description |
 |:---|:---|
