@@ -2,6 +2,11 @@ name: Build EXE and Installers
 
 on:
   workflow_dispatch:
+    inputs:
+      version:
+        description: "Versión de la release"
+        required: true
+        default: "v1.0.0"
 
 permissions:
   contents: write
@@ -54,10 +59,10 @@ jobs:
         run: choco install innosetup --yes
 
       # =========================
-      # BUILD VERSION CON DATOS
+      # BUILD EXE (shared)
       # =========================
 
-      - name: Build EXE (demo data)
+      - name: Build EXE
         shell: pwsh
         run: |
           python -m PyInstaller `
@@ -74,41 +79,21 @@ jobs:
         run: |
           & "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" installer.iss
 
-      - name: Clean build folders
-        shell: pwsh
-        run: |
-          Remove-Item -Recurse -Force dist -ErrorAction Ignore
-          Remove-Item -Recurse -Force build -ErrorAction Ignore
-          Remove-Item *.spec -ErrorAction Ignore
-
       # =========================
-      # BUILD VERSION SIN DATOS
+      # BUILD INSTALLERS
       # =========================
-
-      - name: Build EXE (no demo data)
-        shell: pwsh
-        run: |
-          python -m PyInstaller `
-            --onedir `
-            --noconsole `
-            --clean `
-            --noconfirm `
-            --icon=install_root/MovilidadESII.ico `
-            --name MovilidadESII `
-            launcher_system_sindata.py
 
       - name: Create installer (no demo data)
         shell: pwsh
         run: |
           & "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" installer_sindata.iss
 
-      # =========================
-      # DEBUG
-      # =========================
-
-      - name: Check output folder
+      - name: Clean build folders
         shell: pwsh
-        run: dir output
+        run: |
+          Remove-Item -Recurse -Force dist -ErrorAction Ignore
+          Remove-Item -Recurse -Force build -ErrorAction Ignore
+          Remove-Item *.spec -ErrorAction Ignore
 
       # =========================
       # FIRMA DE EJECUTABLES
@@ -125,11 +110,10 @@ jobs:
         run: |
           $signtool = Get-ChildItem -Path "C:\Program Files (x86)\Windows Kits" -Recurse -Filter "signtool.exe" | Where-Object { $_.FullName -like "*x64*" } | Select-Object -First 1 -ExpandProperty FullName
           Write-Host "signtool found at: $signtool"
-          $password = "${{ secrets.CERTIFICATE_PASSWORD }}"
 
           & $signtool sign `
             -f "$env:TEMP\cert.pfx" `
-            -p $password `
+            -p "${{ secrets.CERTIFICATE_PASSWORD }}" `
             -fd SHA256 `
             -tr http://timestamp.digicert.com `
             -td SHA256 `
@@ -137,7 +121,7 @@ jobs:
 
           & $signtool sign `
             -f "$env:TEMP\cert.pfx" `
-            -p $password `
+            -p "${{ secrets.CERTIFICATE_PASSWORD }}" `
             -fd SHA256 `
             -tr http://timestamp.digicert.com `
             -td SHA256 `
@@ -183,8 +167,8 @@ jobs:
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: v${{ github.run_number }}
-          name: MovilidadESII Build ${{ github.run_number }}
+          tag_name: ${{ inputs.version }}
+          name: MovilidadESII ${{ inputs.version }}
           files: |
             output/MovilidadESII_Installer_ConData.exe
             output/MovilidadESII_Installer_SinData.exe

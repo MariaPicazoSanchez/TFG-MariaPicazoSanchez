@@ -1,2 +1,10 @@
 # Auto detect text files and perform LF normalization
 * text=auto
+
+# Binaries — prevent git from mangling these files
+*.xlsx  binary
+*.zip   binary
+*.ico   binary
+*.exe   binary
+*.pfx   binary
+*.whl   binary

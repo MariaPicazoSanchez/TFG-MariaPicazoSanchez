@@ -6,7 +6,9 @@
 [Setup]
 AppName={#AppName}
 AppVersion={#AppVer}
-AppPublisher=TFG-MariaPicazoSanchez
+AppPublisher=María Picazo Sánchez
+AppPublisherURL=https://github.com/MariaPicazoSanchez/TFG-MariaPicazoSanchez
+AppCopyright=© 2026 María Picazo Sánchez — CC BY-NC 4.0
 DefaultDirName={localappdata}\{#AppName}
 DefaultGroupName={#AppName}
 DisableProgramGroupPage=yes
@@ -14,7 +16,7 @@ OutputDir=output
 OutputBaseFilename=MovilidadESII_Installer_SinData
 Compression=lzma
 SolidCompression=yes
-PrivilegesRequired=admin
+PrivilegesRequired=lowest
 ArchitecturesAllowed=x64
 ArchitecturesInstallIn64BitMode=x64
 SetupLogging=yes
@@ -32,7 +34,7 @@ Name: "{app}\runtime\python"
 Source: "dist\MovilidadESII\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs; Excludes: "thirdparty\*;wheelhouse\*"
 
 ; Copia todo install_root EXCEPTO thirdparty y wheelhouse (que van a subcarpetas)
-Source: "install_root\*"; DestDir: "{app}\app"; Flags: ignoreversion recursesubdirs createallsubdirs; Excludes: "thirdparty\*;wheelhouse\*;requirements.*.txt;__pycache__\*;_internal\*"
+Source: "install_root\*"; DestDir: "{app}\app"; Flags: ignoreversion recursesubdirs createallsubdirs; Excludes: "thirdparty\*;data_demo\*;wheelhouse\*;requirements.*.txt;__pycache__\*;_internal\*"
 
 ; Python embebido (zip) al temp
 Source: "install_root\thirdparty\{#PyEmbedZip}"; DestDir: "{tmp}"; Flags: deleteafterinstall
@@ -359,6 +361,23 @@ begin
     ValidateCriticalImports();
     WriteMarkerOk();
     CleanupInstallArtifacts();
+
+    { Eliminar carpeta de datos demo si quedó de una instalación anterior }
+    if DirExists(AppDataBase() + '\data') then
+    begin
+      DelTree(AppDataBase() + '\data', True, True, True);
+      LogLine('Limpieza: carpeta data eliminada');
+    end;
+    if DirExists(AppDataBase() + '\app\data_demo') then
+    begin
+      DelTree(AppDataBase() + '\app\data_demo', True, True, True);
+      LogLine('Limpieza: app\data_demo eliminado');
+    end;
+    if FileExists(AppDataBase() + '\app\config.json') then
+    begin
+      DeleteFile(AppDataBase() + '\app\config.json');
+      LogLine('Limpieza: app\config.json eliminado');
+    end;
 
     LogLine('POSTINSTALL end OK');
   end;

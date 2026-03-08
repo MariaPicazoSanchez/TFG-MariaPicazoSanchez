@@ -180,6 +180,7 @@ def get_appdata_dir() -> Path:
 
 APPDATA_DIR = get_appdata_dir()
 LOG_DIR = APPDATA_DIR / "logs"
+DEMO_MODE: bool = "--demo" in sys.argv
 DATA_DEMO_DIR = APPDATA_DIR / "data"
 # Python a usar para lanzar Streamlit y la API: preferimos el embebido,
 # fallback al Python del sistema si el embebido no existe.
@@ -490,8 +491,10 @@ def get_system_python() -> Path:
 
 
 def prepare_appdata_dirs() -> None:
-    for folder in (APPDATA_DIR, LOG_DIR, DATA_DEMO_DIR):
+    for folder in (APPDATA_DIR, LOG_DIR):
         folder.mkdir(parents=True, exist_ok=True)
+    if DEMO_MODE:
+        DATA_DEMO_DIR.mkdir(parents=True, exist_ok=True)
 
 
 def touch_initial_logs() -> None:
@@ -956,8 +959,9 @@ def run_launcher() -> int:
                 f"{api_reason}\nConsulta {PIP_LOG_PATH} para más detalles.\n"
                 "La app arrancará solo en modo lectura (Streamlit sin API)."
             )
-        ensure_data_demo()
-        write_demo_config()
+        if DEMO_MODE:
+            ensure_data_demo()
+            write_demo_config()
         start_processes(api_enabled=api_enabled, api_disabled_reason=api_reason)
     except RuntimeError as exc:
         LOGGER.error("Launcher abortado: %s", exc)

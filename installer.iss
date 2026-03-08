@@ -6,7 +6,9 @@
 [Setup]
 AppName={#AppName}
 AppVersion={#AppVer}
-AppPublisher=TFG-MariaPicazoSanchez
+AppPublisher=María Picazo Sánchez
+AppPublisherURL=https://github.com/MariaPicazoSanchez/TFG-MariaPicazoSanchez
+AppCopyright=© 2026 María Picazo Sánchez — CC BY-NC 4.0
 DefaultDirName={localappdata}\{#AppName}
 DefaultGroupName={#AppName}
 DisableProgramGroupPage=yes
@@ -50,11 +52,13 @@ Source: "install_root\requirements.txt";   DestDir: "{app}\runtime"; Flags: igno
 [Icons]
 Name: "{userdesktop}\MovilidadESII"; \
   Filename: "{app}\MovilidadESII.exe"; \
+  Parameters: "--demo"; \
   WorkingDir: "{app}"; \
   IconFilename: "{app}\MovilidadESII.ico"
 
 Name: "{group}\MovilidadESII"; \
   Filename: "{app}\MovilidadESII.exe"; \
+  Parameters: "--demo"; \
   WorkingDir: "{app}"; \
   IconFilename: "{app}\MovilidadESII.ico"
 
@@ -429,6 +433,7 @@ end;
 [Run]
 Filename: "{app}\MovilidadESII.exe"; \
   Description: "Abrir {#AppName}"; \
+  Parameters: "--demo"; \
   Flags: nowait postinstall skipifsilent
 
 [UninstallDelete]

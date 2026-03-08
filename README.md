@@ -8,7 +8,7 @@
 [![Flask 3.1](https://img.shields.io/badge/Flask-3.1-000000?logo=flask&logoColor=white)](https://flask.palletsprojects.com/)
 [![Platform Windows](https://img.shields.io/badge/Platform-Windows-0078D6?logo=windows&logoColor=white)](https://www.microsoft.com/windows)
 [![Build](https://github.com/MariaPicazoSanchez/TFG-MariaPicazoSanchez/actions/workflows/build-installers.yml/badge.svg)](https://github.com/MariaPicazoSanchez/TFG-MariaPicazoSanchez/actions/workflows/build-installers.yml)
-[![GitHub release](https://img.shields.io/badge/release-v1.0.0-blue)](https://github.com/MariaPicazoSanchez/TFG-MariaPicazoSanchez/releases/latest)
+[![GitHub release](https://img.shields.io/github/v/release/MariaPicazoSanchez/TFG-MariaPicazoSanchez)](https://github.com/MariaPicazoSanchez/TFG-MariaPicazoSanchez/releases/latest)
 [![License](https://img.shields.io/badge/License-CC%20BY--NC%204.0-lightgrey)](https://creativecommons.org/licenses/by-nc/4.0/)
 
 Windows desktop application that exposes a local web interface (Streamlit) backed by a REST microservice (Flask). All persistence is handled directly on the institution's existing Excel files — no additional database required.
@@ -115,11 +115,10 @@ Both launchers read `config.json` at startup to resolve the absolute paths of th
 
 ```text
 TFG-MariaPicazoSanchez/
-├── launcher_system.py           # Launcher with dynamic ports (demo build)
-├── launcher_system_sindata.py   # Production variant (no demo data)
+├── launcher_system.py           # Unified launcher — pass --demo for demo mode
 ├── config.json                  # Excel file paths per mobility programme
-├── installer.iss                # Inno Setup script (demo build)
-├── installer_sindata.iss        # Inno Setup script (production build)
+├── installer.iss                # Inno Setup script (demo build — bundles sample data, passes --demo)
+├── installer_sindata.iss        # Inno Setup script (production build — no data bundled)
 ├── MovilidadESII.spec           # PyInstaller spec file
 └── install_root/
     ├── orchestrator/
@@ -356,14 +355,12 @@ Installers are produced by the **`Build EXE and Installers`** GitHub Actions wor
 | Install dependencies | `pip install pyinstaller -r install_root/requirements.txt` | — |
 | Build wheelhouse | `pip wheel -r install_root/requirements.txt -w install_root/wheelhouse` | `install_root/wheelhouse/` |
 | Install Inno Setup | `choco install innosetup` | — |
-| Build EXE — demo | `python -m PyInstaller --onedir --noconsole --clean --noconfirm --icon=install_root/MovilidadESII.ico --name MovilidadESII launcher_system.py` | `dist/MovilidadESII/` |
+| Build EXE | `python -m PyInstaller --onedir --noconsole --clean --noconfirm --icon=install_root/MovilidadESII.ico --name MovilidadESII launcher_system.py` | `dist/MovilidadESII/` |
 | Build installer — demo | `ISCC.exe installer.iss` | `output/MovilidadESII_Installer_ConData.exe` |
-| Clean `dist/` + `build/` + `*.spec` | `Remove-Item -Recurse -Force` | — |
-| Build EXE — production | `python -m PyInstaller --onedir --noconsole --clean --noconfirm --icon=install_root/MovilidadESII.ico --name MovilidadESII launcher_system_sindata.py` | `dist/MovilidadESII/` |
 | Build installer — production | `ISCC.exe installer_sindata.iss` | `output/MovilidadESII_Installer_SinData.exe` |
+| Clean `dist/` + `build/` + `*.spec` | `Remove-Item -Recurse -Force` | — |
 | Decode certificate | Recover `.pfx` from `CERTIFICATE_PFX` secret (Base64) | — |
 | Sign installers | `signtool.exe` — Authenticode-signs both `.exe` artefacts with `CERTIFICATE_PASSWORD` | Signed `.exe` files |
-| Verify signatures | `signtool.exe verify /pa` — validates both signed `.exe` artefacts | — |
 | Generate SHA256 hashes | `certutil -hashfile` — computes SHA256 for both installers | `output/SHA256.txt` |
 | Clean certificate | Delete decoded `.pfx` from runner | — |
 | Upload artifact — demo | `actions/upload-artifact@v4` | GitHub Actions artifact `installer-demo` |
