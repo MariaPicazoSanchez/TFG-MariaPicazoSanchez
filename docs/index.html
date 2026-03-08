@@ -628,8 +628,9 @@
 
         <div class="install-tabs">
 
+
           <!-- Opción 1: Instalador Windows -->
-          <div class="install-option">
+          <div class="install-option" style="width: 100%; min-width: 0;">
             <h3 class="install-option-title">
               <span class="install-badge install-badge--recommended">Recomendado</span>
               Instalador Windows (.exe)
@@ -663,21 +664,48 @@
           </div>
 
           <!-- Opción 2: Desde código fuente -->
-          <div class="install-option">
+          <div class="install-option" style="width: 100%; min-width: 0;">
             <h3 class="install-option-title">Desde código fuente</h3>
             <p>
               Requiere Python 3.12 y pip. Sigue los pasos indicados en el <code>README</code>.
             </p>
             <ol class="install-steps">
               <li>Clona el repositorio:
-                <pre class="code-block"><code>git clone https://github.com/mariapicazo/TFG-MariaPicazoSanchez
-cd TFG-MariaPicazoSanchez</code></pre>
+                  <div class="code-block" role="region" aria-label="Comandos de instalación">
+                    <button class="code-copy-btn" type="button" aria-label="Copiar comandos" title="Copiar comandos">
+                      <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <rect x="9" y="9" width="9" height="9" rx="2" stroke="currentColor" stroke-width="1.5"></rect>
+                        <rect x="4" y="4" width="9" height="9" rx="2" stroke="currentColor" stroke-width="1.5"></rect>
+                      </svg>
+                    </button>
+                    <span class="code-copy-status visually-hidden" role="status" aria-live="polite"></span>
+                    <div class="code-scroll"><pre><code>git clone https://github.com/mariapicazo/TFG-MariaPicazoSanchez
+    cd TFG-MariaPicazoSanchez</code></pre></div>
+                  </div>
               </li>
               <li>Instala las dependencias:
-                <pre class="code-block"><code>pip install -r install_root/requirements.txt</code></pre>
+                <div class="code-block" role="region" aria-label="Comandos de instalación">
+                  <button class="code-copy-btn" type="button" aria-label="Copiar comandos" title="Copiar comandos">
+                    <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                      <rect x="9" y="9" width="9" height="9" rx="2" stroke="currentColor" stroke-width="1.5"></rect>
+                      <rect x="4" y="4" width="9" height="9" rx="2" stroke="currentColor" stroke-width="1.5"></rect>
+                    </svg>
+                  </button>
+                  <span class="code-copy-status visually-hidden" role="status" aria-live="polite"></span>
+                  <div class="code-scroll"><pre><code>pip install -r install_root/requirements.txt</code></pre></div>
+                </div>
               </li>
               <li>Lanza la aplicación:
-                <pre class="code-block"><code>py install_root/orchestrator/orchestrator.py</code></pre>
+                <div class="code-block" role="region" aria-label="Comandos de instalación">
+                  <button class="code-copy-btn" type="button" aria-label="Copiar comandos" title="Copiar comandos">
+                    <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                      <rect x="9" y="9" width="9" height="9" rx="2" stroke="currentColor" stroke-width="1.5"></rect>
+                      <rect x="4" y="4" width="9" height="9" rx="2" stroke="currentColor" stroke-width="1.5"></rect>
+                    </svg>
+                  </button>
+                  <span class="code-copy-status visually-hidden" role="status" aria-live="polite"></span>
+                  <div class="code-scroll"><pre><code>py install_root/orchestrator/orchestrator.py</code></pre></div>
+                </div>
               </li>
             </ol>
           </div>
@@ -1082,6 +1110,53 @@ cd TFG-MariaPicazoSanchez</code></pre>
 
   <!-- Botón volver arriba -->
   <button id="back-to-top" aria-label="Volver al inicio" title="Volver al inicio">⬆</button>
+
+  <script>
+    // Copiar contenido de bloques de código — añade feedback visual
+    document.addEventListener('DOMContentLoaded', function () {
+      document.querySelectorAll('.code-copy-btn').forEach(function (btn) {
+        btn.addEventListener('click', function () {
+          var block = btn.closest('.code-block');
+          if (!block) return;
+          var code = block.querySelector('pre > code') || block.querySelector('code');
+          var text = code ? code.innerText : '';
+          if (!text) return;
+          // intentar clipboard API
+          navigator.clipboard && navigator.clipboard.writeText ?
+            navigator.clipboard.writeText(text).then(function () { flash(btn); announce(block, 'Comandos copiados'); }) : fallbackCopy(text, btn);
+        });
+      });
+
+      function fallbackCopy(text, btn) {
+        var ta = document.createElement('textarea');
+        ta.value = text;
+        document.body.appendChild(ta);
+        ta.select();
+        try {
+          var ok = document.execCommand('copy');
+          if (ok) { flash(btn); var block = btn.closest('.code-block'); if (block) announce(block, 'Comandos copiados'); }
+        } catch (e) { /* noop */ }
+        ta.remove();
+      }
+
+      function flash(btn) {
+        btn.classList.add('copied');
+        var origTitle = btn.getAttribute('title') || btn.getAttribute('aria-label');
+        btn.setAttribute('title', 'Copiado');
+        setTimeout(function () {
+          btn.classList.remove('copied');
+          if (origTitle) btn.setAttribute('title', origTitle);
+        }, 1800);
+      }
+
+      function announce(block, message) {
+        var status = block.querySelector('.code-copy-status');
+        if (!status) return;
+        status.textContent = message;
+        setTimeout(function () { status.textContent = ''; }, 1800);
+      }
+    });
+  </script>
 
 </body>
 </html>

@@ -961,6 +961,7 @@ h1, h2, h3, h4 {
 }
 
 /* Bloque de código */
+
 .code-block {
   background-color: #1c1c1c;
   color: #e5e5e5;
@@ -968,10 +969,41 @@ h1, h2, h3, h4 {
   font-size: 0.82rem;
   padding: var(--space-sm) var(--space-md);
   border-radius: var(--radius-sm);
-  overflow-x: auto;
+  /* overflow handled by inner scroller so the button remains fixed */
+  overflow: visible;
   margin-top: var(--space-sm);
   line-height: 1.6;
-  border: 1px solid #333333;
+  border: none;
+  position: relative;
+}
+
+/* Contenedor scrollable que guarda el <pre> */
+.code-scroll {
+  overflow-x: auto;
+  white-space: nowrap;
+  -webkit-overflow-scrolling: touch;
+}
+
+/* Scrollbar reducido y sutil para los bloques de código */
+.code-scroll {
+  scrollbar-width: thin; /* Firefox */
+  scrollbar-color: rgba(255,255,255,0.18) transparent; /* thumb track */
+}
+
+.code-scroll::-webkit-scrollbar {
+  height: 8px;
+}
+.code-scroll::-webkit-scrollbar-track {
+  background: transparent;
+}
+.code-scroll::-webkit-scrollbar-thumb {
+  background: rgba(255,255,255,0.14);
+  border-radius: 999px;
+  border: 2px solid transparent;
+  background-clip: padding-box;
+}
+.code-scroll::-webkit-scrollbar-thumb:hover {
+  background: rgba(255,255,255,0.22);
 }
 
 code {
@@ -981,7 +1013,7 @@ code {
   padding: 0.1em 0.35em;
   border-radius: var(--radius-sm);
   color: #9a3412;
-  border: 1px solid #fdba74;
+  border: none;
 }
 
 .code-block code {
@@ -990,6 +1022,47 @@ code {
   padding: 0;
   border-radius: 0;
   font-size: inherit;
+  border: none;
+}
+
+/* Botón copiar dentro del bloque de código */
+.code-copy-btn {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  background: rgba(255,255,255,0.14);
+  color: #0b1220;
+  border: 1px solid rgba(255,255,255,0.18);
+  padding: 0.25rem 0.5rem;
+  font-size: 0.78rem;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: background-color 120ms ease, transform 120ms ease;
+  z-index: 5;
+}
+
+.code-copy-btn:hover {
+  background: rgba(255,255,255,0.12);
+  transform: translateY(-1px);
+}
+
+.code-copy-btn.copied {
+  background: #10b981;
+  border-color: #059669;
+  color: #fff;
+}
+
+.code-block pre { margin: 0; white-space: pre; font-family: var(--font-mono); }
+
+/* SVG sizing inside copy button */
+.code-copy-btn svg { width: 1rem; height: 1rem; display: block; }
+
+/* Visually hidden helper for screen readers */
+.visually-hidden {
+  position: absolute !important;
+  height: 1px; width: 1px;
+  overflow: hidden; clip: rect(1px, 1px, 1px, 1px);
+  white-space: nowrap; border: 0; padding: 0; margin: -1px;
 }
 
 /* Tabla de requisitos */
