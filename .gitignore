@@ -1,36 +1,37 @@
-*.pyc
-.snapshots/
-config.json
-.api_token
+# ─── Build & distribution ────────────────────────────────────────────────────
 build/
 dist/
-output/
-.vscode/
 MovilidadESII.spec
-icono.png
 
-# Runtime artifacts
-.pids
-.deps.sha256
+# ─── Runtime artifacts ───────────────────────────────────────────────────────
+output/
 logs/
 *.log
 
-# Python caches / env
+# ─── Project config & secrets ────────────────────────────────────────────────
+config.json
+.api_token
+.env
+
+# ─── Python ──────────────────────────────────────────────────────────────────
 __pycache__/
 *.py[cod]
+*.pyc
 .venv/
 .venv*/
 venv/
-.env
-node_modules/
 
-# OS
+# ─── IDE / editor ────────────────────────────────────────────────────────────
+.vscode/
+
+# ─── OS ──────────────────────────────────────────────────────────────────────
 .DS_Store
 Thumbs.db
-# install_root/data_demo/
+
+# ─── install_root (generated / binary content) ───────────────────────────────
 install_root/_internal/
-# install_root/thirdparty/
 install_root/wheelhouse/
-install_root/node_modules/
 install_root/MovilidadESII.exe
 install_root/output/
+# install_root/data_demo/
+# install_root/thirdparty/
