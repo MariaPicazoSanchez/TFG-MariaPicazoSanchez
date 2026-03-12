@@ -36,21 +36,34 @@ def _clear_new_user_form_state():
 # Lista de países (estándar ISO) con caché
 # ────────────────────────────────────────────────────────────────────────────────
 
+import streamlit as st
+import pycountry
+from babel import Locale
+
+COUNTRY_ALIASES = {
+    "Chequia": "República Checa",
+    "Eslovaquia": "República Eslovaca",
+    "Corea del Sur": "Corea, República de",
+    "Corea del Norte": "Corea, República Popular Democrática de",
+}
+
 @st.cache_data
 def get_country_options() -> list[str]:
-    locale_es = Locale('es')
+
+    locale_es = Locale("es")
     nombres = []
 
-    for c in pycountry.countries:
-        # Intentamos coger el nombre en español según el código alpha_2 (ES, FR, IT...)
-        nombre_es = locale_es.territories.get(c.alpha_2)
-        if not nombre_es:
-            # Si no hay traducción, usamos el nombre en inglés
-            nombre_es = c.name
+    for country in pycountry.countries:
+
+        nombre_es = locale_es.territories.get(country.alpha_2, country.name)
+
+        # aplicar alias si existe
+        nombre_es = COUNTRY_ALIASES.get(nombre_es, nombre_es)
+
         nombres.append(nombre_es)
 
-    # Añadimos una opción vacía al principio
     return [""] + sorted(set(nombres))
+
 
 COUNTRY_OPTIONS = get_country_options()
 
