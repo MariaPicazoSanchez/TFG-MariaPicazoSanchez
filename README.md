@@ -134,7 +134,7 @@ TFG-MariaPicazoSanchez/
     │   ├── map_filters.py       # Filter logic for the map view
     │   ├── stats_filters.py     # Filter logic for the statistics view
     │   ├── validators.py        # Form field validation
-    │   └── es_cities.py         # Static catalogue of Spanish cities with coordinates
+    │   └── es_cities.py         # Static catalogue of Spanish cities
     ├── persistence/
     │   ├── data_access_mobility.py  # Excel → DataFrame readers (xlrd + openpyxl)
     │   ├── data_insert.py           # New row insertion into Excel
