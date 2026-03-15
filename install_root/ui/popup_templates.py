@@ -15,7 +15,9 @@ from .popup_helpers import (
     _view_link,
 )
 from .popup_materias import build_materias_blocks
-
+from persistence.data_access_mobility import get_universities_from_coords_sheet
+from constants import PROGRAM_ERASMUS_IN, PROGRAM_ERASMUS_OUT
+config = st.session_state.get("config", {})
 logger = logging.getLogger("movilidad_ui")
 
 # URL del endpoint que guarda en Excel
@@ -69,6 +71,8 @@ def generate_dynamic_popup(row, programa: str, row_index: int) -> str:
     row_id_attr = html.escape(row_id, quote=True)
 
     config = st.session_state.get("config", {})
+    universidades_in = get_universities_from_coords_sheet(config.get(PROGRAM_ERASMUS_IN, ""))
+    universidades_out = get_universities_from_coords_sheet(config.get(PROGRAM_ERASMUS_OUT, ""))
     excel_path = config.get(programa)
     materias_excel_path = config.get(f"{programa}_MATERIAS")
 
@@ -186,7 +190,16 @@ def generate_dynamic_popup(row, programa: str, row_index: int) -> str:
             # Targeta del estudiante
             toggle_id = f"edit-{row_index}-{idx}"
             prog_attr = html.escape(programa, quote=True)
+            universidad_options_in = "\n".join(
+                f'<option value="{html.escape(u, quote=True)}"{" selected" if _clean(origen_val) == _clean(u) else ""}>{html.escape(u)}</option>'
+                for u in universidades_in
+            )
+            universidad_options_out = "\n".join(
+                f'<option value="{html.escape(u, quote=True)}"{" selected" if _clean(destino_val) == _clean(u) else ""}>{html.escape(u)}</option>'
+                for u in universidades_out
+            )
 
+            
             nombre_field = f'''
                           <div class="field">
                             <label>Nombre</label>
@@ -259,17 +272,24 @@ def generate_dynamic_popup(row, programa: str, row_index: int) -> str:
             plan_field = build_link_file_field("Propuesta Alumno LA", "link_plan",
                                    plan_val, row_index_attr, idx_attr, "plan")
 
+            
             destino_field = f'''
-                              <div class="field">
-                                <label>Destino</label>
-                                <input name="destino" value="{html.escape(_clean(destino_val), quote=True)}">
-                              </div>'''
+              <div class="field">
+                <label>Universidad de destino</label>
+                <input name="destino" list="universidades_out_{idx_attr}" value="{html.escape(destino_val, quote=True)}">
+                <datalist id="universidades_out_{idx_attr}">
+                  {universidad_options_out}
+                </datalist>
+              </div>'''
 
             origen_field = f'''
-                              <div class="field">
-                                <label>Origen</label>
-                                <input name="origen" value="{html.escape(_clean(origen_val), quote=True)}">
-                              </div>'''
+              <div class="field">
+                <label>Universidad de origen</label>
+                <input name="origen" list="universidades_in_{idx_attr}" value="{html.escape(origen_val, quote=True)}">
+                <datalist id="universidades_in_{idx_attr}">
+                  {universidad_options_in}
+                </datalist>
+              </div>'''
 
             responsable_field = f'''
                               <div class="field">

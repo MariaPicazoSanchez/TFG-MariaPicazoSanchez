@@ -143,7 +143,7 @@ def _append_erasmus_in_with_subjects(xlsx_path: str, row_data: dict, target_shee
         
         # Tabla encontrada: añadir filas justo después del final de la tabla
         wb = load_workbook(xlsx_path)
-        ws = wb[table_info.sheet_name]
+        ws = wb[target_sheet]
         
         c_asig = table_info.cols.get("asignatura")
         c_est = table_info.cols.get("estudiante")
@@ -223,31 +223,36 @@ def append_user_to_excel(xlsx_path: str, tipo: str, row_data: dict, sheet_name: 
         # Si el payload incluye ciudad, añadirla a las columnas de la nueva hoja
         if (row_data.get("ciudad") or row_data.get("ciudad_sicue")) and "Ciudad" not in need_cols:
             need_cols = need_cols + ["Ciudad"]
+        coords_str = (
+            f"{row_data.get('coordenadas')[0]}, {row_data.get('coordenadas')[1]}"
+            if isinstance(row_data.get('coordenadas'), (tuple, list))
+                and len(row_data['coordenadas']) == 2
+                and row_data['coordenadas'][0] is not None
+                and row_data['coordenadas'][1] is not None
+            else None
+        )
         new = {
             "Nombre":      row_data.get("nombre"),
             "Apellidos":   row_data.get("apellidos"),
             "Email":       row_data.get("email"),
             "Universidad": row_data.get("destino_origen"),
-            "Coordenadas": (
-                f"{row_data.get('coordenadas')[0]}, {row_data.get('coordenadas')[1]}"
-                if isinstance(row_data.get('coordenadas'), (tuple, list))
-                    and len(row_data['coordenadas']) == 2
-                    and row_data['coordenadas'][0] is not None
-                    and row_data['coordenadas'][1] is not None
-                else None
-            ),
         }
+    
         if tipo == "Erasmus OUT":
+            # Eliminar columna Coordenadas si viene de COMMON_COLS
+            need_cols = [c for c in need_cols if c.lower() != "coordenadas"]
             new.update({"ToR": row_data.get("tor"), "Curso": row_data.get("curso"), "ActaEquivalencias": row_data.get("acta_equivalencias")})
             # ciudad (campo opcional en OUT)
             if row_data.get("ciudad"):
                 new.update({"Ciudad": row_data.get("ciudad")})
+
         elif tipo == "Erasmus IN":
             new.update({"LA": row_data.get("la"), "Horario": row_data.get("horario")})
             # ciudad (campo opcional en IN)
             if row_data.get("ciudad"):
                 new.update({"Ciudad": row_data.get("ciudad")})
         else:  # SICUE OUT – reescribir columnas y fila con la estructura real del Excel
+            new["Coordenadas"] = coords_str
             need_cols = list(SICUE_OUT_COLS)
             # repartir apellidos: si el form envía combinado, dividir; si ya vienen separados usarlos
             apes = (row_data.get("apellidos") or "").strip()
@@ -343,11 +348,12 @@ def append_user_to_excel(xlsx_path: str, tipo: str, row_data: dict, sheet_name: 
     if c_email: new_row[c_email] = row_data.get("email")
     if c_univ:  new_row[c_univ]  = row_data.get("destino_origen")
 
-    if c_coords and (lat is not None and lon is not None):
-        new_row[c_coords] = f"{lat}, {lon}"
-    else:
-        if c_lat: new_row[c_lat] = lat
-        if c_lon: new_row[c_lon] = lon
+    if tipo != "Erasmus OUT":
+        if c_coords and (lat is not None and lon is not None):
+            new_row[c_coords] = f"{lat}, {lon}"
+        else:
+            if c_lat: new_row[c_lat] = lat
+            if c_lon: new_row[c_lon] = lon
 
     if tipo == "SICUE OUT":
         if c_la:      new_row[c_la]      = row_data.get("la")
@@ -414,11 +420,11 @@ def append_user_to_excel(xlsx_path: str, tipo: str, row_data: dict, sheet_name: 
     filtered_row = {k: v for k, v in new_row.items() if v is not None and v != ""}
     out = pd.concat([df, pd.DataFrame([{**new_row, **filtered_row}])], ignore_index=True).reindex(columns=cols_order)
 
-    # Si faltan coordenadas, intentar calcularlas automáticamente para cualquier movilidad
+    # Si faltan coordenadas, intentar calcularlas automáticamente (excepto Erasmus OUT)
     last_row_idx = len(out) - 1
     coords_cols = [c for c in out.columns if str(c).strip().lower() in ("coordenadas", "latitud", "latitude", "longitud", "longitude")]
     needs_coords = False
-    if coords_cols:
+    if tipo != "Erasmus OUT" and coords_cols:
         # Considera que faltan si todas están vacías o nulas
         vals = [out.at[last_row_idx, c] for c in coords_cols]
         if all(pd.isna(v) or v in (None, "", "nan", "None") for v in vals):

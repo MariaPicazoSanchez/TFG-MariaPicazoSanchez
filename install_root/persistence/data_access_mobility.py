@@ -72,6 +72,123 @@ def _match_student_name(nombre_completo: str, exact: dict, by_last: dict) -> str
             return best
     return None
 
+def get_universities_from_coords_sheet(path: str) -> list[str]:
+    """
+    Devuelve la lista de universidades desde la hoja 'Coordenadas'
+    de un Excel de movilidad.
+    
+    Formato esperado hoja Coordenadas:
+    col0 -> País
+    col1 -> Universidad
+    col2 -> Coordenadas
+    """
+
+    try:
+        df_coords = pd.read_excel(
+            path,
+            sheet_name="Coordenadas",
+            header=None,
+            dtype=str
+        )
+
+        universidades = (
+            df_coords.iloc[:, 1]      # columna universidad
+            .dropna()
+            .astype(str)
+            .str.strip()
+            .unique()
+        )
+
+        return sorted(universidades)
+
+    except Exception:
+        return []
+
+def get_universities_from_sicue_data(path: str) -> tuple[list[str], dict, dict]:
+    """
+    Extrae universidades únicas del Excel de SICUE OUT leyendo todas las hojas
+    de datos (las que parecen cursos académicos).
+
+    Devuelve:
+        universidades : list[str]          — lista ordenada de nombres únicos
+        ciudad_map    : dict[str, str]     — {universidad: ciudad}
+        coords_map    : dict[str, tuple]   — {universidad: (lat, lon)} solo las ya geocodificadas
+    """
+    import re
+
+    def _is_academic_sheet(name: str) -> bool:
+        return bool(re.search(r'\d{4}|\d{2}[-/]\d{2}', str(name)))
+
+    universidades: dict[str, dict] = {}  # uni -> {"ciudad": ..., "lat": ..., "lon": ...}
+
+    try:
+        wb_sheets = pd.ExcelFile(path, engine="openpyxl").sheet_names
+    except Exception:
+        return [], {}, {}
+
+    hojas_datos = [s for s in wb_sheets if _is_academic_sheet(s)]
+    # Si no hay hojas con patrón académico, usar todas excepto "coordenadas"
+    if not hojas_datos:
+        hojas_datos = [s for s in wb_sheets if s.lower() != "coordenadas"]
+
+    for sheet in hojas_datos:
+        try:
+            df_sheet = pd.read_excel(path, sheet_name=sheet, engine="openpyxl", dtype=str)
+            df_sheet.columns = [str(c).strip() for c in df_sheet.columns]
+
+            c_dest   = _pick(df_sheet, "Destino", "Universidad Destino", "Universidad")
+            c_ciudad = _pick(df_sheet, "Ciudad")
+            c_coords = _pick(df_sheet, "Coordenadas", "coords")
+            c_lat    = _pick(df_sheet, "Latitud", "latitud", "lat")
+            c_lon    = _pick(df_sheet, "Longitud", "longitud", "lon")
+
+            if not c_dest:
+                continue
+
+            for _, row in df_sheet.iterrows():
+                uni = str(row.get(c_dest) or "").strip()
+                if not uni or uni.lower() in ("nan", "none", ""):
+                    continue
+
+                ciudad = str(row.get(c_ciudad) or "").strip() if c_ciudad else ""
+                if ciudad.lower() in ("nan", "none"):
+                    ciudad = ""
+
+                # Intentar extraer coordenadas ya guardadas
+                lat, lon = None, None
+                if c_coords:
+                    raw_coords = str(row.get(c_coords) or "")
+                    lat, lon = _parse_coords(raw_coords)
+                elif c_lat and c_lon:
+                    try:
+                        lat = float(str(row.get(c_lat) or "").replace(",", "."))
+                        lon = float(str(row.get(c_lon) or "").replace(",", "."))
+                    except (ValueError, TypeError):
+                        lat, lon = None, None
+
+                existing = universidades.get(uni, {})
+                # Actualizar ciudad si aún no la tenemos
+                if not existing.get("ciudad") and ciudad:
+                    existing["ciudad"] = ciudad
+                # Actualizar coords si aún no las tenemos
+                if existing.get("lat") is None and lat is not None:
+                    existing["lat"] = lat
+                    existing["lon"] = lon
+                universidades[uni] = existing
+
+        except Exception:
+            continue
+
+    sorted_unis = sorted(universidades.keys())
+    ciudad_map = {u: d.get("ciudad", "") for u, d in universidades.items()}
+    coords_map = {
+        u: (d["lat"], d["lon"])
+        for u, d in universidades.items()
+        if d.get("lat") is not None and d.get("lon") is not None
+    }
+
+    return sorted_unis, ciudad_map, coords_map
+
 
 def filter_students_with_coords(df: pd.DataFrame, tipo: str) -> pd.DataFrame:
     """
