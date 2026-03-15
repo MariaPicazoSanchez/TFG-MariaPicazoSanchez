@@ -9,7 +9,7 @@ from streamlit_folium import st_folium
 from constants import PROGRAM_ERASMUS_IN, PROGRAM_ERASMUS_OUT, PROGRAM_SICUE_OUT
 from domain import PROGRAM_COLORS, PROGRAM_ICONS
 from export import add_export_control, add_program_legend
-from .popup_templates import generate_dynamic_popup
+from .popup_templates import generate_dynamic_popup,get_autofill_script
 
 logger = logging.getLogger("movilidad_ui")
 
@@ -194,6 +194,10 @@ def show_map(
         })();
         </script>
         """))
+    # Autocompletado universidad → país/ciudad en popups de edición
+    m.get_root().html.add_child(folium.Element(
+        get_autofill_script(st.session_state.get("config", {}))
+    ))
 
     # 2) Pintar TODOS los programas presentes en dfs
     for program, df in dfs.items():

@@ -15,8 +15,10 @@ from .popup_helpers import (
     _view_link,
 )
 from .popup_materias import build_materias_blocks
-from persistence.data_access_mobility import get_universities_from_coords_sheet
-from constants import PROGRAM_ERASMUS_IN, PROGRAM_ERASMUS_OUT
+import json
+from persistence.data_access_mobility import get_universities_from_coords_sheet, get_universities_from_sicue_data
+from ui.new_user_view import get_university_country_map
+from constants import PROGRAM_ERASMUS_IN, PROGRAM_ERASMUS_OUT, PROGRAM_SICUE_OUT
 config = st.session_state.get("config", {})
 logger = logging.getLogger("movilidad_ui")
 
@@ -71,8 +73,14 @@ def generate_dynamic_popup(row, programa: str, row_index: int) -> str:
     row_id_attr = html.escape(row_id, quote=True)
 
     config = st.session_state.get("config", {})
-    universidades_in = get_universities_from_coords_sheet(config.get(PROGRAM_ERASMUS_IN, ""))
+    universidades_in  = get_universities_from_coords_sheet(config.get(PROGRAM_ERASMUS_IN, ""))
     universidades_out = get_universities_from_coords_sheet(config.get(PROGRAM_ERASMUS_OUT, ""))
+    universidades_sicue, ciudad_map_sicue, _ = (
+        get_universities_from_sicue_data(config.get(PROGRAM_SICUE_OUT, ""))
+        if config.get(PROGRAM_SICUE_OUT) else ([], {}, {})
+    )
+    pais_map_out = get_university_country_map(config.get(PROGRAM_ERASMUS_OUT, ""))
+    pais_map_in  = get_university_country_map(config.get(PROGRAM_ERASMUS_IN, ""))
     excel_path = config.get(programa)
     materias_excel_path = config.get(f"{programa}_MATERIAS")
 
@@ -198,6 +206,10 @@ def generate_dynamic_popup(row, programa: str, row_index: int) -> str:
                 f'<option value="{html.escape(u, quote=True)}"{" selected" if _clean(destino_val) == _clean(u) else ""}>{html.escape(u)}</option>'
                 for u in universidades_out
             )
+            universidad_options_sicue = "\n".join(
+                f'<option value="{html.escape(u, quote=True)}"{" selected" if _clean(destino_val) == _clean(u) else ""}>{html.escape(u)}</option>'
+                for u in universidades_sicue
+            )
 
             
             nombre_field = f'''
@@ -276,16 +288,30 @@ def generate_dynamic_popup(row, programa: str, row_index: int) -> str:
             destino_field = f'''
               <div class="field">
                 <label>Universidad de destino</label>
-                <input name="destino" list="universidades_out_{idx_attr}" value="{html.escape(destino_val, quote=True)}">
+                <input name="destino" list="universidades_out_{idx_attr}" value="{html.escape(destino_val, quote=True)}" data-autofill-map="pais_out" data-autofill-target="pais_{row_index_attr}_{idx_attr}" oninput="_uniAutofill(this)">
                 <datalist id="universidades_out_{idx_attr}">
                   {universidad_options_out}
+                </datalist>
+              </div>'''
+
+            destino_field_sicue = f'''
+              <div class="field">
+                <label>Universidad de destino</label>
+                <input name="destino"
+                       list="universidades_sicue_{idx_attr}"
+                       value="{html.escape(destino_val, quote=True)}"
+                       data-autofill-map="ciudad_sicue"
+                       data-autofill-target="ciudad_{row_index_attr}_{idx_attr}"
+                       oninput="_uniAutofill(this)">
+                <datalist id="universidades_sicue_{idx_attr}">
+                  {universidad_options_sicue}
                 </datalist>
               </div>'''
 
             origen_field = f'''
               <div class="field">
                 <label>Universidad de origen</label>
-                <input name="origen" list="universidades_in_{idx_attr}" value="{html.escape(origen_val, quote=True)}">
+                <input name="origen" list="universidades_in_{idx_attr}" value="{html.escape(origen_val, quote=True)}" data-autofill-map="pais_in" data-autofill-target="pais_{row_index_attr}_{idx_attr}" oninput="_uniAutofill(this)">
                 <datalist id="universidades_in_{idx_attr}">
                   {universidad_options_in}
                 </datalist>
@@ -298,30 +324,39 @@ def generate_dynamic_popup(row, programa: str, row_index: int) -> str:
                               </div>'''
 
             from .new_user_view import COUNTRY_OPTIONS
-            pais_options = "\n".join(
-                f'<option value="{html.escape(p, quote=True)}"{" selected" if _normalize_str(pais_val) == _normalize_str(p) else ""}>{html.escape(p)}</option>'
+            _pais_map_actual = pais_map_out if "ERASMUS OUT" in (programa or "").upper() else pais_map_in
+            _pais_auto = _pais_map_actual.get((destino_val or origen_val or "").strip()) or pais_val or ""
+            pais_options_dl = "\n".join(
+                f'<option value="{html.escape(p, quote=True)}">{html.escape(p)}</option>'
                 for p in COUNTRY_OPTIONS if p
             )
             pais_field = f'''
               <div class="field">
                 <label>País</label>
-                <select name="pais">
-                  <option value=""></option>
-                  {pais_options}
-                </select>
+                <input name="pais"
+                       id="pais_{row_index_attr}_{idx_attr}"
+                       list="pais_dl_{row_index_attr}_{idx_attr}"
+                       value="{html.escape(_pais_auto, quote=True)}">
+                <datalist id="pais_dl_{row_index_attr}_{idx_attr}">
+                  {pais_options_dl}
+                </datalist>
               </div>'''
 
-            ciudad_options = "\n".join(
-                f'<option value="{html.escape(c, quote=True)}"{" selected" if _clean(ciudad_val) == _clean(c) else ""}>{html.escape(c)}</option>'
+            _ciudad_auto = ciudad_map_sicue.get((destino_val or "").strip()) or ciudad_val or ""
+            ciudad_options_dl = "\n".join(
+                f'<option value="{html.escape(c, quote=True)}">{html.escape(c)}</option>'
                 for c in CITIES_ES if c
             )
             ciudad_field_sicue = f'''
                 <div class="field">
                   <label>Ciudad</label>
-                  <select name="ciudad">
-                    <option value=""></option>
-                    {ciudad_options}
-                  </select>
+                  <input name="ciudad"
+                         id="ciudad_{row_index_attr}_{idx_attr}"
+                         list="ciudad_dl_{row_index_attr}_{idx_attr}"
+                         value="{html.escape(_ciudad_auto, quote=True)}">
+                  <datalist id="ciudad_dl_{row_index_attr}_{idx_attr}">
+                    {ciudad_options_dl}
+                  </datalist>
                 </div>'''
             
             ciudad_field = f'''
@@ -335,7 +370,7 @@ def generate_dynamic_popup(row, programa: str, row_index: int) -> str:
 
             # SICUE OUT: nombre, email, duración, coordinador destino, gestión LA, LA, plan, destino, ciudad
             if "SICUE" in prog_upper:
-                grid_fields += [dur_field, coord_field, gest_field, la_field, plan_field, destino_field, ciudad_field_sicue]
+                grid_fields += [dur_field, coord_field, gest_field, la_field, plan_field, destino_field_sicue, ciudad_field_sicue]
 
             # Erasmus OUT: nombre, email, curso, duración, LA, plan, ToR, responsable, destino, país, ciudad
             elif "ERASMUS OUT" == prog_upper:
@@ -585,3 +620,38 @@ def build_link_file_field(label, input_name, current_value,
         </div>
       </div>
     """
+
+
+def get_autofill_script(config: dict) -> str:
+    """
+    Devuelve el <script> de autocompletado universidad->país/ciudad
+    para inyectarlo en el mapa principal (fuera del popup).
+    Debe llamarse desde show_map con m.get_root().html.add_child(folium.Element(...))
+    """
+    universidades_sicue, ciudad_map_sicue, _ = (
+        get_universities_from_sicue_data(config.get(PROGRAM_SICUE_OUT, ""))
+        if config.get(PROGRAM_SICUE_OUT) else ([], {}, {})
+    )
+    pais_map_out = get_university_country_map(config.get(PROGRAM_ERASMUS_OUT, ""))
+    pais_map_in  = get_university_country_map(config.get(PROGRAM_ERASMUS_IN, ""))
+
+    _pais_out_json    = json.dumps(pais_map_out,     ensure_ascii=True)
+    _pais_in_json     = json.dumps(pais_map_in,      ensure_ascii=True)
+    _ciudad_sicue_json = json.dumps(ciudad_map_sicue, ensure_ascii=True)
+
+    return (
+        '<script>'
+        'var _AM={'
+        '"pais_out":'      + _pais_out_json     + ','
+        '"pais_in":'       + _pais_in_json      + ','
+        '"ciudad_sicue":'  + _ciudad_sicue_json +
+        '};'
+        'function _uniAutofill(inp){'
+        'var m=_AM[inp.getAttribute("data-autofill-map")]||{};'
+        'var v=m[inp.value];'
+        'if(!v)return;'
+        'var t=document.getElementById(inp.getAttribute("data-autofill-target"));'
+        'if(t){t.value=v;}'
+        '}'
+        '</script>'
+    ).replace('</script>', '</script>')
