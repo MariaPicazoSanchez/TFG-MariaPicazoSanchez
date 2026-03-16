@@ -298,7 +298,9 @@ def generate_dynamic_popup(row, programa: str, row_index: int) -> str:
             destino_field = f'''
               <div class="field">
                 <label>Universidad de destino</label>
-                <input name="destino" list="universidades_out_{idx_attr}" value="{html.escape(destino_val, quote=True)}" data-autofill-map="pais_out" data-autofill-target="pais_{row_index_attr}_{idx_attr}" oninput="_uniAutofill(this)">
+                <input name="destino" list="universidades_out_{idx_attr}" value="{html.escape(destino_val, quote=True)}" data-autofill-map="pais_out" data-autofill-target="pais_{row_index_attr}_{idx_attr}" data-ciudad-warn="ciudad_warn_{row_index_attr}_{idx_attr}"
+                       data-ciudad-field="ciudad_{row_index_attr}_{idx_attr}"
+                       oninput="_uniAutofill(this); _ciudadWarn(this);">
                 <datalist id="universidades_out_{idx_attr}">
                   {universidad_options_out}
                 </datalist>
@@ -371,8 +373,14 @@ def generate_dynamic_popup(row, programa: str, row_index: int) -> str:
             
             ciudad_field = f'''
                 <div class="field">
-                  <label>Ciudad</label>
-                  <input name="ciudad" value="{html.escape(ciudad_val, quote=True)}">
+                  <label>Ciudad
+                    <span id="ciudad_warn_{row_index_attr}_{idx_attr}"
+                          title="Has cambiado la universidad - revisa si esta ciudad sigue siendo correcta o bórrala."
+                          style="display:none;cursor:help;margin-left:0.3rem;font-size:1.5rem;">⚠️</span>
+                  </label>
+                  <input id="ciudad_{row_index_attr}_{idx_attr}"
+                         name="ciudad"
+                         value="{html.escape(ciudad_val, quote=True)}">
                 </div>'''
             
             prog_upper = (programa or "").upper()
@@ -662,6 +670,16 @@ def get_autofill_script(config: dict) -> str:
         'if(!v)return;'
         'var t=document.getElementById(inp.getAttribute("data-autofill-target"));'
         'if(t){t.value=v;}'
+        '}'
+        'function _ciudadWarn(inp){'
+        'var warnId=inp.getAttribute("data-ciudad-warn");'
+        'var cityId=inp.getAttribute("data-ciudad-field");'
+        'if(!warnId||!cityId)return;'
+        'var warn=document.getElementById(warnId);'
+        'var city=document.getElementById(cityId);'
+        'if(warn&&city){'
+        'warn.style.display=city.value.trim()?"inline":"none";'
+        '}'
         '}'
         '</script>'
     ).replace('</script>', '</script>')
