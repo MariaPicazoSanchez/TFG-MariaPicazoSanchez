@@ -297,14 +297,19 @@ def get_alumnos_in(config):
 
 def _match_catalog_header_row(row_values):
     """
-    Detecta si una fila es la cabecera del catálogo de asignaturas disponibles.
-    Requiere columnas 'asignatura(s)' y 'cuatrimestre' pero NO 'estudiante'.
+    Detecta si una fila contiene una cabecera de catálogo de asignaturas.
+    La tabla del catálogo puede estar en la misma fila que la tabla de alumnos
+    (lado a lado). Busca 'Asignaturas' (plural) + 'Cuatrimestre' en cualquier
+    posición de la fila, ignorando si también hay columna 'Estudiante' (otra tabla).
+    Devuelve dict {clave: col_idx} solo con las columnas del catálogo, o None.
     """
     normalized = [_norm(v) for v in row_values]
 
     cat_aliases = {
-        "asignatura": {"asignatura", "asignaturas"},
-        "cuat": {"cuat", "cuatrimestre", "cuatri"},
+        "asignatura":   {"asignaturas"},           # plural — distingue del catálogo vs tabla alumnos
+        "cuat":         {"cuat", "cuatrimestre", "cuatri"},
+        "matriculados": {"matriculados", "matriculado", "nmatric", "n.matric"},
+        "cupo":         {"cupo", "plazas", "capacidad"},
     }
     found = {}
     for idx, cell in enumerate(normalized):
@@ -314,23 +319,24 @@ def _match_catalog_header_row(row_values):
             if cell in aliases and key not in found:
                 found[key] = idx
 
+    # Requiere al menos "asignaturas" (plural) + "cuatrimestre"
     if "asignatura" not in found or "cuat" not in found:
         return None
 
-    # Si tiene columna de estudiante es la tabla de materias IN, no el catálogo
-    estudiante_aliases = {"estudiante", "estudiantes", "alumno", "alumnos"}
-    for cell in normalized:
-        if cell in estudiante_aliases:
-            return None
+    # Las columnas del catálogo deben estar agrupadas (índices cercanos, no dispersos)
+    # Esto evita falsos positivos cuando hay columnas sueltas en distintas tablas
+    cat_indices = [found[k] for k in found]
+    if max(cat_indices) - min(cat_indices) > 10:
+        return None
 
     return found
 
 
-def get_asignaturas_catalog(config):
+def get_asignaturas_catalog(config, sheet_name: str | None = None):
     """
     Lee el catálogo de asignaturas desde el Excel de Materias IN (o Erasmus IN).
-    Busca la hoja/tabla que tenga columnas Asignaturas + Cuatrimestre sin columna Estudiante.
-    Devuelve lista de dicts [{asignatura: str, cuat: str}, ...] ordenados por cuat.
+    Si se pasa sheet_name, solo busca en esa hoja (para que cada curso use sus propias asignaturas).
+    Devuelve lista de dicts [{asignatura, cuat, matriculados, cupo}, ...] ordenados por cuat.
     """
     ruta = config.get("Materias IN") or ""
     if not ruta or not os.path.exists(ruta):
@@ -338,35 +344,56 @@ def get_asignaturas_catalog(config):
     if not ruta or not os.path.exists(ruta):
         return []
 
+    def _int_cell(df, row, col_idx):
+        if col_idx is None or col_idx >= df.shape[1]:
+            return None
+        raw = str(df.iat[row, col_idx] or "").strip()
+        if raw.lower() in ("", "nan", "none"):
+            return None
+        try:
+            return int(float(raw))
+        except (ValueError, TypeError):
+            return None
+
     try:
         xls = pd.read_excel(ruta, sheet_name=None, header=None, dtype=str)
         rows = []
 
-        for sheet_name, df_raw in xls.items():
+        for sname, df_raw in xls.items():
+            # Si se especifica hoja, solo procesar esa
+            if sheet_name and sname != sheet_name:
+                continue
             if df_raw is None or df_raw.empty:
                 continue
 
-            for i in range(len(df_raw)):
+            i = 0
+            while i < len(df_raw):
                 row_vals = df_raw.iloc[i].tolist()
                 header_map = _match_catalog_header_row(row_vals)
                 if header_map is None:
+                    i += 1
                     continue
 
-                # Extraer datos debajo de la cabecera hasta separador u otra cabecera
+                # Cabecera del catálogo encontrada — extraer filas de datos
                 asig_idx = header_map["asignatura"]
                 cuat_idx = header_map["cuat"]
+                matr_idx = header_map.get("matriculados")
+                cupo_idx = header_map.get("cupo")
 
-                for j in range(i + 1, len(df_raw)):
+                j = i + 1
+                while j < len(df_raw):
                     vals = df_raw.iloc[j].tolist()
-                    if _is_separator_or_empty_row(vals):
-                        break
                     if _match_catalog_header_row(vals):
                         break
-
+                    # Parar cuando la columna de asignatura del catálogo esté vacía
+                    # (no usar _is_separator_or_empty_row: hay otra tabla al lado)
                     asig = str(df_raw.iat[j, asig_idx] or "").strip() if asig_idx < df_raw.shape[1] else ""
+                    if not asig or asig.lower() in ("nan", "none"):
+                        break
+
+                    asig = asig  # ya calculado arriba
                     cuat_raw = str(df_raw.iat[j, cuat_idx] or "").strip() if cuat_idx < df_raw.shape[1] else ""
 
-                    # Normalizar "1.0" -> "1", "2.0" -> "2", etc.
                     if cuat_raw and cuat_raw.lower() not in ("nan", "none", ""):
                         try:
                             cuat = str(int(float(cuat_raw)))
@@ -375,11 +402,19 @@ def get_asignaturas_catalog(config):
                     else:
                         cuat = ""
 
-                    if asig and asig.lower() not in ("nan", "none", ""):
-                        rows.append({"asignatura": asig, "cuat": cuat})
+                    matriculados = _int_cell(df_raw, j, matr_idx)
+                    cupo         = _int_cell(df_raw, j, cupo_idx)
 
-            if rows:
-                break
+                    if asig and asig.lower() not in ("nan", "none", ""):
+                        rows.append({
+                            "asignatura":   asig,
+                            "cuat":         cuat,
+                            "matriculados": matriculados,
+                            "cupo":         cupo,
+                        })
+                    j += 1
+
+                i = j  # continuar desde donde terminó este bloque
 
         # Ordenar: cuatrimestre 1 primero, luego 2, luego sin cuatrimestre
         def _sort_key(r):

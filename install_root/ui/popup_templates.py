@@ -29,14 +29,17 @@ API_URL = os.getenv("API_URL", "http://127.0.0.1:5000").rstrip("/")
 FORM_ACTION = f"{API_URL}/update_student"
 
 
-def _load_asignaturas_catalog(config: dict) -> list:
-    """Carga el catálogo de asignaturas, con caché en session_state."""
+def _load_asignaturas_catalog(config: dict, sheet_name: str | None = None) -> list:
+    """Carga el catálogo de asignaturas de una hoja concreta, con caché en session_state."""
     ruta = (config.get("Materias IN") or config.get("Erasmus IN") or "").strip()
-    cache_key = f"_asignaturas_catalog_cache_{ruta}"
+    cache_key = f"_asignaturas_catalog_cache_{ruta}_{sheet_name or ''}"
+    cached = st.session_state.get(cache_key)
+    if cached and isinstance(cached, list) and len(cached) > 0 and "matriculados" not in cached[0]:
+        del st.session_state[cache_key]
     if cache_key not in st.session_state:
         try:
             from persistence import get_asignaturas_catalog
-            st.session_state[cache_key] = get_asignaturas_catalog(config)
+            st.session_state[cache_key] = get_asignaturas_catalog(config, sheet_name=sheet_name)
         except Exception as e:
             logger.warning("No se pudo cargar catálogo de asignaturas: %s", e)
             st.session_state[cache_key] = []
@@ -187,12 +190,19 @@ def generate_dynamic_popup(row, programa: str, row_index: int) -> str:
               or row.get("poblacion")
             )
             # Materias delegadas al módulo popup_materias
+            # Determinar hoja: _sheet_name del estudiante, o filtro global activo como fallback
+            _student_sheet = (e.get("_sheet_name") or "").strip()
+            _global_sheet = st.session_state.get("global_sheet", "Todas")
+            _sheet_for_catalog = (
+                _student_sheet if _student_sheet
+                else (_global_sheet if _global_sheet and _global_sheet != "Todas" else None)
+            )
             has_materias, materias_view_html, materias_edit_block = build_materias_blocks(
                 e,
                 programa,
                 row_index_attr=row_index_attr,
                 idx_attr=idx_attr,
-                asignaturas_catalog=_load_asignaturas_catalog(config),
+                asignaturas_catalog=_load_asignaturas_catalog(config, sheet_name=_sheet_for_catalog),
             )
 
             # Targeta del estudiante

@@ -25,13 +25,11 @@
 
         const studentCuat = (block.getAttribute("data-student-cuat") || "").replace(".0", "").trim();
 
+        // El catálogo ya viene filtrado y con labels enriquecidos desde Python
         for (const item of catalog) {
-            const c = (item.cuat ?? "").toString().replace(".0", "").trim();
-            if (studentCuat && c && c !== studentCuat) continue;
-
             const opt = document.createElement("option");
             opt.value = item.asignatura;
-            opt.label = c ? `${item.asignatura}  [Cuat. ${c}]` : item.asignatura;
+            opt.textContent = item.label || item.asignatura;
             dl.appendChild(opt);
         }
     }
@@ -76,17 +74,35 @@
         const list = block.querySelector(".materias-list");
         if (!list) return;
 
+        let catalogMap = {};
+        try {
+            const cat = JSON.parse(block.getAttribute("data-catalog") || "[]");
+            for (const item of cat) { if (item.asignatura) catalogMap[item.asignatura] = item; }
+        } catch (_) {}
+
         const addRow = list.querySelector(".add-row");
         list.querySelectorAll(".materia-row:not(.add-row)").forEach(el => el.remove());
 
         for (const [j, m] of materias.entries()) {
+            const info = catalogMap[m.nombre] || {};
+            const matr = m.matriculados ?? info.matriculados ?? null;
+            const cupo = m.cupo ?? info.cupo ?? null;
+            let matrHtml = "";
+            if (matr !== null && cupo !== null) {
+                matrHtml = ` <span style="font-weight:600;color:#777;">(${matr}/${cupo} matriculados)</span>`;
+            } else if (matr !== null) {
+                matrHtml = ` <span style="font-weight:600;color:#777;">(${matr} matriculados)</span>`;
+            } else {
+                matrHtml = ` <span style="font-weight:600;color:#777;">(sin datos)</span>`;
+            }
+
             const li = document.createElement("li");
             li.className = "materia-row";
             li.dataset.mindex  = j;
             li.dataset.nombre  = m.nombre;
             li.dataset.materia = JSON.stringify(m);
             li.innerHTML = `
-                <span class="materia-name">${m.nombre}</span>
+                <span class="materia-name">${m.nombre}${matrHtml}</span>
                 <span class="materia-actions">
                     <button type="button" class="icon-btn materia-edit"   title="Editar">✏️</button>
                     <button type="button" class="icon-btn materia-delete" title="Eliminar">🗑️</button>
@@ -151,6 +167,16 @@
         if (!nuevoNombre) { alert("Selecciona o escribe una asignatura."); return; }
 
         const idx = parseInt(editor.dataset.editIndex ?? "-1", 10);
+        const norm = s => s.trim().toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+        const duplicado = materias.some((m, i) => {
+            if (idx >= 0 && i === idx) return false;
+            return norm(m.nombre || m.asignatura || "") === norm(nuevoNombre);
+        });
+        if (duplicado) {
+            showSaveToast(false, [`El alumno ya tiene la asignatura "${nuevoNombre}".`]);
+            return;
+        }
+
         if (idx >= 0 && idx < materias.length) {
             materias[idx] = normalizeMateria({ ...materias[idx], nombre: nuevoNombre });
         } else {

@@ -85,13 +85,17 @@ def get_country_options() -> list[str]:
 COUNTRY_OPTIONS = get_country_options()
 
 
-def _load_asignaturas_catalog(config: dict) -> list:
-    """Carga el catálogo de asignaturas, con caché en session_state."""
+def _load_asignaturas_catalog(config: dict, sheet_name: str | None = None) -> list:
+    """Carga el catálogo de asignaturas de una hoja concreta, con caché en session_state."""
     ruta = (config.get("Materias IN") or config.get("Erasmus IN") or "").strip()
-    cache_key = f"_asignaturas_catalog_cache_{ruta}"
+    cache_key = f"_asignaturas_catalog_cache_{ruta}_{sheet_name or ''}"
+    # Invalidar caché si no tiene el campo matriculados (versión antigua)
+    cached = st.session_state.get(cache_key)
+    if cached and isinstance(cached, list) and len(cached) > 0 and "matriculados" not in cached[0]:
+        del st.session_state[cache_key]
     if cache_key not in st.session_state:
         try:
-            st.session_state[cache_key] = get_asignaturas_catalog(config)
+            st.session_state[cache_key] = get_asignaturas_catalog(config, sheet_name=sheet_name)
         except Exception as e:
             logger.warning("No se pudo cargar catálogo de asignaturas: %s", e)
             st.session_state[cache_key] = []
@@ -189,6 +193,23 @@ def file_picker_button(label: str, text_input_key: str, button_id: str, help: st
 
 
 
+def _asig_label(a: dict) -> str:
+    """Formatea una asignatura del catálogo con su info de matriculados/cupo."""
+    nombre = a["asignatura"]
+    matr = a.get("matriculados")
+    cupo = a.get("cupo")
+    if matr is not None and cupo is not None:
+        return f"{nombre}  ({matr}/{cupo})"
+    if matr is not None:
+        return f"{nombre}  ({matr} matriculados)"
+    return nombre
+
+
+def _asig_nombre_puro(label: str) -> str:
+    """Extrae solo el nombre de asignatura quitando el sufijo de matriculados/cupo."""
+    return label.split("  (")[0].strip() if "  (" in label else label.strip()
+
+
 def render_new_user_form(available_types: list[str], config: dict) -> dict | None:
     from domain import ESTADOS_FIRMA, ICON_BY_TIPO, CITIES_ES
     from persistence import append_user_to_excel, first_sheet_name
@@ -208,9 +229,6 @@ def render_new_user_form(available_types: list[str], config: dict) -> dict | Non
         return None
 
     cfg = st.session_state.get("config", {}) or {}
-    
-    # Cargar catálogo de asignaturas para Erasmus IN
-    asignaturas_catalog = _load_asignaturas_catalog(cfg)
 
     # Selectores en la misma fila
     col_tipo, col_sheet = st.columns([1, 1], gap="small")
@@ -251,6 +269,9 @@ def render_new_user_form(available_types: list[str], config: dict) -> dict | Non
 
     selected_sheet = (new_sheet_name.strip() if new_sheet_name else (None if choice == SENT_NEW else choice))
     st.session_state["nu_sheet"] = selected_sheet
+
+    # Cargar catálogo de asignaturas para la hoja seleccionada
+    asignaturas_catalog = _load_asignaturas_catalog(cfg, sheet_name=selected_sheet)
 
     # ────────────────────────────────────────────────────────────────
     # FORMULARIO PRINCIPAL (SIN st.form para permitir dinámica de asignaturas)
@@ -439,17 +460,27 @@ def render_new_user_form(available_types: list[str], config: dict) -> dict | Non
 
             header_cols = st.columns([8, 1], vertical_alignment="bottom")
 
-            with header_cols[0]:
-                st.caption("Nombre de la asignatura")
+            # Mapa nombre -> info del catálogo para mostrar matriculados/cupo
+            catalog_map = {a["asignatura"]: a for a in asignaturas_catalog}
 
-            with header_cols[1]:
+            header_cols_h = st.columns([8, 2, 1], vertical_alignment="bottom")
+            with header_cols_h[0]:
+                st.caption("Nombre de la asignatura")
+            with header_cols_h[1]:
+                st.caption("Matr. / Cupo")
+            with header_cols_h[2]:
                 if st.button("➕ Añadir", key=f"{materias_key}_add"):
                     materias.append({"nombre": ""})
 
             delete_idx = None
 
             for i, mat in enumerate(materias):
-                row_cols = st.columns([8, 1], vertical_alignment="bottom")
+                # Leer selección actual del session_state ANTES de renderizar columnas
+                raw_sel = st.session_state.get(f"{materias_key}_select_{i}")
+                nom_actual = _asig_nombre_puro(raw_sel) if raw_sel else _asig_nombre_puro(mat.get("nombre", ""))
+                info = catalog_map.get(nom_actual)
+
+                row_cols = st.columns([8, 2, 1], vertical_alignment="center")
                 with row_cols[0]:
                     valor_actual = mat.get("nombre", "")
                     seleccion = st.selectbox(
@@ -462,8 +493,31 @@ def render_new_user_form(available_types: list[str], config: dict) -> dict | Non
                         placeholder="Seleccionar o escribir...",
                         accept_new_options=True
                     )
-                    mat["nombre"] = seleccion if seleccion else ""
+                    mat["nombre"] = _asig_nombre_puro(seleccion) if seleccion else ""
                 with row_cols[1]:
+                    if info:
+                        matr = info.get("matriculados")
+                        cupo = info.get("cupo")
+                        # +1 porque este estudiante aún no está guardado
+                        matr_display = (matr + 1) if matr is not None else None
+                        if matr_display is not None and cupo is not None:
+                            color = "#e05252" if matr_display > cupo else "#4caf50"
+                            st.markdown(
+                                f"<p style='margin:-0.5rem 0 0 -0.1rem;font-size:1.1rem;font-weight:700;"
+                                f"color:{color};text-align:left;line-height:2.4rem'>"
+                                f"{matr_display}&nbsp;/&nbsp;{cupo}</p>",
+                                unsafe_allow_html=True
+                            )
+                        elif matr_display is not None:
+                            st.markdown(
+                                f"<p style='margin:-0.5rem 0 0 -0.1rem;font-size:1.1rem;font-weight:700;"
+                                f"color:#888;text-align:left;line-height:2.4rem'>"
+                                f"{matr_display}</p>",
+                                unsafe_allow_html=True
+                            )
+                    else:
+                        st.empty()
+                with row_cols[2]:
                     if st.button(
                         "❌",
                         key=f"{materias_key}_del_{i}",
@@ -675,7 +729,7 @@ def render_new_user_form(available_types: list[str], config: dict) -> dict | Non
     if tipo_norm == PROGRAM_ERASMUS_IN:
         materias_raw = st.session_state.get("nu_materias_in", []) or []
         # obtener nombres, respetando orden y quitando filas vacías
-        nombres = [(m.get("nombre") or "").strip() for m in materias_raw]
+        nombres = [_asig_nombre_puro((m.get("nombre") or "").strip()) for m in materias_raw]
         nombres_no_vacios = [n for n in nombres if n]
 
         seen = {}
@@ -768,7 +822,7 @@ def render_new_user_form(available_types: list[str], config: dict) -> dict | Non
         la_global = extra.get("la_in", "")
         
         for m in st.session_state.get("nu_materias_in", []):
-            nom = (m.get("nombre") or "").strip()
+            nom = _asig_nombre_puro((m.get("nombre") or "").strip())
             if not nom:
                 # ignoramos filas vacías
                 continue
