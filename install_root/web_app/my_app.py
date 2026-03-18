@@ -50,6 +50,40 @@ from persistence import load_all_dataframes, get_materias_in_por_estudiante
 from constants import PROGRAM_ERASMUS_OUT, PROGRAM_ERASMUS_IN, PROGRAM_SICUE_OUT
 
 
+@st.fragment(run_every=3)
+def _auto_refresh_on_excel_change() -> None:
+    """
+    Se ejecuta cada 3 segundos. Si el mtime de algún Excel ha cambiado
+    respecto al que hay en caché, limpia el caché y hace rerun completo.
+    """
+    config = st.session_state.get("config", {})
+    if not config:
+        return
+
+    stored = st.session_state.get("_excel_mtimes_snapshot", {})
+    current = {}
+    changed = False
+
+    for key, path in config.items():
+        if not path or not isinstance(path, str):
+            continue
+        try:
+            if os.path.exists(path):
+                mtime = os.path.getmtime(path)
+                current[key] = mtime
+                if stored.get(key) != mtime and key in stored:
+                    changed = True
+        except Exception:
+            pass
+
+    st.session_state["_excel_mtimes_snapshot"] = current
+
+    if changed:
+        st.cache_data.clear()
+        st.session_state["data_version"] = st.session_state.get("data_version", 0) + 1
+        st.rerun()
+
+
 def _check_api_health(timeout: int = 1) -> bool:
     """Verifica si la API está respondiendo.
 
@@ -394,6 +428,9 @@ def main():
     config = st.session_state["config"]
 
     base_map, search_slot = sidebar_controls()
+
+    # ==================== AUTO-REFRESCO ====================
+    _auto_refresh_on_excel_change()
 
     # ==================== CARGAR DATOS ====================
     global_sheet = st.session_state.get("global_sheet", None)

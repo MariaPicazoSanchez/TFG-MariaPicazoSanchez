@@ -8,12 +8,21 @@
     const TOAST_ID            = "global-save-toast";
     const OVERLAY_ID          = "global-save-overlay";
 
-    // ─── Catalog ──────────────────────────────────────────────────────────────
+    // ─── Catalog / Autocomplete ───────────────────────────────────────────────
 
-    /** Popula el <datalist> con las opciones del catálogo mostrando el label enriquecido. */
+    /**
+     * Construye un autocomplete personalizado para el input de asignaturas.
+     * El <datalist> nativo ignora textContent y solo muestra `value`,
+     * por lo que usamos un <ul> propio que sí muestra el label enriquecido
+     * (con matriculados/cupo).
+     */
     function buildCatalogSelect(block) {
-        const dl = block.querySelector("datalist");
-        if (!dl || dl.childElementCount > 0) return;
+        const inp = block.querySelector('input[name="mat_nombre"]');
+        if (!inp) return;
+
+        // Evitar inicializar dos veces
+        if (inp.dataset.autocompleteReady) return;
+        inp.dataset.autocompleteReady = "1";
 
         let catalog = [];
         try {
@@ -23,19 +32,97 @@
         }
         if (!catalog.length) return;
 
-        for (const item of catalog) {
-            const opt = document.createElement("option");
-            opt.value = item.label || item.asignatura;
-            opt.dataset.asignatura = item.asignatura;
-            dl.appendChild(opt);
+        // Contenedor de sugerencias
+        const dropdown = document.createElement("ul");
+        dropdown.className = "mat-autocomplete-list";
+        dropdown.style.cssText = [
+            "position:absolute", "z-index:9999", "background:#fff",
+            "border:1px solid #ccc", "border-radius:6px",
+            "margin:0", "padding:4px 0", "list-style:none",
+            "max-height:220px", "overflow-y:auto",
+            "min-width:100%", "box-shadow:0 4px 12px rgba(0,0,0,0.15)",
+            "display:none"
+        ].join(";");
+
+        // El input necesita position:relative en su padre para anclar el dropdown
+        const wrap = inp.parentElement;
+        if (wrap) {
+            const wpos = getComputedStyle(wrap).position;
+            if (wpos === "static") wrap.style.position = "relative";
+            wrap.appendChild(dropdown);
+        } else {
+            inp.insertAdjacentElement("afterend", dropdown);
         }
+
+        function norm(s) {
+            return (s || "").toLowerCase()
+                .normalize("NFD").replace(/[\u0300-\u036f]/g, "")
+                .replace(/\s+/g, " ").trim();
+        }
+
+        function renderDropdown(query) {
+            const q = norm(query);
+            const matches = q
+                ? catalog.filter(item => norm(item.label || item.asignatura).includes(q))
+                : catalog;
+
+            dropdown.innerHTML = "";
+            if (!matches.length) { dropdown.style.display = "none"; return; }
+
+            for (const item of matches.slice(0, 50)) {
+                const li = document.createElement("li");
+                li.style.cssText = "padding:7px 12px;cursor:pointer;font-size:0.9rem;line-height:1.3;white-space:pre-wrap;word-break:break-word;";
+                li.textContent = item.label || item.asignatura;
+                li.addEventListener("mousedown", ev => {
+                    ev.preventDefault();
+                    inp.value = item.asignatura;
+                    dropdown.style.display = "none";
+                });
+                li.addEventListener("mouseover", () => { li.style.background = "#f0f4ff"; });
+                li.addEventListener("mouseout",  () => { li.style.background = ""; });
+                dropdown.appendChild(li);
+            }
+            dropdown.style.display = "block";
+        }
+
+        inp.addEventListener("input",  () => renderDropdown(inp.value));
+        inp.addEventListener("focus",  () => renderDropdown(inp.value));
+        inp.addEventListener("blur",   () => setTimeout(() => { dropdown.style.display = "none"; }, 150));
+        inp.addEventListener("keydown", ev => {
+            if (dropdown.style.display === "none") return;
+            const items = dropdown.querySelectorAll("li");
+            if (!items.length) return;
+            const active = dropdown.querySelector("li.active");
+            let idx = active ? Array.from(items).indexOf(active) : -1;
+            if (ev.key === "ArrowDown") {
+                ev.preventDefault();
+                if (active) active.classList.remove("active");
+                idx = Math.min(idx + 1, items.length - 1);
+                items[idx].classList.add("active");
+                items[idx].style.background = "#f0f4ff";
+                items[idx].scrollIntoView({ block: "nearest" });
+            } else if (ev.key === "ArrowUp") {
+                ev.preventDefault();
+                if (active) active.classList.remove("active");
+                idx = Math.max(idx - 1, 0);
+                items[idx].classList.add("active");
+                items[idx].style.background = "#f0f4ff";
+                items[idx].scrollIntoView({ block: "nearest" });
+            } else if (ev.key === "Enter" && active) {
+                ev.preventDefault();
+                inp.value = catalog.find(it => active.textContent === (it.label || it.asignatura))?.asignatura || active.textContent;
+                dropdown.style.display = "none";
+            } else if (ev.key === "Escape") {
+                dropdown.style.display = "none";
+            }
+        });
     }
 
     function initAllBlocks() {
         document.querySelectorAll(".materias-block").forEach(buildCatalogSelect);
     }
 
-        // ─── Data helpers ─────────────────────────────────────────────────────────
+    // ─── Data helpers ─────────────────────────────────────────────────────────
 
     /** Normalises a materia object, accepting both nombre and asignatura as the name field. */
     function normalizeMateria(m = {}) {
@@ -163,21 +250,7 @@
         const inp = editor.querySelector('input[name="mat_nombre"]');
         if (!inp) { console.error("[materias] Falta input nombre al guardar"); return; }
 
-        // Si el usuario eligió del datalist, el value es el label. Recuperar nombre real y datos del catálogo.
-        const dl = block.querySelector("datalist");
-        let nuevoNombre = inp.value.trim();
-        let catalogItem = null;
-        if (dl) {
-            const match = Array.from(dl.options).find(o => o.value === nuevoNombre);
-            if (match && match.dataset.asignatura) {
-                nuevoNombre = match.dataset.asignatura;
-                // Buscar datos completos en el catálogo
-                try {
-                    const cat = JSON.parse(block.getAttribute("data-catalog") || "[]");
-                    catalogItem = cat.find(c => c.asignatura === nuevoNombre) || null;
-                } catch (_) {}
-            }
-        }
+        const nuevoNombre = inp.value.trim();
         if (!nuevoNombre) { alert("Selecciona o escribe una asignatura."); return; }
 
         const idx = parseInt(editor.dataset.editIndex ?? "-1", 10);
@@ -192,13 +265,9 @@
         }
 
         if (idx >= 0 && idx < materias.length) {
-            materias[idx] = normalizeMateria({ ...materias[idx], nombre: nuevoNombre,
-                matriculados: catalogItem?.matriculados ?? materias[idx].matriculados,
-                cupo:         catalogItem?.cupo         ?? materias[idx].cupo });
+            materias[idx] = normalizeMateria({ ...materias[idx], nombre: nuevoNombre });
         } else {
-            materias.push(normalizeMateria({ nombre: nuevoNombre,
-                matriculados: catalogItem?.matriculados ?? null,
-                cupo:         catalogItem?.cupo         ?? null }));
+            materias.push(normalizeMateria({ nombre: nuevoNombre }));
         }
 
         textarea.value = JSON.stringify(materias);
@@ -279,12 +348,19 @@
         topDoc.head.appendChild(style);
     }
 
-    /** Removes the toast and its backdrop overlay. Stored on window.top to survive iframe re-renders. */
-    function removeToast() {
+    /** Removes the toast. If reload=true, recarga Streamlit para actualizar datos. */
+    function removeToast(reload) {
         const topDoc = window.top.document;
         topDoc.getElementById(TOAST_ID)?.remove();
         topDoc.getElementById(OVERLAY_ID)?.remove();
         window.top._stRemoveToast = null;
+        if (reload) {
+            try {
+                const url = new URL(window.top.location.href);
+                url.searchParams.set("student_saved", "1");
+                window.top.location.href = url.toString();
+            } catch(e) { window.top.location.reload(); }
+        }
     }
 
     function showSaveToast(ok, messages = []) {
@@ -305,7 +381,7 @@
         // Store removeToast on window.top so it survives iframe destruction.
         // onclick attribute is intentional: it evaluates in window.top's context,
         // not the iframe's, so it still works after Streamlit re-renders.
-        window.top._stRemoveToast = removeToast;
+        window.top._stRemoveToast = ok ? () => removeToast(true) : () => removeToast(false);
 
         const overlay = topDoc.createElement("div");
         overlay.id = OVERLAY_ID;
@@ -319,7 +395,7 @@
 
         if (ok) {
             toast.className = "st-save-toast st-save-toast-success";
-            toast.innerHTML = `Guardado correctamente.<br><small>Recarga la p\u00e1gina para ver los cambios actualizados. Clic para cerrar.</small>`;
+            toast.innerHTML = `Guardado correctamente.<br><small>Clic para cerrar y actualizar.</small>`;
         } else {
             const displayMsg = messages.length ? messages.join(" ") : "Error al guardar.";
             toast.className  = "st-save-toast st-save-toast-error";

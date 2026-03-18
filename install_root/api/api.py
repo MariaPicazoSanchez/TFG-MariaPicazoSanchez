@@ -71,6 +71,15 @@ def health():
     return {"ok": True}
 
 
+# Timestamp del último guardado exitoso. Lo lee Streamlit via polling para
+# saber cuándo recargar los datos sin necesidad de recargar la página.
+_last_saved_ts = 0.0
+
+@app.get("/saved_flag")
+def saved_flag():
+    return jsonify({"ts": _last_saved_ts})
+
+
 def require_token(f):
     @wraps(f)
     def wrapper(*args, **kwargs):
@@ -436,6 +445,10 @@ def update_student():
             pass
 
     logger.info("update_student resultado: ok=%s messages=%s", ok_global, messages)
+    if ok_global:
+        import time as _time
+        global _last_saved_ts
+        _last_saved_ts = _time.time()
     return _build_js_response(ok_global, messages, extra)
 
 
