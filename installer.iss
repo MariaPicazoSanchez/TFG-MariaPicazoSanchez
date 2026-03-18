@@ -23,7 +23,6 @@ ArchitecturesInstallIn64BitMode=x64
 SetupLogging=yes
 SetupIconFile=install_root\MovilidadESII.ico
 DisableDirPage=yes
-TempDir={localappdata}\TempInstall
 
 [Dirs]
 Name: "{app}\logs"
