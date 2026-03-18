@@ -809,13 +809,7 @@ def start_processes(api_enabled: bool = True, api_disabled_reason: str | None = 
                 if proc is not None:
                     kernel32.AssignProcessToJobObject(job, int(proc._handle))
 
-        # Abrir navegador INMEDIATAMENTE (esperará a que Streamlit esté listo)
-        LOGGER.info("Abriendo navegador en %s", url)
-        subprocess.Popen(
-            ["rundll32", "url.dll,FileProtocolHandler", url],
-            creationflags=NO_WINDOW,
-        )
-
+        # Arrancar workers en hilos secundarios ANTES de abrir pywebview
         if api_enabled:
             def _api_health_worker():
                 health_url = f"{api_url}/health"
@@ -833,10 +827,8 @@ def start_processes(api_enabled: bool = True, api_disabled_reason: str | None = 
                         "Algunas funciones pueden no estar disponibles.\n\n"
                         f"Consulta {API_LOG_PATH} y {API_STATUS_PATH}"
                     )
-
             threading.Thread(target=_api_health_worker, daemon=True).start()
 
-        # Verificar en segundo plano que Streamlit arrancó (sin bloquear)
         def _streamlit_check():
             if not wait_for_http(url, timeout=15.0):
                 LOGGER.error("Streamlit no respondió en %s", url)
@@ -844,13 +836,69 @@ def start_processes(api_enabled: bool = True, api_disabled_reason: str | None = 
                     "MovilidadESII - Streamlit",
                     "Streamlit tardó en arrancar. Si el navegador no carga, consulta app.log."
                 )
-        
         threading.Thread(target=_streamlit_check, daemon=True).start()
 
         if not api_enabled:
             reason = api_disabled_reason or "API deshabilitada."
             write_api_status(False, api_url, reason=reason)
             LOGGER.warning(reason)
+
+        # Abrir ventana nativa pywebview en hilo secundario (fallback a navegador)
+        LOGGER.info("Abriendo ventana nativa en %s", url)
+
+        def _open_webview_thread():
+            try:
+                import webview
+
+                class _API:
+                    def pick_file(self):
+                        windows = webview.windows
+                        if not windows:
+                            return {"ok": False, "reason": "no_window"}
+                        result = windows[0].create_file_dialog(
+                            webview.OPEN_DIALOG,
+                            allow_multiple=False,
+                            file_types=(
+                                "Documentos (*.pdf;*.doc;*.docx;*.xlsx;*.xls)",
+                                "Todos los archivos (*.*)",
+                            )
+                        )
+                        if result and len(result) > 0:
+                            return {"ok": True, "path": result[0]}
+                        return {"ok": False, "reason": "cancelled"}
+
+                if wait_for_http(url, timeout=30.0):
+                    webview.create_window(
+                        "Movilidad ESII", url,
+                        width=1400, height=900,
+                        min_size=(800, 600),
+                        resizable=True,
+                        js_api=_API(),
+                    )
+                    webview.start()
+                    LOGGER.info("Ventana pywebview cerrada — señalizando shutdown.")
+                    shutdown_event.set()
+                else:
+                    LOGGER.warning("Streamlit no arrancó en 30s — abriendo navegador.")
+                    subprocess.Popen(
+                        ["rundll32", "url.dll,FileProtocolHandler", url],
+                        creationflags=NO_WINDOW,
+                    )
+            except ImportError:
+                LOGGER.warning("pywebview no instalado — abriendo navegador.")
+                subprocess.Popen(
+                    ["rundll32", "url.dll,FileProtocolHandler", url],
+                    creationflags=NO_WINDOW,
+                )
+            except Exception as e:
+                LOGGER.error("Error pywebview: %s — abriendo navegador.", e)
+                subprocess.Popen(
+                    ["rundll32", "url.dll,FileProtocolHandler", url],
+                    creationflags=NO_WINDOW,
+                )
+
+        threading.Thread(target=_open_webview_thread, daemon=True).start()
+
 
         GRACE_STARTUP      = 30           # s — gracia inicial antes de activar watchdog
         CHECK_INTERVAL     = 1            # s — latencia máxima de reacción al shutdown_event
