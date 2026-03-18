@@ -573,6 +573,9 @@ def generate_dynamic_popup(row, programa: str, row_index: int) -> str:
                             <button type="submit" class="btn save-btn" title="Guardar"
                               onclick="var b=this; window._saveBtnRef=b; window._saveBtnTimeout=setTimeout(function(){{b.disabled=true; b.textContent='\u23f3 Guardando...';}},0);">Guardar</button>
                           </div>
+                          <div class="recarga-toast">
+                            ⚠️ Recarga la página para ver los cambios actualizados.
+                          </div>
                           <div class="hint">
                             Los cambios se guardan en el Excel de {html.escape(programa)}. 
                           </div>
@@ -639,7 +642,23 @@ def build_link_file_field(label, input_name, current_value,
                     gap:0.35rem;
                     cursor:pointer;
                   "
-                  onclick="document.getElementById('{file_id}').click();">
+                  onclick="(function(){{
+                    var inp = document.getElementById('{input_id}');
+                    var pw = null;
+                    try {{ pw = (window.top || window).pywebview; }} catch(e) {{}}
+                    if (pw && pw.api && pw.api.pick_file) {{
+                      pw.api.pick_file().then(function(d){{
+                        if (d && d.ok) {{ inp.value = d.path; }}
+                        else if (!d || d.reason !== 'cancelled') {{
+                          document.getElementById('{file_id}').click();
+                        }}
+                      }}).catch(function(){{
+                        document.getElementById('{file_id}').click();
+                      }});
+                    }} else {{
+                      document.getElementById('{file_id}').click();
+                    }}
+                  }})();">
             📂
           </button>
 
@@ -650,7 +669,7 @@ def build_link_file_field(label, input_name, current_value,
                  onchange="
                    var inp = document.getElementById('{input_id}');
                    if (this.files && this.files[0]) {{
-                     inp.value = this.files[0].path;
+                     inp.value = this.files[0].name;
                    }} else {{
                      inp.value = '';
                    }}

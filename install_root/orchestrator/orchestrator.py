@@ -117,6 +117,73 @@ async def handler(websocket) -> None:
         _shutdown_task = asyncio.create_task(_delayed_shutdown())
 
 
+import time
+import threading
+import urllib.request
+
+
+def _wait_for_streamlit(url: str, timeout: int = 30) -> bool:
+    """Espera hasta que Streamlit esté respondiendo."""
+    deadline = time.time() + timeout
+    while time.time() < deadline:
+        try:
+            with urllib.request.urlopen(url, timeout=1) as r:
+                if r.status == 200:
+                    return True
+        except Exception:
+            pass
+        time.sleep(0.5)
+    return False
+
+
+class _PyWebViewAPI:
+    """Funciones Python expuestas al JS de la ventana via pywebview js_api."""
+
+    def pick_file(self):
+        """Abre el diálogo nativo de ficheros y devuelve la ruta completa."""
+        import webview
+        windows = webview.windows
+        if not windows:
+            return {"ok": False, "reason": "no_window"}
+        result = windows[0].create_file_dialog(
+            webview.OPEN_DIALOG,
+            allow_multiple=False,
+            file_types=(
+                "Documentos (*.pdf;*.doc;*.docx;*.xlsx;*.xls)",
+                "Todos los archivos (*.*)",
+            )
+        )
+        if result and len(result) > 0:
+            return {"ok": True, "path": result[0]}
+        return {"ok": False, "reason": "cancelled"}
+
+
+def _open_webview(url: str) -> None:
+    """Abre la app en ventana nativa. Bloquea hasta que el usuario la cierra."""
+    try:
+        import webview
+    except ImportError:
+        logger.error("pywebview no instalado. Instala con: pip install pywebview")
+        import webbrowser
+        webbrowser.open(url)
+        return
+
+    api = _PyWebViewAPI()
+    icon_path = os.path.join(_ROOT, "MovilidadESII.ico")
+
+    # En Windows, cambiar el icono de la barra de tareas via ctypes
+    if sys.platform == "win32" and os.path.exists(icon_path):
+        import ctypes
+        ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID("MovilidadESII")
+
+    webview.create_window("Movilidad ESII", url, width=1400, height=900,
+                          min_size=(800, 600), resizable=True, js_api=api)
+    webview.start()
+    logger.info("Ventana cerrada por el usuario.")
+    if _shutdown_event is not None:
+        _shutdown_event.set()
+
+
 async def main() -> None:
     global streamlit_proc, flask_proc, _shutdown_event
     _shutdown_event = asyncio.Event()
@@ -129,22 +196,43 @@ async def main() -> None:
 
     logger.info("Arrancando Streamlit desde: %s", _WEBAPP_SCRIPT)
     streamlit_proc = subprocess.Popen(
-        [sys.executable, "-m", "streamlit", "run", _WEBAPP_SCRIPT],
+        [sys.executable, "-m", "streamlit", "run", _WEBAPP_SCRIPT,
+         "--server.headless", "true",
+         "--server.port", "8501"],
         cwd=_ROOT,
     )
 
-    # Servidor WebSocket: espera conexiones del cliente (my_app.py inyecta el JS)
+    # Servidor WebSocket en segundo plano
     async with serve(handler, "localhost", 8765):
         logger.info("Servidor WebSocket listo en ws://localhost:8765")
-        # Mantenerse activo hasta que handler() señalice el cierre.
         await _shutdown_event.wait()
 
 
 if __name__ == "__main__":
-    try:
-        asyncio.run(main())
-    except KeyboardInterrupt:
-        logger.info("Interrupción por teclado. Cerrando procesos…")
-        _kill_proc(streamlit_proc)
-        _kill_proc(flask_proc)
-        logger.info("Procesos terminados. Saliendo.")
+    # pywebview DEBE correr en el hilo principal.
+    # El loop asyncio (Flask + Streamlit + WebSocket) corre en un hilo secundario.
+
+    def _run_async():
+        try:
+            asyncio.run(main())
+        except Exception as e:
+            logger.error("Error en bucle asyncio: %s", e)
+
+    async_thread = threading.Thread(target=_run_async, daemon=True)
+    async_thread.start()
+
+    # Esperar a que Streamlit esté listo
+    streamlit_url = "http://localhost:8501"
+    logger.info("Esperando a que Streamlit arranque…")
+    if _wait_for_streamlit(streamlit_url):
+        logger.info("Streamlit listo. Abriendo ventana nativa.")
+        _open_webview(streamlit_url)  # bloquea en el hilo principal hasta cerrar
+    else:
+        logger.error("Streamlit no arrancó en 30s.")
+
+    # Shutdown limpio
+    if _shutdown_event is not None:
+        _shutdown_event.set()
+    _kill_proc(streamlit_proc)
+    _kill_proc(flask_proc)
+    logger.info("Procesos terminados. Saliendo.")

@@ -24,3 +24,4 @@ setuptools==80.10.2
 wheel==0.46.3
 websockets==16.0
 psutil==7.2.2
+pywebview==5.0.5
