@@ -179,7 +179,6 @@ TFG-MariaPicazoSanchez/
   "SICUE OUT":   "<absolute path to SICUE outgoing .xlsx>",
   "Erasmus OUT": "<absolute path to Erasmus outgoing .xlsx>",
   "Erasmus IN":  "<absolute path to Erasmus incoming .xlsx>",
-  "Materias IN": "<absolute path to Erasmus IN subjects .xlsx>"
 }
 ```
 

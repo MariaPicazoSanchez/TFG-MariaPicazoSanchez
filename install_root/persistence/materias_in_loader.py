@@ -76,7 +76,7 @@ def _is_separator_or_empty_row(row_values):
 
 def load_materias_in(config):
     """
-    Lee el Excel de 'Materias IN' y extrae SOLO las tablas que tengan la cabecera
+    Lee el Excel de 'Erasmus IN' y extrae SOLO las tablas que tengan la cabecera
     de materias IN aunque haya otras tablas en el mismo archivo (y en distintas hojas).
     """
     ruta = config.get("Erasmus IN")
@@ -294,135 +294,194 @@ def get_alumnos_in(config):
 # ---------------------------------------------------------------------------
 # Catálogo de asignaturas ofertadas (tabla con Asignaturas, Cuatrimestre, ...)
 # ---------------------------------------------------------------------------
-
-def _match_catalog_header_row(row_values):
+def _find_catalog_block(row_values):
     """
-    Detecta si una fila contiene una cabecera de catálogo de asignaturas.
-    La tabla del catálogo puede estar en la misma fila que la tabla de alumnos
-    (lado a lado). Busca 'Asignaturas' (plural) + 'Cuatrimestre' en cualquier
-    posición de la fila, ignorando si también hay columna 'Estudiante' (otra tabla).
-    Devuelve dict {clave: col_idx} solo con las columnas del catálogo, o None.
+    Busca en una fila la subcabecera del catálogo de asignaturas.
+    Devuelve dict con índices de columna o None.
+
+    Evalúa TODOS los candidatos 'asignatura/asignaturas' de la fila y elige
+    el que tenga mayor puntuación (tener matr+cupo+cuat juntos = catálogo real).
+    Así ignora la columna 'Asignatura' de la tabla de alumnos, que no tiene
+    'matriculados' ni 'cupo' cerca.
     """
     normalized = [_norm(v) for v in row_values]
 
-    cat_aliases = {
-        "asignatura":   {"asignaturas"},           # plural — distingue del catálogo vs tabla alumnos
-        "cuat":         {"cuat", "cuatrimestre", "cuatri"},
-        "matriculados": {"matriculados", "matriculado", "nmatric", "n.matric"},
-        "cupo":         {"cupo", "plazas", "capacidad"},
-    }
-    found = {}
-    for idx, cell in enumerate(normalized):
-        if not cell:
-            continue
-        for key, aliases in cat_aliases.items():
-            if cell in aliases and key not in found:
-                found[key] = idx
-
-    # Requiere al menos "asignaturas" (plural) + "cuatrimestre"
-    if "asignatura" not in found or "cuat" not in found:
+    asig_candidates = [
+        idx for idx, cell in enumerate(normalized)
+        if cell in ("asignaturas", "asignatura", "materias", "materia")
+    ]
+    if not asig_candidates:
         return None
 
-    # Las columnas del catálogo deben estar agrupadas (índices cercanos, no dispersos)
-    # Esto evita falsos positivos cuando hay columnas sueltas en distintas tablas
-    cat_indices = [found[k] for k in found]
-    if max(cat_indices) - min(cat_indices) > 10:
-        return None
+    best = None
+    best_score = -1
 
-    return found
+    for asig_idx in asig_candidates:
+        indices = {"asig": asig_idx, "cuat": -1, "matr": -1, "cupo": -1}
+        for idx in range(asig_idx + 1, min(asig_idx + 10, len(normalized))):
+            cell = normalized[idx]
+            if cell in ("cuat", "cuatrimestre", "periodo", "semestre"):
+                indices["cuat"] = idx
+            elif cell in ("matriculados", "matricula", "nmatric", "inscritos", "matr"):
+                indices["matr"] = idx
+            elif cell in ("cupo", "plazas", "capacidad", "cupos", "aforo"):
+                indices["cupo"] = idx
 
+        has_matr = indices["matr"] != -1
+        has_cupo = indices["cupo"] != -1
+        has_cuat = indices["cuat"] != -1
+        # Tener matr+cupo juntos es la señal clave de que es el catálogo
+        score = (has_matr and has_cupo) * 4 + has_matr * 2 + has_cupo * 2 + has_cuat
+
+        if score > best_score and (has_matr or has_cupo):
+            best_score = score
+            best = indices
+
+    return best
 
 def get_asignaturas_catalog(config, sheet_name: str | None = None):
     """
     Lee el catálogo de asignaturas desde el Excel de Materias IN (o Erasmus IN).
-    Si se pasa sheet_name, solo busca en esa hoja (para que cada curso use sus propias asignaturas).
+    Si se pasa sheet_name, solo busca en esa hoja.
     Devuelve lista de dicts [{asignatura, cuat, matriculados, cupo}, ...] ordenados por cuat.
+
+    Soporta tablas en paralelo: la tabla del catálogo puede estar a la derecha
+    de la tabla de alumnos en las mismas filas.
     """
-    ruta = config.get("Materias IN") or ""
-    if not ruta or not os.path.exists(ruta):
-        ruta = config.get("Erasmus IN") or ""
+    ruta = config.get("Erasmus IN") or ""
     if not ruta or not os.path.exists(ruta):
         return []
 
-    def _int_cell(df, row, col_idx):
-        if col_idx is None or col_idx >= df.shape[1]:
-            return None
-        raw = str(df.iat[row, col_idx] or "").strip()
-        if raw.lower() in ("", "nan", "none"):
-            return None
+    def _normalize_sheet(s):
+        return str(s).strip().replace(" ", "").replace("-", "").replace("/", "").lower()
+
+    def _safe_int(val):
         try:
-            return int(float(raw))
-        except (ValueError, TypeError):
+            if pd.isna(val):
+                return None
+            s = str(val).strip().replace(',', '.')
+            if s == "" or s.lower() in ("nan", "none"):
+                return None
+            return int(float(s))
+        except Exception:
             return None
+
+    def _cell(row, idx):
+        """Devuelve el valor de una celda o '' si está fuera de rango / es NaN."""
+        if idx < 0 or idx >= len(row):
+            return ""
+        v = row.iloc[idx]
+        try:
+            if pd.isna(v):
+                return ""
+        except Exception:
+            pass
+        return str(v).strip()
 
     try:
         xls = pd.read_excel(ruta, sheet_name=None, header=None, dtype=str)
+
+        # Las fórmulas tipo COUNTIF no se evalúan al leer con pandas/openpyxl.
+        # Recalculamos la columna Matriculados contando cuántas veces aparece
+        # cada asignatura en la columna de asignaturas de alumnos (col 0).
+        # Para eso necesitamos saber los índices, que hacemos por hoja.
         rows = []
 
-        for sname, df_raw in xls.items():
-            # Si se especifica hoja, solo procesar esa
-            if sheet_name and sname != sheet_name:
-                continue
+        sheet_candidates = list(xls.keys())
+        sheet_to_use = None
+        if sheet_name:
+            norm_target = _normalize_sheet(sheet_name)
+            for s in sheet_candidates:
+                if _normalize_sheet(s) == norm_target:
+                    sheet_to_use = s
+                    break
+            if not sheet_to_use:
+                for s in sheet_candidates:
+                    if norm_target in _normalize_sheet(s):
+                        sheet_to_use = s
+                        break
+
+        sheets_iter = [sheet_to_use] if sheet_to_use else sheet_candidates
+
+        for sname in sheets_iter:
+            df_raw = xls[sname]
             if df_raw is None or df_raw.empty:
                 continue
 
+            n_rows = len(df_raw)
             i = 0
-            while i < len(df_raw):
+            while i < n_rows:
                 row_vals = df_raw.iloc[i].tolist()
-                header_map = _match_catalog_header_row(row_vals)
-                if header_map is None:
+                indices = _find_catalog_block(row_vals)
+                if indices is None:
                     i += 1
                     continue
 
-                # Cabecera del catálogo encontrada — extraer filas de datos
-                asig_idx = header_map["asignatura"]
-                cuat_idx = header_map["cuat"]
-                matr_idx = header_map.get("matriculados")
-                cupo_idx = header_map.get("cupo")
+                asig_idx = indices["asig"]
+                cuat_idx = indices["cuat"]
+                matr_idx = indices["matr"]
+                cupo_idx = indices["cupo"]
+
+                logger.debug(
+                    "[catalog] Cabecera catálogo encontrada en hoja '%s' fila %d: "
+                    "asig=%d matr=%d cuat=%d cupo=%d",
+                    sname, i, asig_idx, matr_idx, cuat_idx, cupo_idx
+                )
+
+                # Buscar la columna de asignaturas de la tabla de alumnos
+                # (es el otro candidato 'asignatura' distinto del catálogo)
+                alumnos_asig_idx = next(
+                    (idx for idx, cell in enumerate([_norm(v) for v in df_raw.iloc[i].tolist()])
+                     if cell in ("asignatura", "asignaturas") and idx != asig_idx),
+                    None
+                )
+                # Contar cuántas veces aparece cada asignatura en la columna de ALUMNOS
+                # (replica el COUNTIF de Excel, que puede no estar cacheado si hay fórmulas)
+                _countif_cache = {}
+                if alumnos_asig_idx is not None:
+                    for _r in range(i + 1, n_rows):
+                        _val = _cell(df_raw.iloc[_r], alumnos_asig_idx)
+                        if _val and _val.lower() not in ("nan", "none"):
+                            _countif_cache[_val] = _countif_cache.get(_val, 0) + 1
 
                 j = i + 1
-                while j < len(df_raw):
-                    vals = df_raw.iloc[j].tolist()
-                    if _match_catalog_header_row(vals):
+                while j < n_rows:
+                    row = df_raw.iloc[j]
+
+                    # La columna del catálogo (asig_idx) puede tener datos aunque
+                    # la columna de alumnos (col 0) esté vacía — NO parar por eso.
+                    asig = _cell(row, asig_idx)
+                    if not asig or asig.lower() in ("nan", "none", "total", "subtotal"):
                         break
-                    # Parar cuando la columna de asignatura del catálogo esté vacía
-                    # (no usar _is_separator_or_empty_row: hay otra tabla al lado)
-                    asig = str(df_raw.iat[j, asig_idx] or "").strip() if asig_idx < df_raw.shape[1] else ""
-                    if not asig or asig.lower() in ("nan", "none"):
-                        break
 
-                    asig = asig  # ya calculado arriba
-                    cuat_raw = str(df_raw.iat[j, cuat_idx] or "").strip() if cuat_idx < df_raw.shape[1] else ""
+                    cuat = ""
+                    if cuat_idx != -1:
+                        c_val = _cell(row, cuat_idx)
+                        if c_val and c_val.lower() not in ("nan", "none"):
+                            cuat = c_val.split('.')[0] if '.' in c_val else c_val
 
-                    if cuat_raw and cuat_raw.lower() not in ("nan", "none", ""):
-                        try:
-                            cuat = str(int(float(cuat_raw)))
-                        except (ValueError, TypeError):
-                            cuat = cuat_raw
-                    else:
-                        cuat = ""
+                    # Matriculados: leer del Excel; si es NaN (fórmula no evaluada), usar countif
+                    matr_val = _safe_int(row.iloc[matr_idx]) if matr_idx != -1 else None
+                    if matr_val is None:
+                        matr_val = _countif_cache.get(asig, 0)
 
-                    matriculados = _int_cell(df_raw, j, matr_idx)
-                    cupo         = _int_cell(df_raw, j, cupo_idx)
+                    # Cupo: leer directamente del Excel
+                    cupo_val = _safe_int(row.iloc[cupo_idx]) if cupo_idx != -1 else None
 
-                    if asig and asig.lower() not in ("nan", "none", ""):
-                        rows.append({
-                            "asignatura":   asig,
-                            "cuat":         cuat,
-                            "matriculados": matriculados,
-                            "cupo":         cupo,
-                        })
+                    rows.append({
+                        "asignatura": asig,
+                        "cuat": cuat,
+                        "matriculados": matr_val,
+                        "cupo": cupo_val,
+                    })
                     j += 1
 
-                i = j  # continuar desde donde terminó este bloque
+                i = j + 1
 
-        # Ordenar: cuatrimestre 1 primero, luego 2, luego sin cuatrimestre
         def _sort_key(r):
             c = r.get("cuat", "")
-            if c in ("1", "1.0"):
-                return (0, r["asignatura"])
-            if c in ("2", "2.0"):
-                return (1, r["asignatura"])
+            if c in ("1", "1.0"): return (0, r["asignatura"])
+            if c in ("2", "2.0"): return (1, r["asignatura"])
             return (2, r["asignatura"])
 
         rows.sort(key=_sort_key)

@@ -348,7 +348,7 @@ def update_student():
                 "link_la": (form.get("link_la") or "").strip(),
             }
 
-            # 3) Obtener la ruta del Excel de materias SIEMPRE desde config.json ("Materias IN")
+            # 3) Obtener la ruta del Excel de materias SIEMPRE desde config.json ("Erasmus IN")
             materias_path = ""
             try:
                 cfg_path = os.getenv("APP_CONFIG_PATH", "config.json")
@@ -381,7 +381,7 @@ def update_student():
             elif not materias_path and est.get("estudiante"):
                 ok_global = False
                 logger.error("No se pudo obtener la ruta del Excel de materias desde config.json.")
-                messages.append("No se ha podido obtener la ruta del Excel de materias desde config.json (clave 'Materias IN').")
+                messages.append("No se ha podido obtener la ruta del Excel de materias desde config.json (clave 'Erasmus IN').")
 
         else:
             ok_global = False

@@ -190,7 +190,6 @@ def route_editor(config: dict) -> None:
         (PROGRAM_SICUE_OUT, "📘 SICUE OUT"),
         (PROGRAM_ERASMUS_IN, "🌍 Erasmus IN"),
         (PROGRAM_ERASMUS_OUT, "✈️ Erasmus OUT"),
-        ("Materias IN", "📑 Asignaturas - Erasmus IN"),
     ]
 
 

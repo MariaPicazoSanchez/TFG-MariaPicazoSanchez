@@ -28,21 +28,36 @@ API_TOKEN = get_api_token()
 API_URL = os.getenv("API_URL", "http://127.0.0.1:5000").rstrip("/")
 FORM_ACTION = f"{API_URL}/update_student"
 
+import re
+import pandas as pd
+import streamlit as st
+
+
 
 def _load_asignaturas_catalog(config: dict, sheet_name: str | None = None) -> list:
     """Carga el catálogo de asignaturas de una hoja concreta, con caché en session_state."""
-    ruta = (config.get("Materias IN") or config.get("Erasmus IN") or "").strip()
-    cache_key = f"_asignaturas_catalog_cache_{ruta}_{sheet_name or ''}"
-    cached = st.session_state.get(cache_key)
-    if cached and isinstance(cached, list) and len(cached) > 0 and "matriculados" not in cached[0]:
+    ruta = (config.get("Erasmus IN") or "").strip()
+    # La clave incluye sheet_name para que cada hoja tenga su propia entrada de caché
+    cache_key = f"_asignaturas_catalog_cache_v4_{ruta}_{sheet_name or ''}"
+
+    # Si hay una entrada en caché pero está vacía, la descartamos para forzar recarga
+    # (puede haberse guardado vacía por el bug del return [] prematuro)
+    if cache_key in st.session_state and not st.session_state[cache_key]:
         del st.session_state[cache_key]
+
     if cache_key not in st.session_state:
         try:
             from persistence import get_asignaturas_catalog
-            st.session_state[cache_key] = get_asignaturas_catalog(config, sheet_name=sheet_name)
+            result = get_asignaturas_catalog(config, sheet_name=sheet_name)
+            st.session_state[cache_key] = result
+            logger.debug(
+                "[catalog] Cargado para sheet='%s': %d asignaturas, primer item: %s",
+                sheet_name, len(result), result[0] if result else None
+            )
         except Exception as e:
             logger.warning("No se pudo cargar catálogo de asignaturas: %s", e)
             st.session_state[cache_key] = []
+
     return st.session_state.get(cache_key, [])
 
 def _normalize_str(s):
@@ -190,13 +205,21 @@ def generate_dynamic_popup(row, programa: str, row_index: int) -> str:
               or row.get("poblacion")
             )
             # Materias delegadas al módulo popup_materias
-            # Determinar hoja: _sheet_name del estudiante, o filtro global activo como fallback
-            _student_sheet = (e.get("_sheet_name") or "").strip()
-            _global_sheet = st.session_state.get("global_sheet", "Todas")
-            _sheet_for_catalog = (
-                _student_sheet if _student_sheet
-                else (_global_sheet if _global_sheet and _global_sheet != "Todas" else None)
-            )
+            # Determinar hoja: intentar obtenerlo de nivel raíz, o extraerlo de materias_in
+            # Obtener la hoja del curso del estudiante: primero de sus materias_in,
+            # luego del campo _sheet_name directo, y como fallback el filtro global.
+            _student_sheet = ""
+            _mat_in = e.get("materias_in") if isinstance(e, dict) else []
+            if _mat_in and isinstance(_mat_in, list):
+                _student_sheet = str(_mat_in[0].get("sheet_name", "")).strip()
+            if not _student_sheet:
+                _student_sheet = (e.get("_sheet_name") or "").strip()
+
+            _global_sheet = st.session_state.get("global_sheet")
+
+            # Priorizar SIEMPRE el curso real del estudiante. Si no existe, usar el global.
+            _sheet_for_catalog = _student_sheet if _student_sheet else (_global_sheet if _global_sheet != "Todas" else None)
+            
             has_materias, materias_view_html, materias_edit_block = build_materias_blocks(
                 e,
                 programa,
@@ -630,7 +653,7 @@ def build_link_file_field(label, input_name, current_value,
                  onchange="
                    var inp = document.getElementById('{input_id}');
                    if (this.files && this.files[0]) {{
-                     inp.value = this.files[0].name;
+                     inp.value = this.files[0].path;
                    }} else {{
                      inp.value = '';
                    }}

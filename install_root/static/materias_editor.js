@@ -10,7 +10,7 @@
 
     // ─── Catalog ──────────────────────────────────────────────────────────────
 
-    /** Populates the <datalist> inside a block from its data-catalog attribute. */
+    /** Popula el <datalist> con las opciones del catálogo mostrando el label enriquecido. */
     function buildCatalogSelect(block) {
         const dl = block.querySelector("datalist");
         if (!dl || dl.childElementCount > 0) return;
@@ -23,13 +23,10 @@
         }
         if (!catalog.length) return;
 
-        const studentCuat = (block.getAttribute("data-student-cuat") || "").replace(".0", "").trim();
-
-        // El catálogo ya viene filtrado y con labels enriquecidos desde Python
         for (const item of catalog) {
             const opt = document.createElement("option");
-            opt.value = item.asignatura;
-            opt.textContent = item.label || item.asignatura;
+            opt.value = item.label || item.asignatura;
+            opt.dataset.asignatura = item.asignatura;
             dl.appendChild(opt);
         }
     }
@@ -38,20 +35,23 @@
         document.querySelectorAll(".materias-block").forEach(buildCatalogSelect);
     }
 
-    // ─── Data helpers ─────────────────────────────────────────────────────────
+        // ─── Data helpers ─────────────────────────────────────────────────────────
 
     /** Normalises a materia object, accepting both nombre and asignatura as the name field. */
     function normalizeMateria(m = {}) {
         const nombre = m.nombre != null ? m.nombre : m.asignatura;
         const str    = s => (s ?? "").toString();
+        const num    = v => (v !== null && v !== undefined && v !== "" && !isNaN(Number(v))) ? Number(v) : null;
         return {
-            nombre:     str(nombre),
-            asignatura: str(nombre),
-            cuat:       str(m.cuat),
-            firmado:    str(m.firmado),
-            la:         str(m.la || m.link_la),
-            origen:     str(m.origen),
-            centro:     str(m.centro),
+            nombre:       str(nombre),
+            asignatura:   str(nombre),
+            cuat:         str(m.cuat),
+            firmado:      str(m.firmado),
+            la:           str(m.la || m.link_la),
+            origen:       str(m.origen),
+            centro:       str(m.centro),
+            matriculados: num(m.matriculados),
+            cupo:         num(m.cupo),
         };
     }
 
@@ -163,7 +163,21 @@
         const inp = editor.querySelector('input[name="mat_nombre"]');
         if (!inp) { console.error("[materias] Falta input nombre al guardar"); return; }
 
-        const nuevoNombre = inp.value.trim();
+        // Si el usuario eligió del datalist, el value es el label. Recuperar nombre real y datos del catálogo.
+        const dl = block.querySelector("datalist");
+        let nuevoNombre = inp.value.trim();
+        let catalogItem = null;
+        if (dl) {
+            const match = Array.from(dl.options).find(o => o.value === nuevoNombre);
+            if (match && match.dataset.asignatura) {
+                nuevoNombre = match.dataset.asignatura;
+                // Buscar datos completos en el catálogo
+                try {
+                    const cat = JSON.parse(block.getAttribute("data-catalog") || "[]");
+                    catalogItem = cat.find(c => c.asignatura === nuevoNombre) || null;
+                } catch (_) {}
+            }
+        }
         if (!nuevoNombre) { alert("Selecciona o escribe una asignatura."); return; }
 
         const idx = parseInt(editor.dataset.editIndex ?? "-1", 10);
@@ -178,9 +192,13 @@
         }
 
         if (idx >= 0 && idx < materias.length) {
-            materias[idx] = normalizeMateria({ ...materias[idx], nombre: nuevoNombre });
+            materias[idx] = normalizeMateria({ ...materias[idx], nombre: nuevoNombre,
+                matriculados: catalogItem?.matriculados ?? materias[idx].matriculados,
+                cupo:         catalogItem?.cupo         ?? materias[idx].cupo });
         } else {
-            materias.push(normalizeMateria({ nombre: nuevoNombre }));
+            materias.push(normalizeMateria({ nombre: nuevoNombre,
+                matriculados: catalogItem?.matriculados ?? null,
+                cupo:         catalogItem?.cupo         ?? null }));
         }
 
         textarea.value = JSON.stringify(materias);

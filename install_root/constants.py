@@ -110,7 +110,6 @@ CONFIG_KEYS = {
     "erasmus_out": PROGRAM_ERASMUS_OUT,
     "erasmus_in": PROGRAM_ERASMUS_IN,
     "sicue_out": PROGRAM_SICUE_OUT,
-    "materias": "Materias IN",
 }
 
 # Extensiones soportadas

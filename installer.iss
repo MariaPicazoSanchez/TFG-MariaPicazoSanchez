@@ -183,7 +183,6 @@ begin
     '    "SICUE OUT": "' + DataPath + '\\SICUE OUT.xlsx",' + #13#10 +
     '    "Erasmus IN": "' + DataPath + '\\ERASMUS IN.xlsx",' + #13#10 +
     '    "Erasmus OUT": "' + DataPath + '\\ERASMUS OUT.xlsx",' + #13#10 +
-    '    "Materias IN": "' + DataPath + '\\Cuentas por Asignatura.xlsx"' + #13#10 +
     '}';
 
   if SaveStringToFile(BaseConfigPath(), ConfigContent, False) then

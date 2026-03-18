@@ -87,18 +87,22 @@ COUNTRY_OPTIONS = get_country_options()
 
 def _load_asignaturas_catalog(config: dict, sheet_name: str | None = None) -> list:
     """Carga el catálogo de asignaturas de una hoja concreta, con caché en session_state."""
-    ruta = (config.get("Materias IN") or config.get("Erasmus IN") or "").strip()
+    ruta = (config.get("Erasmus IN") or "").strip()
     cache_key = f"_asignaturas_catalog_cache_{ruta}_{sheet_name or ''}"
-    # Invalidar caché si no tiene el campo matriculados (versión antigua)
     cached = st.session_state.get(cache_key)
+    
     if cached and isinstance(cached, list) and len(cached) > 0 and "matriculados" not in cached[0]:
         del st.session_state[cache_key]
+        
     if cache_key not in st.session_state:
         try:
+            from persistence import get_asignaturas_catalog
+            # ELIMINADO: sheet_name = st.session_state.get("global_sheet") <-- Esta línea causaba el bug
             st.session_state[cache_key] = get_asignaturas_catalog(config, sheet_name=sheet_name)
         except Exception as e:
             logger.warning("No se pudo cargar catálogo de asignaturas: %s", e)
             st.session_state[cache_key] = []
+            
     return st.session_state.get(cache_key, [])
 
 
@@ -318,7 +322,8 @@ def render_new_user_form(available_types: list[str], config: dict) -> dict | Non
                     "Destino (universidad)",
                     options=universidades_out_combo,
                     key="nu_destino_origen",
-                    help="Puedes escribir o elegir una universidad"
+                    help="Selecciona una universidad o escribe una nueva",
+                    accept_new_options=True,
                 )
 
                 # Autocompletar país automáticamente
@@ -398,7 +403,8 @@ def render_new_user_form(available_types: list[str], config: dict) -> dict | Non
                     "Origen (universidad)",
                     options=universidades_in_combo,
                     key="nu_destino_origen",
-                    help="Puedes escribir o elegir una universidad"
+                    help="Selecciona una universidad o escribe una nueva",
+                    accept_new_options=True,
                 )
                 with st.container():
                     extra["la_in"] = st.text_input("LA (enlace o ruta)", key="nu_la_in")

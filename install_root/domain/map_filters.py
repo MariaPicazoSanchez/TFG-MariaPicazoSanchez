@@ -112,7 +112,14 @@ def render_filters_map(unique_sheets: list[str]) -> str:
         )
 
     if options:
+        # Si el curso cambia, limpiar la caché de catálogos de asignaturas
+        prev_course = st.session_state.get("global_sheet")
         st.session_state["global_sheet"] = choice
+        if prev_course != choice:
+            # Eliminar todas las claves de caché de catálogo de asignaturas
+            keys_to_delete = [k for k in st.session_state.keys() if k.startswith("_asignaturas_catalog_cache_v2_")]
+            for k in keys_to_delete:
+                del st.session_state[k]
     else:
         st.session_state["global_sheet"] = None
 

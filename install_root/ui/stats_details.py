@@ -152,7 +152,7 @@ def _stats_by_university(df: pd.DataFrame, top_n: int | None = 15) -> pd.DataFra
 
 def _stats_materias_mas_frecuentes(df_mat: pd.DataFrame, top_n: int | None= 20) -> pd.DataFrame:
     """
-    Tabla: asignaturas Erasmus IN más frecuentes (usa el Excel 'Materias IN').
+    Tabla: asignaturas Erasmus IN más frecuentes.
     """
     if df_mat.empty:
         return pd.DataFrame(columns=["Asignatura", "Nº de alumnos"])

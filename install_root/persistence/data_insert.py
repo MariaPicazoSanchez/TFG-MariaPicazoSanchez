@@ -453,9 +453,8 @@ def append_user_to_excel(xlsx_path: str, tipo: str, row_data: dict, sheet_name: 
 
 def export_materias_in_excel(dfs, config):
     """
-    Crea / actualiza el Excel 'Materias IN' a partir del df de 'Erasmus IN'.
+    Crea / actualiza las materias del Excel 'Erasmus IN' a partir del df de 'Erasmus IN'.
     dfs: dict de DataFrames como el que usas en show_map.
-    config: dict cargado de config.json con la clave 'Materias IN'.
     """
     from ui.popup_helpers import _normalize_estudiantes  # import local para evitar ciclos
     erasmus_in_df = dfs.get("Erasmus IN")
