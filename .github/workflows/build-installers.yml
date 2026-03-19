@@ -96,45 +96,6 @@ jobs:
           Remove-Item *.spec -ErrorAction Ignore
 
       # =========================
-      # FIRMA DE EJECUTABLES
-      # =========================
-
-      - name: Decode certificate
-        shell: pwsh
-        run: |
-          $bytes = [Convert]::FromBase64String("${{ secrets.CERTIFICATE_PFX }}")
-          [IO.File]::WriteAllBytes("$env:TEMP\cert.pfx", $bytes)
-
-      - name: Sign installers
-        shell: pwsh
-        run: |
-          $signtool = Get-ChildItem -Path "C:\Program Files (x86)\Windows Kits" -Recurse -Filter "signtool.exe" | Where-Object { $_.FullName -like "*x64*" } | Select-Object -First 1 -ExpandProperty FullName
-          Write-Host "signtool found at: $signtool"
-
-          & $signtool sign `
-            -f "$env:TEMP\cert.pfx" `
-            -p "${{ secrets.CERTIFICATE_PASSWORD }}" `
-            -fd SHA256 `
-            -tr http://timestamp.digicert.com `
-            -td SHA256 `
-            "output\MovilidadESII_Installer_ConData.exe"
-
-          & $signtool sign `
-            -f "$env:TEMP\cert.pfx" `
-            -p "${{ secrets.CERTIFICATE_PASSWORD }}" `
-            -fd SHA256 `
-            -tr http://timestamp.digicert.com `
-            -td SHA256 `
-            "output\MovilidadESII_Installer_SinData.exe"
-
-      - name: Clean certificate
-        shell: pwsh
-        run: |
-          if (Test-Path "$env:TEMP\cert.pfx") {
-            Remove-Item "$env:TEMP\cert.pfx" -Force
-          }
-
-      # =========================
       # GENERATE HASH
       # =========================
 
