@@ -11,16 +11,13 @@
     // ─── Catalog / Autocomplete ───────────────────────────────────────────────
 
     /**
-     * Construye un autocomplete personalizado para el input de asignaturas.
-     * El <datalist> nativo ignora textContent y solo muestra `value`,
-     * por lo que usamos un <ul> propio que sí muestra el label enriquecido
-     * (con matriculados/cupo).
+     * Puebla el <datalist> nativo del input de asignaturas con las opciones del catálogo.
+     * Así las sugerencias las renderiza el propio navegador, igual que las de universidad.
      */
     function buildCatalogSelect(block) {
         const inp = block.querySelector('input[name="mat_nombre"]');
         if (!inp) return;
 
-        // Evitar inicializar dos veces
         if (inp.dataset.autocompleteReady) return;
         inp.dataset.autocompleteReady = "1";
 
@@ -32,89 +29,20 @@
         }
         if (!catalog.length) return;
 
-        // Contenedor de sugerencias
-        const dropdown = document.createElement("ul");
-        dropdown.className = "mat-autocomplete-list";
-        dropdown.style.cssText = [
-            "position:absolute", "z-index:9999", "background:#fff",
-            "border:1px solid #ccc", "border-radius:6px",
-            "margin:0", "padding:4px 0", "list-style:none",
-            "max-height:220px", "overflow-y:auto",
-            "min-width:100%", "box-shadow:0 4px 12px rgba(0,0,0,0.15)",
-            "display:none"
-        ].join(";");
+        const datalistId = inp.getAttribute("list");
+        const datalist = datalistId
+            ? (block.querySelector(`datalist#${CSS.escape(datalistId)}`) || document.getElementById(datalistId))
+            : null;
+        if (!datalist) return;
 
-        // El input necesita position:relative en su padre para anclar el dropdown
-        const wrap = inp.parentElement;
-        if (wrap) {
-            const wpos = getComputedStyle(wrap).position;
-            if (wpos === "static") wrap.style.position = "relative";
-            wrap.appendChild(dropdown);
-        } else {
-            inp.insertAdjacentElement("afterend", dropdown);
-        }
-
-        function norm(s) {
-            return (s || "").toLowerCase()
-                .normalize("NFD").replace(/[\u0300-\u036f]/g, "")
-                .replace(/\s+/g, " ").trim();
-        }
-
-        function renderDropdown(query) {
-            const q = norm(query);
-            const matches = q
-                ? catalog.filter(item => norm(item.label || item.asignatura).includes(q))
-                : catalog;
-
-            dropdown.innerHTML = "";
-            if (!matches.length) { dropdown.style.display = "none"; return; }
-
-            for (const item of matches.slice(0, 50)) {
-                const li = document.createElement("li");
-                li.style.cssText = "padding:7px 12px;cursor:pointer;font-size:0.9rem;line-height:1.3;white-space:pre-wrap;word-break:break-word;";
-                li.textContent = item.label || item.asignatura;
-                li.addEventListener("mousedown", ev => {
-                    ev.preventDefault();
-                    inp.value = item.asignatura;
-                    dropdown.style.display = "none";
-                });
-                li.addEventListener("mouseover", () => { li.style.background = "#f0f4ff"; });
-                li.addEventListener("mouseout",  () => { li.style.background = ""; });
-                dropdown.appendChild(li);
+        catalog.forEach(item => {
+            const opt = document.createElement("option");
+            opt.value = item.asignatura;
+            if (item.matriculados !== null && item.matriculados !== undefined) {
+                const cupo = (item.cupo !== null && item.cupo !== undefined) ? item.cupo : "?";
+                opt.textContent = `${item.matriculados}/${cupo} matriculados`;
             }
-            dropdown.style.display = "block";
-        }
-
-        inp.addEventListener("input",  () => renderDropdown(inp.value));
-        inp.addEventListener("focus",  () => renderDropdown(inp.value));
-        inp.addEventListener("blur",   () => setTimeout(() => { dropdown.style.display = "none"; }, 150));
-        inp.addEventListener("keydown", ev => {
-            if (dropdown.style.display === "none") return;
-            const items = dropdown.querySelectorAll("li");
-            if (!items.length) return;
-            const active = dropdown.querySelector("li.active");
-            let idx = active ? Array.from(items).indexOf(active) : -1;
-            if (ev.key === "ArrowDown") {
-                ev.preventDefault();
-                if (active) active.classList.remove("active");
-                idx = Math.min(idx + 1, items.length - 1);
-                items[idx].classList.add("active");
-                items[idx].style.background = "#f0f4ff";
-                items[idx].scrollIntoView({ block: "nearest" });
-            } else if (ev.key === "ArrowUp") {
-                ev.preventDefault();
-                if (active) active.classList.remove("active");
-                idx = Math.max(idx - 1, 0);
-                items[idx].classList.add("active");
-                items[idx].style.background = "#f0f4ff";
-                items[idx].scrollIntoView({ block: "nearest" });
-            } else if (ev.key === "Enter" && active) {
-                ev.preventDefault();
-                inp.value = catalog.find(it => active.textContent === (it.label || it.asignatura))?.asignatura || active.textContent;
-                dropdown.style.display = "none";
-            } else if (ev.key === "Escape") {
-                dropdown.style.display = "none";
-            }
+            datalist.appendChild(opt);
         });
     }
 
@@ -378,20 +306,22 @@
 
         ensureToastStyles();
 
-        // Store removeToast on window.top so it survives iframe destruction.
-        // onclick attribute is intentional: it evaluates in window.top's context,
-        // not the iframe's, so it still works after Streamlit re-renders.
-        window.top._stRemoveToast = ok ? () => removeToast(true) : () => removeToast(false);
+        // Los onclick son autocontenidos en el contexto de window.top para que funcionen
+        // aunque el iframe que creó este toast sea destruido por un re-render de Streamlit.
+        const TID = "global-save-toast";
+        const OID = "global-save-overlay";
+        const closeOnlyScript = `(function(){var t=document.getElementById('${TID}');var o=document.getElementById('${OID}');if(t)t.remove();if(o)o.remove();})()`;
+        const closeAndReloadScript = `(function(){var t=document.getElementById('${TID}');var o=document.getElementById('${OID}');if(t)t.remove();if(o)o.remove();try{var u=new URL(location.href);u.searchParams.set('student_saved','1');u.searchParams.set('clear_cache','1');location.href=u.toString();}catch(e){location.reload();}})()`;
 
         const overlay = topDoc.createElement("div");
         overlay.id = OVERLAY_ID;
         overlay.style.cssText = "position:fixed;top:0;left:0;width:100%;height:100%;z-index:9999998;cursor:pointer;";
-        overlay.setAttribute("onclick", "window._stRemoveToast && window._stRemoveToast()");
+        overlay.setAttribute("onclick", ok ? closeAndReloadScript : closeOnlyScript);
         topDoc.body.appendChild(overlay);
 
         const toast = topDoc.createElement("div");
         toast.id = TOAST_ID;
-        toast.setAttribute("onclick", "window._stRemoveToast && window._stRemoveToast()");
+        toast.setAttribute("onclick", ok ? closeAndReloadScript : closeOnlyScript);
 
         if (ok) {
             toast.className = "st-save-toast st-save-toast-success";

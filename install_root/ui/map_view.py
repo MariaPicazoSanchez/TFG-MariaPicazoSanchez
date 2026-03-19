@@ -172,24 +172,10 @@ def show_map(
 
             // Desmarcar todos los checkboxes de edición
             var toggles = document.querySelectorAll(".edit-toggle");
-            if (!toggles || !toggles.length) {
-            console.log("[Mapa] No se han encontrado .edit-toggle");
-            return;
+            if (toggles && toggles.length) {
+                toggles.forEach(function(ch) { ch.checked = false; });
             }
-
-            toggles.forEach(function(ch) {
-            ch.checked = false;
-            });
-
-            // Forzamos recarga para invalidar caché y actualizar el mapa
-            try {
-                var u2 = new URL(window.location.href);
-                u2.searchParams.set('clear_cache', '1');
-                u2.searchParams.set('student_saved', '1');
-                setTimeout(function(){ window.location.href = u2.toString(); }, 700);
-            } catch (e) {
-                setTimeout(function(){ window.location.reload(); }, 700);
-            }
+            // La recarga la gestiona el toast de materias_editor.js al hacer clic
         });
         })();
         </script>
