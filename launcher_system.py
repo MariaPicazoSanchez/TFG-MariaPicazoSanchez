@@ -843,117 +843,106 @@ def start_processes(api_enabled: bool = True, api_disabled_reason: str | None = 
             write_api_status(False, api_url, reason=reason)
             LOGGER.warning(reason)
 
-        # Abrir ventana nativa pywebview en hilo secundario (fallback a navegador)
+        # Abrir ventana nativa pywebview en el hilo principal (requisito de pywebview)
         LOGGER.info("Abriendo ventana nativa en %s", url)
 
-        def _open_webview_thread():
-            try:
-                import webview
+        _webview_ok = False
+        try:
+            import webview as _wv
 
-                class _API:
-                    def pick_file(self):
-                        windows = webview.windows
-                        if not windows:
-                            return {"ok": False, "reason": "no_window"}
-                        result = windows[0].create_file_dialog(
-                            webview.OPEN_DIALOG,
-                            allow_multiple=False,
-                            file_types=(
-                                "Documentos (*.pdf;*.doc;*.docx;*.xlsx;*.xls)",
-                                "Todos los archivos (*.*)",
-                            )
+            class _API:
+                def pick_file(self):
+                    windows = _wv.windows
+                    if not windows:
+                        return {"ok": False, "reason": "no_window"}
+                    result = windows[0].create_file_dialog(
+                        _wv.OPEN_DIALOG,
+                        allow_multiple=False,
+                        file_types=(
+                            "Documentos (*.pdf;*.doc;*.docx;*.xlsx;*.xls)",
+                            "Todos los archivos (*.*)",
                         )
-                        if result and len(result) > 0:
-                            return {"ok": True, "path": result[0]}
-                        return {"ok": False, "reason": "cancelled"}
-
-                if wait_for_http(url, timeout=30.0):
-                    webview.create_window(
-                        "Movilidad ESII", url,
-                        width=1400, height=900,
-                        min_size=(800, 600),
-                        resizable=True,
-                        js_api=_API(),
                     )
-                    webview.start()
-                    LOGGER.info("Ventana pywebview cerrada — señalizando shutdown.")
-                    shutdown_event.set()
-                else:
-                    LOGGER.warning("Streamlit no arrancó en 30s — abriendo navegador.")
-                    subprocess.Popen(
-                        ["rundll32", "url.dll,FileProtocolHandler", url],
-                        creationflags=NO_WINDOW,
-                    )
-            except ImportError:
-                LOGGER.warning("pywebview no instalado — abriendo navegador.")
-                subprocess.Popen(
-                    ["rundll32", "url.dll,FileProtocolHandler", url],
-                    creationflags=NO_WINDOW,
+                    if result and len(result) > 0:
+                        return {"ok": True, "path": result[0]}
+                    return {"ok": False, "reason": "cancelled"}
+
+            if wait_for_http(url, timeout=30.0):
+                _wv.create_window(
+                    "Movilidad ESII", url,
+                    width=1400, height=900,
+                    min_size=(800, 600),
+                    resizable=True,
+                    js_api=_API(),
                 )
-            except Exception as e:
-                LOGGER.error("Error pywebview: %s — abriendo navegador.", e)
-                subprocess.Popen(
-                    ["rundll32", "url.dll,FileProtocolHandler", url],
-                    creationflags=NO_WINDOW,
-                )
+                _wv.start()  # Bloquea en el hilo principal hasta que el usuario cierra la ventana
+                LOGGER.info("Ventana pywebview cerrada.")
+                _webview_ok = True
+            else:
+                LOGGER.warning("Streamlit no arrancó en 30s — abriendo navegador.")
+        except ImportError:
+            LOGGER.warning("pywebview no instalado — abriendo navegador.")
+        except Exception as e:
+            LOGGER.error("Error pywebview: %s — abriendo navegador.", e)
 
-        threading.Thread(target=_open_webview_thread, daemon=True).start()
+        if not _webview_ok:
+            # Fallback: abrir en navegador y usar watchdog para detectar cierre
+            subprocess.Popen(
+                ["rundll32", "url.dll,FileProtocolHandler", url],
+                creationflags=NO_WINDOW,
+            )
 
+            GRACE_STARTUP      = 30           # s — gracia inicial antes de activar watchdog
+            CHECK_INTERVAL     = 1            # s — latencia máxima de reacción al shutdown_event
+            MAX_RUNTIME        = 8 * 60 * 60  # 8 h — límite absoluto de seguridad
 
-        GRACE_STARTUP      = 30           # s — gracia inicial antes de activar watchdog
-        CHECK_INTERVAL     = 1            # s — latencia máxima de reacción al shutdown_event
-        MAX_RUNTIME        = 8 * 60 * 60  # 8 h — límite absoluto de seguridad
+            start_time        = time.time()
 
-        start_time        = time.time()
+            LOGGER.info("=" * 60)
+            LOGGER.info("Watchdog configurado (modo navegador):")
+            LOGGER.info("  Gracia inicial          : %ds", GRACE_STARTUP)
+            LOGGER.info("  Cierre pestaña          : ~7s (heartbeat 5s + grace 2s)")
+            LOGGER.info("  Tiempo máx. ejecución   : %ds (%.1fh)", MAX_RUNTIME, MAX_RUNTIME / 3600)
+            LOGGER.info("  Intervalo watchdog      : %ds", CHECK_INTERVAL)
+            LOGGER.info("  API habilitada          : %s", api_enabled)
+            LOGGER.info("  Cerrar manualmente      : crear %s/.shutdown", APPDATA_DIR)
+            LOGGER.info("=" * 60)
 
-        LOGGER.info("=" * 60)
-        LOGGER.info("Watchdog configurado:")
-        LOGGER.info("  Gracia inicial          : %ds", GRACE_STARTUP)
-        LOGGER.info("  Cierre pestaña          : ~7s (heartbeat 5s + grace 2s)")
-        LOGGER.info("  Tiempo máx. ejecución   : %ds (%.1fh)", MAX_RUNTIME, MAX_RUNTIME / 3600)
-        LOGGER.info("  Intervalo watchdog      : %ds", CHECK_INTERVAL)
-        LOGGER.info("  API habilitada          : %s", api_enabled)
-        LOGGER.info("  Cerrar manualmente      : crear %s/.shutdown", APPDATA_DIR)
-        LOGGER.info("=" * 60)
+            while True:
 
-        while True:
+                # 1. Shutdown desde el servidor de control (cierre de pestaña detectado)
+                if shutdown_event.is_set():
+                    LOGGER.info("Shutdown recibido desde el servidor de control.")
+                    break
 
-            # 1. Shutdown desde el servidor de control (cierre de pestaña detectado o endpoint /shutdown)
-            if shutdown_event.is_set():
-                LOGGER.info("Shutdown recibido desde el servidor de control.")
-                break
+                # 2. Streamlit terminó por sí solo
+                if app_proc.poll() is not None:
+                    LOGGER.info("Streamlit finalizó (rc=%s).", app_proc.returncode)
+                    break
 
-            # 2. Streamlit terminó por sí solo
-            if app_proc.poll() is not None:
-                LOGGER.info("Streamlit finalizó (rc=%s).", app_proc.returncode)
-                break
+                # 3. Apagado manual por archivo .shutdown
+                shutdown_file = APPDATA_DIR / ".shutdown"
+                if shutdown_file.exists():
+                    LOGGER.info("Archivo .shutdown detectado — cerrando.")
+                    try:
+                        shutdown_file.unlink()
+                    except Exception:
+                        pass
+                    break
 
-            # 3. Apagado manual por archivo .shutdown
-            shutdown_file = APPDATA_DIR / ".shutdown"
-            if shutdown_file.exists():
-                LOGGER.info("Archivo .shutdown detectado — cerrando.")
-                try:
-                    shutdown_file.unlink()
-                except Exception:
-                    pass
-                break
+                now     = time.time()
+                elapsed = now - start_time
 
-            now     = time.time()
-            elapsed = now - start_time
+                # 4. Límite de tiempo absoluto (seguridad)
+                if elapsed > MAX_RUNTIME:
+                    LOGGER.info("Tiempo máximo de ejecución alcanzado (%.1fs) — cerrando.", elapsed)
+                    break
 
-            # 4. Límite de tiempo absoluto (seguridad)
-            if elapsed > MAX_RUNTIME:
-                LOGGER.info("Tiempo máximo de ejecución alcanzado (%.1fs) — cerrando.", elapsed)
-                break
+                # 5. Periodo de gracia inicial
+                if elapsed <= GRACE_STARTUP:
+                    LOGGER.debug("Gracia inicial: %.1fs restantes.", GRACE_STARTUP - elapsed)
 
-            # 5. Periodo de gracia inicial: esperar a que la API arranque y llegue
-            #    el primer heartbeat antes de activar el watchdog.
-            if elapsed <= GRACE_STARTUP:
-                LOGGER.debug("Gracia inicial: %.1fs restantes.", GRACE_STARTUP - elapsed)
                 time.sleep(CHECK_INTERVAL)
-                continue
-
-            time.sleep(CHECK_INTERVAL)
 
 
     except Exception as exc:
