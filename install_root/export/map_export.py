@@ -1,5 +1,6 @@
 import folium
 import json
+from pathlib import Path
 
 
 def count_students_by_type(dfs, active_names):
@@ -180,20 +181,39 @@ def add_program_legend(
 
 
 def add_export_control(m: folium.Map):
-    html = """
-    <script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
+    _h2c_path = Path(__file__).resolve().parents[1] / "static" / "html2canvas.min.js"
+    if _h2c_path.exists():
+        _h2c_tag = f"<script>\n{_h2c_path.read_text(encoding='utf-8')}\n</script>"
+    else:
+        _h2c_tag = '<script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>'
+
+    html = _h2c_tag + """
 
     <script>
     (function () {
-        function downloadBlob(blob, filename) {
-            var url = URL.createObjectURL(blob);
-            var a = document.createElement("a");
-            a.href = url;
+        function downloadDataUrl(dataUrl, filename) {
+            // En pywebview usamos la API nativa para abrir el diálogo de guardado
+            var pw = null;
+            try { pw = (window.top || window).pywebview; } catch(e) {}
+            if (pw && pw.api && pw.api.save_file) {
+                pw.api.save_file(dataUrl, filename).then(function(result) {
+                    if (result && !result.ok && result.reason !== "cancelled") {
+                        alert("No se pudo guardar el archivo.");
+                    }
+                }).catch(function(e) {
+                    console.error("[MapExport] Error en save_file:", e);
+                });
+                return;
+            }
+            // Fallback para entorno web normal
+            var topWin = window.top || window;
+            var topDoc = topWin.document;
+            var a = topDoc.createElement("a");
+            a.href = dataUrl;
             a.download = filename;
-            document.body.appendChild(a);
+            topDoc.body.appendChild(a);
             a.click();
             a.remove();
-            URL.revokeObjectURL(url);
         }
 
         function getMapContainer() {
@@ -206,6 +226,10 @@ def add_export_control(m: folium.Map):
         }
 
         function captureCanvas(callback) {
+            if (typeof html2canvas === "undefined") {
+                alert("La librería html2canvas no está disponible. Comprueba la conexión a internet.");
+                return;
+            }
             var mapContainer = getMapContainer();
             if (!mapContainer) return;
 
@@ -257,13 +281,8 @@ def add_export_control(m: folium.Map):
         function exportMapAsPNG() {
             try {
                 captureCanvas(function (canvas) {
-                    canvas.toBlob(function (blob) {
-                        if (!blob) {
-                            alert("No se pudo generar la imagen del mapa (PNG).");
-                            return;
-                        }
-                        downloadBlob(blob, "mapa_movilidad.png");
-                    });
+                    var dataUrl = canvas.toDataURL("image/png");
+                    downloadDataUrl(dataUrl, "mapa_movilidad.png");
                 });
             } catch (err) {
                 console.error("Error exportando el mapa (PNG):", err);
@@ -287,8 +306,8 @@ def add_export_control(m: folium.Map):
                         'width="' + width + '" height="' + height + '"/>' +
                         '</svg>';
 
-                    var blob = new Blob([svgContent], {type: "image/svg+xml;charset=utf-8"});
-                    downloadBlob(blob, "mapa_movilidad.svg");
+                    var dataUrl = "data:image/svg+xml;charset=utf-8," + encodeURIComponent(svgContent);
+                    downloadDataUrl(dataUrl, "mapa_movilidad.svg");
                 });
             } catch (err) {
                 console.error("Error exportando el mapa (SVG):", err);

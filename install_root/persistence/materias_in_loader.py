@@ -381,10 +381,16 @@ def get_asignaturas_catalog(config, sheet_name: str | None = None):
     try:
         xls = pd.read_excel(ruta, sheet_name=None, header=None, dtype=str)
 
-        # Las fórmulas tipo COUNTIF no se evalúan al leer con pandas/openpyxl.
-        # Recalculamos la columna Matriculados contando cuántas veces aparece
-        # cada asignatura en la columna de asignaturas de alumnos (col 0).
-        # Para eso necesitamos saber los índices, que hacemos por hoja.
+        # Segunda lectura con openpyxl data_only=True para obtener los valores
+        # cacheados de fórmulas (COUNTIF, etc.) que pandas/dtype=str no resuelve.
+        import openpyxl as _openpyxl
+        try:
+            _wb_data = _openpyxl.load_workbook(ruta, data_only=True, read_only=True)
+            _ws_data = {ws.title: ws for ws in _wb_data.worksheets}
+        except Exception:
+            _wb_data = None
+            _ws_data = {}
+
         rows = []
 
         sheet_candidates = list(xls.keys())
@@ -408,6 +414,8 @@ def get_asignaturas_catalog(config, sheet_name: str | None = None):
             if df_raw is None or df_raw.empty:
                 continue
 
+            ws_data = _ws_data.get(sname)
+
             n_rows = len(df_raw)
             i = 0
             while i < n_rows:
@@ -428,15 +436,12 @@ def get_asignaturas_catalog(config, sheet_name: str | None = None):
                     sname, i, asig_idx, matr_idx, cuat_idx, cupo_idx
                 )
 
-                # Buscar la columna de asignaturas de la tabla de alumnos
-                # (es el otro candidato 'asignatura' distinto del catálogo)
+                # Fallback manual COUNTIF (por si openpyxl tampoco tiene valor cacheado)
                 alumnos_asig_idx = next(
                     (idx for idx, cell in enumerate([_norm(v) for v in df_raw.iloc[i].tolist()])
                      if cell in ("asignatura", "asignaturas") and idx != asig_idx),
                     None
                 )
-                # Contar cuántas veces aparece cada asignatura en la columna de ALUMNOS
-                # (replica el COUNTIF de Excel, que puede no estar cacheado si hay fórmulas)
                 _countif_cache = {}
                 if alumnos_asig_idx is not None:
                     for _r in range(i + 1, n_rows):
@@ -448,8 +453,6 @@ def get_asignaturas_catalog(config, sheet_name: str | None = None):
                 while j < n_rows:
                     row = df_raw.iloc[j]
 
-                    # La columna del catálogo (asig_idx) puede tener datos aunque
-                    # la columna de alumnos (col 0) esté vacía — NO parar por eso.
                     asig = _cell(row, asig_idx)
                     if not asig or asig.lower() in ("nan", "none", "total", "subtotal"):
                         break
@@ -460,13 +463,32 @@ def get_asignaturas_catalog(config, sheet_name: str | None = None):
                         if c_val and c_val.lower() not in ("nan", "none"):
                             cuat = c_val.split('.')[0] if '.' in c_val else c_val
 
-                    # Matriculados: leer del Excel; si es NaN (fórmula no evaluada), usar countif
-                    matr_val = _safe_int(row.iloc[matr_idx]) if matr_idx != -1 else None
+                    # Matriculados: 1º valor cacheado de la fórmula via openpyxl data_only,
+                    # 2º valor leído por pandas (si es un número directo),
+                    # 3º fallback manual COUNTIF.
+                    matr_val = None
+                    if matr_idx != -1:
+                        if ws_data is not None:
+                            try:
+                                # openpyxl usa índices 1-based
+                                matr_val = _safe_int(ws_data.cell(row=j + 1, column=matr_idx + 1).value)
+                            except Exception:
+                                pass
+                        if matr_val is None:
+                            matr_val = _safe_int(row.iloc[matr_idx])
                     if matr_val is None:
                         matr_val = _countif_cache.get(asig, 0)
 
-                    # Cupo: leer directamente del Excel
-                    cupo_val = _safe_int(row.iloc[cupo_idx]) if cupo_idx != -1 else None
+                    # Cupo: misma lógica (suele ser un número directo, no fórmula)
+                    cupo_val = None
+                    if cupo_idx != -1:
+                        if ws_data is not None:
+                            try:
+                                cupo_val = _safe_int(ws_data.cell(row=j + 1, column=cupo_idx + 1).value)
+                            except Exception:
+                                pass
+                        if cupo_val is None:
+                            cupo_val = _safe_int(row.iloc[cupo_idx])
 
                     rows.append({
                         "asignatura": asig,
@@ -486,6 +508,11 @@ def get_asignaturas_catalog(config, sheet_name: str | None = None):
 
         rows.sort(key=_sort_key)
         logger.debug("[catalog] Catálogo cargado: %d asignaturas", len(rows))
+        if _wb_data is not None:
+            try:
+                _wb_data.close()
+            except Exception:
+                pass
         return rows
 
     except Exception as e:

@@ -867,6 +867,27 @@ def start_processes(api_enabled: bool = True, api_disabled_reason: str | None = 
                         return {"ok": True, "path": result[0]}
                     return {"ok": False, "reason": "cancelled"}
 
+                def save_file(self, base64_data: str, filename: str):
+                    import base64 as _b64
+                    import os
+                    windows = _wv.windows
+                    if not windows:
+                        return {"ok": False, "reason": "no_window"}
+                    ext = os.path.splitext(filename)[1].lower() or ".png"
+                    file_types = (f"Imagen (*{ext})", "Todos los archivos (*.*)")
+                    result = windows[0].create_file_dialog(
+                        _wv.SAVE_DIALOG,
+                        save_filename=filename,
+                        file_types=file_types,
+                    )
+                    if not result:
+                        return {"ok": False, "reason": "cancelled"}
+                    save_path = result if isinstance(result, str) else result[0]
+                    raw = base64_data.split(",", 1)[1] if "," in base64_data else base64_data
+                    with open(save_path, "wb") as f:
+                        f.write(_b64.b64decode(raw))
+                    return {"ok": True, "path": save_path}
+
             if wait_for_http(url, timeout=30.0):
                 _wv.create_window(
                     "Movilidad ESII", url,

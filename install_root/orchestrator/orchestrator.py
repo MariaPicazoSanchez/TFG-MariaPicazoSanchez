@@ -157,6 +157,30 @@ class _PyWebViewAPI:
             return {"ok": True, "path": result[0]}
         return {"ok": False, "reason": "cancelled"}
 
+    def save_file(self, base64_data: str, filename: str):
+        """Abre el diálogo nativo de guardado, escribe los datos y devuelve la ruta."""
+        import base64 as _b64
+        import os
+        import webview
+        windows = webview.windows
+        if not windows:
+            return {"ok": False, "reason": "no_window"}
+        ext = os.path.splitext(filename)[1].lower() or ".png"
+        file_types = (f"Imagen (*{ext})", "Todos los archivos (*.*)")
+        result = windows[0].create_file_dialog(
+            webview.SAVE_DIALOG,
+            save_filename=filename,
+            file_types=file_types,
+        )
+        if not result:
+            return {"ok": False, "reason": "cancelled"}
+        save_path = result if isinstance(result, str) else result[0]
+        # base64_data puede venir como data URL "data:...;base64,XXX" o solo base64
+        raw = base64_data.split(",", 1)[1] if "," in base64_data else base64_data
+        with open(save_path, "wb") as f:
+            f.write(_b64.b64decode(raw))
+        return {"ok": True, "path": save_path}
+
 
 def _open_webview(url: str) -> None:
     """Abre la app en ventana nativa. Bloquea hasta que el usuario la cierra."""
