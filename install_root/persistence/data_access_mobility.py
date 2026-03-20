@@ -6,7 +6,6 @@ from typing import Iterable, Tuple, Optional
 import pandas as pd
 import math
 from .sheets_helpers import sheets_for, resolve_sheet
-import streamlit as st
 from constants import PROGRAM_ERASMUS_OUT, PROGRAM_ERASMUS_IN, PROGRAM_SICUE_OUT, EXCEL_EXTENSIONS
 from .materias_in_loader import (
     get_materias_in_por_estudiante,
@@ -190,23 +189,29 @@ def get_universities_from_sicue_data(path: str) -> tuple[list[str], dict, dict]:
     return sorted_unis, ciudad_map, coords_map
 
 
-def filter_students_with_coords(df: pd.DataFrame, tipo: str) -> pd.DataFrame:
+def filter_students_with_coords(
+    df: pd.DataFrame,
+    tipo: str,
+    _messages: list | None = None,
+) -> pd.DataFrame:
     """
-    Filtra filas sin coordenadas y muestra advertencia por cada alumno y tipo.
-    Devuelve el DataFrame filtrado.
+    Filtra filas sin coordenadas.
+    Los avisos se acumulan en _messages (lista de strings) para mostrarlos
+    fuera de cualquier función cacheada con @st.cache_data.
     """
-    import streamlit as st
     mask_coords = df["latitud"].notna() & df["longitud"].notna()
     if not mask_coords.all():
-        for idx, row in df[~mask_coords].iterrows():
+        for _, row in df[~mask_coords].iterrows():
             nombre = row.get("estudiante", "(sin nombre)")
-            # No mostrar aviso si el nombre es NaN, vacío, igual a 'nan' o '0'
             nombre_str = str(nombre).strip().lower()
             if pd.isna(nombre) or nombre_str == "" or nombre_str == "nan" or nombre_str == "0":
                 continue
-            st.warning(f"El alumno '{nombre}' de {tipo} no tiene coordenadas y no se mostrará en el mapa.")
-    df = df[mask_coords].copy()
-    return df
+            if _messages is not None:
+                _messages.append(
+                    f"⚠️ El alumno **{nombre}** ({tipo}) no tiene coordenadas "
+                    "y no se mostrará en el mapa."
+                )
+    return df[mask_coords].copy()
 
 def _norm_colname(s: str) -> str:
     """Normaliza un nombre de columna para comparaciones relajadas."""
@@ -383,7 +388,7 @@ def cluster_coordinates(df: pd.DataFrame, max_distance_m: int = 150) -> pd.DataF
 # ==============================
 #   ERASMUS OUT
 # ==============================
-def load_erasmus_out(path: str, sheet_name: str | None = None) -> pd.DataFrame:
+def load_erasmus_out(path: str, sheet_name: str | None = None, _messages: list | None = None) -> pd.DataFrame:
     """
     Carga Erasmus OUT y agrupa por universidad/pais/coords.
     Devuelve DF con columnas: ['universidad','pais','latitud','longitud','estudiantes'].
@@ -505,11 +510,11 @@ def load_erasmus_out(path: str, sheet_name: str | None = None) -> pd.DataFrame:
     df["_lat_r"] = df["latitud"].round(2)
     df["_lon_r"] = df["longitud"].round(2)
 
-    df = filter_students_with_coords(df, "Erasmus OUT")
+    df = filter_students_with_coords(df, "Erasmus OUT", _messages)
 
     if df.empty:
-        import streamlit as st
-        st.warning("No hay alumnos de Erasmus OUT con coordenadas válidas para mostrar en el mapa.")
+        if _messages is not None:
+            _messages.append("ℹ️ No hay alumnos de **Erasmus OUT** con coordenadas válidas para mostrar en el mapa.")
         return pd.DataFrame(columns=["universidad", "pais", "ciudad", "latitud", "longitud", "estudiantes"])
 
     grouped = (
@@ -519,8 +524,8 @@ def load_erasmus_out(path: str, sheet_name: str | None = None) -> pd.DataFrame:
     )
 
     if grouped.empty:
-        import streamlit as st
-        st.warning("No hay grupos válidos de Erasmus OUT para mostrar en el mapa.")
+        if _messages is not None:
+            _messages.append("ℹ️ No hay grupos válidos de **Erasmus OUT** para mostrar en el mapa.")
         return pd.DataFrame(columns=["universidad", "pais", "ciudad", "latitud", "longitud", "estudiantes"])
 
     # Restaurar info de ubicación solo si hay filas
@@ -554,7 +559,7 @@ def load_erasmus_out(path: str, sheet_name: str | None = None) -> pd.DataFrame:
 # ==============================
 #   ERASMUS IN
 # ==============================
-def load_erasmus_in(path: str, sheet_name: str | None = None) -> pd.DataFrame:
+def load_erasmus_in(path: str, sheet_name: str | None = None, _messages: list | None = None) -> pd.DataFrame:
     """
     Carga Erasmus IN y agrupa por universidad/pais/coords.
     Devuelve DF con columnas: ['universidad','pais','latitud','longitud','estudiantes'].
@@ -691,12 +696,12 @@ def load_erasmus_in(path: str, sheet_name: str | None = None) -> pd.DataFrame:
     df["_lat_r"] = df["latitud"].round(2)
     df["_lon_r"] = df["longitud"].round(2)
 
-    df = filter_students_with_coords(df, "Erasmus IN")
+    df = filter_students_with_coords(df, "Erasmus IN", _messages)
     logger.debug("[IN] Tras filtrar coords: %d filas", len(df))
 
     if df.empty:
-        import streamlit as st
-        st.warning("No hay alumnos de Erasmus IN con coordenadas válidas para mostrar en el mapa.")
+        if _messages is not None:
+            _messages.append("ℹ️ No hay alumnos de **Erasmus IN** con coordenadas válidas para mostrar en el mapa.")
         return pd.DataFrame(columns=["universidad", "pais", "ciudad", "latitud", "longitud", "estudiantes"])
 
     grouped = (
@@ -707,8 +712,8 @@ def load_erasmus_in(path: str, sheet_name: str | None = None) -> pd.DataFrame:
     logger.debug("[IN] Grupos tras groupby: %d", len(grouped))
 
     if grouped.empty:
-        import streamlit as st
-        st.warning("No hay grupos válidos de Erasmus IN para mostrar en el mapa.")
+        if _messages is not None:
+            _messages.append("ℹ️ No hay grupos válidos de **Erasmus IN** para mostrar en el mapa.")
         return pd.DataFrame(columns=["universidad", "pais", "ciudad", "latitud", "longitud", "estudiantes"])
 
     # Restaurar info de ubicación solo si hay filas
@@ -765,7 +770,7 @@ def load_erasmus_in(path: str, sheet_name: str | None = None) -> pd.DataFrame:
 # ==============================
 #   SICUE OUT
 # ==============================
-def load_sicue_out(path: str, sheet_name: str | None = None) -> pd.DataFrame:
+def load_sicue_out(path: str, sheet_name: str | None = None, _messages: list | None = None) -> pd.DataFrame:
     """
     Lee SICUE OUT y agrupa por universidad/ciudad/coords.
     Devuelve DF con columnas: ['universidad','pais','ciudad','latitud','longitud','estudiantes'].
@@ -902,17 +907,11 @@ def load_sicue_out(path: str, sheet_name: str | None = None) -> pd.DataFrame:
     df["_lat_r"] = df["latitud"].round(2)
     df["_lon_r"] = df["longitud"].round(2)
 
-    df = filter_students_with_coords(df, "SICUE OUT")
+    df = filter_students_with_coords(df, "SICUE OUT", _messages)
 
     if df.empty:
-        import streamlit as st
-        st.warning("No hay alumnos de SICUE OUT con coordenadas válidas para mostrar en el mapa.")
-        return pd.DataFrame(columns=["universidad", "pais", "ciudad", "latitud", "longitud", "estudiantes"])
-
-    # Si tras filtrar no hay filas, no intentar agrupar
-    if len(df) == 0:
-        import streamlit as st
-        st.warning("No hay datos válidos de SICUE OUT para agrupar.")
+        if _messages is not None:
+            _messages.append("ℹ️ No hay alumnos de **SICUE OUT** con coordenadas válidas para mostrar en el mapa.")
         return pd.DataFrame(columns=["universidad", "pais", "ciudad", "latitud", "longitud", "estudiantes"])
 
     grouped = (
@@ -922,8 +921,8 @@ def load_sicue_out(path: str, sheet_name: str | None = None) -> pd.DataFrame:
     )
 
     if grouped.empty:
-        import streamlit as st
-        st.warning("No hay grupos válidos de SICUE OUT para mostrar en el mapa.")
+        if _messages is not None:
+            _messages.append("ℹ️ No hay grupos válidos de **SICUE OUT** para mostrar en el mapa.")
         return pd.DataFrame(columns=["universidad", "pais", "ciudad", "latitud", "longitud", "estudiantes"])
 
     # Restaurar info de ubicación solo si hay filas
@@ -988,6 +987,8 @@ def load_all_dataframes(config: dict, global_sheet: str, programs_to_load: list[
     Optimización (Fase 3): Lazy loading selectivo evita cargar datos innecesarios.
     """
     dfs: dict[str, pd.DataFrame] = {}
+    # Lista de mensajes acumulados para mostrar FUERA de @st.cache_data
+    messages: list[str] = []
 
     # Si no se especifica, carga todos
     if programs_to_load is None:
@@ -1004,7 +1005,7 @@ def load_all_dataframes(config: dict, global_sheet: str, programs_to_load: list[
         # Fase 3: Lazy loading - solo cargar programas seleccionados
         if type_name not in programs_to_load:
             continue
-            
+
         if not path:
             continue
 
@@ -1019,27 +1020,31 @@ def load_all_dataframes(config: dict, global_sheet: str, programs_to_load: list[
                 candidates = sheets_map.get(type_name) or sheets_for(path)
                 wanted = resolve_sheet(global_sheet, candidates)
                 if not wanted:
-                    st.info(f"ℹ️ {type_name}: hoja ‘{global_sheet}’ no encontrada en {os.path.basename(path)}")
+                    messages.append(
+                        f"ℹ️ {type_name}: hoja ‘{global_sheet}’ no encontrada "
+                        f"en {os.path.basename(path)}"
+                    )
                     continue
 
-                # Pasa sheet_name al loader; si no lo soporta, lee directo con pandas
+                # Pasa sheet_name y _messages al loader
                 try:
-                    df = loader(path, sheet_name=wanted)
+                    df = loader(path, sheet_name=wanted, _messages=messages)
                 except TypeError:
                     df = _read_table(path, sheet_name=wanted)
             else:
-                df = loader(path)
+                df = loader(path, _messages=messages)
 
             if df is not None and len(df):
                 dfs[type_name] = df
 
         except Exception as e:
-            # Si es SICUE OUT y el error es de indexación, no mostrar el mensaje genérico
+            # Si es SICUE OUT y el error es de indexación, suprimir mensaje genérico
             if type_name == PROGRAM_SICUE_OUT and (
-                'single positional indexer is out-of-bounds' in str(e) or 'indexer' in str(e)):
-                # Ya se muestran advertencias personalizadas en load_sicue_out
+                ‘single positional indexer is out-of-bounds’ in str(e)
+                or ‘indexer’ in str(e)
+            ):
                 pass
             else:
-                st.warning(f"⚠️ No se pudo cargar {type_name}: {e}")
+                messages.append(f"⚠️ No se pudo cargar {type_name}: {e}")
 
-    return dfs
+    return dfs, messages

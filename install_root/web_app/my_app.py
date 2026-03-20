@@ -121,15 +121,28 @@ def _handle_query_params() -> None:
 
 
 def _load_dataframes_with_cache(config, global_sheet: str):
-    cfg_mtimes     = get_config_mtimes(config)
+    cfg_mtimes       = get_config_mtimes(config)
     programs_to_load = tuple(get_active_programs()) or None
-    cfg_items      = tuple(sorted(config.items()))
+    cfg_items        = tuple(sorted(config.items()))
 
-    dfs = _cached_load(
+    result = _cached_load(
         cfg_items, global_sheet,
         st.session_state.get("data_version", 0),
         cfg_mtimes, programs_to_load,
     )
+
+    # load_all_dataframes devuelve (dfs, messages) desde Streamlit 1.35+
+    # para evitar llamar a st.* dentro de @st.cache_data
+    if isinstance(result, tuple) and len(result) == 2:
+        dfs, messages = result
+        for msg in messages:
+            if msg.startswith("⚠️"):
+                st.warning(msg)
+            else:
+                st.info(msg)
+    else:
+        dfs = result  # compatibilidad con versiones anteriores
+
     return dfs, cfg_mtimes
 
 

@@ -961,7 +961,8 @@ def start_processes(api_enabled: bool = True, api_disabled_reason: str | None = 
             styleEl.textContent =
                 '[data-map-frame] { height: ' + hCalc + ' !important; } ' +
                 '[data-map-wrap]  { height: ' + hCalc + ' !important; overflow: visible !important; } ' +
-                '[data-testid="stSidebar"] { min-height: calc(100vh / ' + cur + ') !important; }';
+                '[data-testid="stSidebar"] { min-height: calc(100vh / ' + cur + ') !important; overflow-y: hidden !important; } ' +
+                '[data-testid="stSidebar"] > div { min-height: inherit !important; }';
 
             // Invalidar Leaflet para que redibuje al nuevo tamaño
             setTimeout(function() {
