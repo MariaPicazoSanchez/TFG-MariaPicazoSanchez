@@ -849,6 +849,25 @@ def start_processes(api_enabled: bool = True, api_disabled_reason: str | None = 
         _webview_ok = False
         try:
             import webview as _wv
+            import json as _json_cfg
+
+            _CFG_PATH = str(APPDATA_DIR / "window_config.json")
+
+            def _read_cfg():
+                try:
+                    with open(_CFG_PATH, "r", encoding="utf-8") as _f:
+                        return _json_cfg.load(_f)
+                except Exception:
+                    return {}
+
+            def _write_cfg(data):
+                try:
+                    existing = _read_cfg()
+                    existing.update(data)
+                    with open(_CFG_PATH, "w", encoding="utf-8") as _f:
+                        _json_cfg.dump(existing, _f, indent=2)
+                except Exception:
+                    pass
 
             class _API:
                 def pick_file(self):
@@ -888,6 +907,10 @@ def start_processes(api_enabled: bool = True, api_disabled_reason: str | None = 
                         f.write(_b64.b64decode(raw))
                     return {"ok": True, "path": save_path}
 
+                def save_zoom(self, level):
+                    _write_cfg({"zoom": float(level)})
+                    return {}
+
             _ZOOM_JS = """
 (function() {
     if (window.__zoomHandlerReady) return;
@@ -897,6 +920,7 @@ def start_processes(api_enabled: bool = True, api_disabled_reason: str | None = 
     function applyZoom(cur) {
         _cur = cur;
         document.body.style.zoom = cur === 1.0 ? '' : cur;
+        try { if (window.pywebview && window.pywebview.api) window.pywebview.api.save_zoom(cur); } catch(e) {}
 
         setTimeout(function() {
             // Encontrar el iframe del mapa (el más alto)
@@ -952,6 +976,8 @@ def start_processes(api_enabled: bool = True, api_disabled_reason: str | None = 
         }, 150);
     }
 
+    if (_cur !== 1.0) applyZoom(_cur);
+
     document.addEventListener('wheel', function(e) {
         if (!e.ctrlKey) return;
         e.preventDefault();
@@ -980,19 +1006,55 @@ def start_processes(api_enabled: bool = True, api_disabled_reason: str | None = 
 """
 
             if wait_for_http(url, timeout=30.0):
+                _cfg = _read_cfg()
+                _init_zoom = float(_cfg.get("zoom", 1.0))
+                _was_maximized = bool(_cfg.get("maximized", True))
+                _kw = {}
+                if "x" in _cfg and "y" in _cfg:
+                    _kw["x"], _kw["y"] = int(_cfg["x"]), int(_cfg["y"])
+
                 _win = _wv.create_window(
                     "Movilidad ESII", url,
-                    width=1400, height=900,
+                    width=int(_cfg.get("width", 1400)),
+                    height=int(_cfg.get("height", 900)),
                     min_size=(800, 600),
                     resizable=True,
                     js_api=_API(),
                     background_color='#FFFFFF',
+                    **_kw,
                 )
-                _win.events.shown += lambda: _win.maximize()
+
+                if _was_maximized:
+                    _win.events.shown += lambda: _win.maximize()
+
+                def _save_window_state():
+                    try:
+                        import ctypes, ctypes.wintypes
+                        hwnd = ctypes.windll.user32.FindWindowW(None, "Movilidad ESII")
+                        if not hwnd:
+                            return
+                        class _WP(ctypes.Structure):
+                            _fields_ = [("length", ctypes.c_uint), ("flags", ctypes.c_uint),
+                                        ("showCmd", ctypes.c_uint),
+                                        ("ptMin", ctypes.wintypes.POINT), ("ptMax", ctypes.wintypes.POINT),
+                                        ("rcNormal", ctypes.wintypes.RECT)]
+                        wp = _WP(); wp.length = ctypes.sizeof(wp)
+                        ctypes.windll.user32.GetWindowPlacement(hwnd, ctypes.byref(wp))
+                        _write_cfg({
+                            "maximized": wp.showCmd == 3,
+                            "x": wp.rcNormal.left, "y": wp.rcNormal.top,
+                            "width":  wp.rcNormal.right  - wp.rcNormal.left,
+                            "height": wp.rcNormal.bottom - wp.rcNormal.top,
+                        })
+                    except Exception:
+                        pass
+
+                _win.events.closed += _save_window_state
 
                 def _inject_zoom():
                     try:
-                        _win.evaluate_js(_ZOOM_JS)
+                        js = _ZOOM_JS.replace("var _cur = 1.0;", "var _cur = " + str(_init_zoom) + ";")
+                        _win.evaluate_js(js)
                     except Exception:
                         pass
 

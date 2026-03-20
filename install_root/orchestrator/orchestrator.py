@@ -136,6 +136,30 @@ def _wait_for_streamlit(url: str, timeout: int = 30) -> bool:
     return False
 
 
+import json as _json
+
+_CFG_PATH = os.path.join(_ROOT, "window_config.json")
+
+
+def _read_cfg() -> dict:
+    try:
+        with open(_CFG_PATH, "r", encoding="utf-8") as _f:
+            return _json.load(_f)
+    except Exception:
+        return {}
+
+
+def _write_cfg(data: dict) -> None:
+    try:
+        os.makedirs(os.path.dirname(_CFG_PATH), exist_ok=True)
+        existing = _read_cfg()
+        existing.update(data)
+        with open(_CFG_PATH, "w", encoding="utf-8") as _f:
+            _json.dump(existing, _f, indent=2)
+    except Exception:
+        pass
+
+
 class _PyWebViewAPI:
     """Funciones Python expuestas al JS de la ventana via pywebview js_api."""
 
@@ -181,6 +205,10 @@ class _PyWebViewAPI:
             f.write(_b64.b64decode(raw))
         return {"ok": True, "path": save_path}
 
+    def save_zoom(self, level: float):
+        _write_cfg({"zoom": float(level)})
+        return {}
+
 
 _ZOOM_JS = """
 (function() {
@@ -191,6 +219,7 @@ _ZOOM_JS = """
     function applyZoom(cur) {
         _cur = cur;
         document.body.style.zoom = cur === 1.0 ? '' : cur;
+        try { if (window.pywebview && window.pywebview.api) window.pywebview.api.save_zoom(cur); } catch(e) {}
 
         setTimeout(function() {
             var mapFrame = null, maxH = 0;
@@ -242,6 +271,8 @@ _ZOOM_JS = """
         }, 150);
     }
 
+    if (_cur !== 1.0) applyZoom(_cur);
+
     document.addEventListener('wheel', function(e) {
         if (!e.ctrlKey) return;
         e.preventDefault();
@@ -288,14 +319,53 @@ def _open_webview(url: str) -> None:
         import ctypes
         ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID("MovilidadESII")
 
-    win = webview.create_window("Movilidad ESII", url, width=1400, height=900,
-                                min_size=(800, 600), resizable=True,
-                                js_api=api, background_color='#FFFFFF')
-    win.events.shown += lambda: win.maximize()
+    _cfg = _read_cfg()
+    _init_zoom = float(_cfg.get("zoom", 1.0))
+    _was_maximized = bool(_cfg.get("maximized", True))
+    _kw = {}
+    if "x" in _cfg and "y" in _cfg:
+        _kw["x"], _kw["y"] = int(_cfg["x"]), int(_cfg["y"])
+
+    win = webview.create_window(
+        "Movilidad ESII", url,
+        width=int(_cfg.get("width", 1400)),
+        height=int(_cfg.get("height", 900)),
+        min_size=(800, 600), resizable=True,
+        js_api=api, background_color='#FFFFFF',
+        **_kw,
+    )
+
+    if _was_maximized:
+        win.events.shown += lambda: win.maximize()
+
+    def _save_window_state():
+        try:
+            import ctypes, ctypes.wintypes
+            hwnd = ctypes.windll.user32.FindWindowW(None, "Movilidad ESII")
+            if not hwnd:
+                return
+            class _WP(ctypes.Structure):
+                _fields_ = [("length", ctypes.c_uint), ("flags", ctypes.c_uint),
+                             ("showCmd", ctypes.c_uint),
+                             ("ptMin", ctypes.wintypes.POINT), ("ptMax", ctypes.wintypes.POINT),
+                             ("rcNormal", ctypes.wintypes.RECT)]
+            wp = _WP(); wp.length = ctypes.sizeof(wp)
+            ctypes.windll.user32.GetWindowPlacement(hwnd, ctypes.byref(wp))
+            _write_cfg({
+                "maximized": wp.showCmd == 3,
+                "x": wp.rcNormal.left, "y": wp.rcNormal.top,
+                "width":  wp.rcNormal.right  - wp.rcNormal.left,
+                "height": wp.rcNormal.bottom - wp.rcNormal.top,
+            })
+        except Exception:
+            pass
+
+    win.events.closed += _save_window_state
 
     def _inject_zoom():
         try:
-            win.evaluate_js(_ZOOM_JS)
+            js = _ZOOM_JS.replace("var _cur = 1.0;", "var _cur = " + str(_init_zoom) + ";")
+            win.evaluate_js(js)
         except Exception:
             pass
 
