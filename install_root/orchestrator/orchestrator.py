@@ -138,7 +138,7 @@ def _wait_for_streamlit(url: str, timeout: int = 30) -> bool:
 
 import json as _json
 
-_CFG_PATH = os.path.join(_ROOT, "window_config.json")
+_CFG_PATH = os.path.join(_ROOT, "config.json")
 
 
 def _read_cfg() -> dict:
@@ -272,6 +272,27 @@ _ZOOM_JS = """
     }
 
     if (_cur !== 1.0) applyZoom(_cur);
+
+    // Re-aplicar cuando Streamlit recrea el iframe del mapa
+    (function() {
+        var _lastFrame = null, _pending = false;
+        function _recheck() {
+            _pending = false;
+            if (_cur === 1.0) return;
+            var frame = null, maxH = 0;
+            document.querySelectorAll('iframe').forEach(function(f) {
+                if (f.offsetHeight > maxH) { maxH = f.offsetHeight; frame = f; }
+            });
+            if (!frame || frame === _lastFrame) return;
+            _lastFrame = frame;
+            applyZoom(_cur);
+        }
+        new MutationObserver(function() {
+            if (_pending) return;
+            _pending = true;
+            setTimeout(_recheck, 300);
+        }).observe(document.body, { childList: true, subtree: true });
+    })();
 
     document.addEventListener('wheel', function(e) {
         if (!e.ctrlKey) return;

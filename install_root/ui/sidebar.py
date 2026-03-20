@@ -131,9 +131,17 @@ def load_config():
 
 
 def save_config(config: dict) -> None:
-    """Guarda las rutas actuales en config.json."""
-    with open(CONFIG_FILE, "w", encoding="utf-8") as f:
-        json.dump(config, f, indent=4, ensure_ascii=False)
+    """Guarda las rutas actuales en config.json preservando otras claves."""
+    try:
+        existing = {}
+        if os.path.exists(CONFIG_FILE):
+            with open(CONFIG_FILE, "r", encoding="utf-8") as f:
+                existing = json.load(f)
+        existing.update(config)
+        with open(CONFIG_FILE, "w", encoding="utf-8") as f:
+            json.dump(existing, f, indent=4, ensure_ascii=False)
+    except Exception:
+        pass
 
 
 def setup_session() -> None:

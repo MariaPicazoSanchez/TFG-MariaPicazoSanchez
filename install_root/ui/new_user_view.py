@@ -27,6 +27,7 @@ from domain.validators import (DataValidator, safe_int_convert, is_duration_vali
 from persistence import get_asignaturas_catalog
 
 from .sidebar import pick_local_file
+from utils.app_config import save_course
 USE_LOCAL_PICKER = True
 
 logger = logging.getLogger("movilidad_ui")
@@ -273,6 +274,11 @@ def render_new_user_form(available_types: list[str], config: dict) -> dict | Non
 
     selected_sheet = (new_sheet_name.strip() if new_sheet_name else (None if choice == SENT_NEW else choice))
     st.session_state["nu_sheet"] = selected_sheet
+
+    # Guardar curso seleccionado en config.json
+    if selected_sheet and selected_sheet != st.session_state.get("global_sheet"):
+        save_course(selected_sheet)
+        st.session_state["global_sheet"] = selected_sheet
 
     # Cargar catálogo de asignaturas para la hoja seleccionada
     asignaturas_catalog = _load_asignaturas_catalog(cfg, sheet_name=selected_sheet)

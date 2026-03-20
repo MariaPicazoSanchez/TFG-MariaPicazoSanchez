@@ -3,6 +3,7 @@ from __future__ import annotations
 import re
 import streamlit as st
 from constants import PROGRAM_ERASMUS_IN, PROGRAM_ERASMUS_OUT, PROGRAM_SICUE_OUT
+from utils.app_config import save_course
 
 def filter_button(label: str, program_key: str, key: str, container: st.delta_generator.DeltaGenerator) -> None:
     """
@@ -88,14 +89,13 @@ def render_filters_map(unique_sheets: list[str]) -> str:
     # --- SELECCIÓN DE CURSO (HOJA) ---
     options = unique_sheets[:]
     default_sheet = _latest_sheet_name(unique_sheets) or (options[0] if options else "Sin hojas")
-    
-    # si aún no hay global_sheet, pon la más nueva
-    if "global_sheet" not in st.session_state:
-        st.session_state["global_sheet"] = default_sheet
 
-    current = st.session_state.get("global_sheet", default_sheet)
-    if current not in options and options:
-            current = default_sheet
+    saved_course = st.session_state.get("global_sheet")
+    current = saved_course or default_sheet
+    if options and current not in options:
+        if saved_course:
+            st.sidebar.info(f"ℹ️ El curso guardado '{saved_course}' ya no está disponible. Se usará '{default_sheet}'.")
+        current = default_sheet
 
     idx = options.index(current) if (options and current in options) else 0
 
@@ -112,14 +112,12 @@ def render_filters_map(unique_sheets: list[str]) -> str:
         )
 
     if options:
-        # Si el curso cambia, limpiar la caché de catálogos de asignaturas
-        prev_course = st.session_state.get("global_sheet")
-        st.session_state["global_sheet"] = choice
-        if prev_course != choice:
-            # Eliminar todas las claves de caché de catálogo de asignaturas
-            keys_to_delete = [k for k in st.session_state.keys() if k.startswith("_asignaturas_catalog_cache_v2_")]
-            for k in keys_to_delete:
+        if choice != st.session_state.get("global_sheet"):
+            save_course(choice)
+            # Limpiar caché de catálogos de asignaturas al cambiar curso
+            for k in [k for k in st.session_state if k.startswith("_asignaturas_catalog_cache_v2_")]:
                 del st.session_state[k]
+        st.session_state["global_sheet"] = choice
     else:
         st.session_state["global_sheet"] = None
 

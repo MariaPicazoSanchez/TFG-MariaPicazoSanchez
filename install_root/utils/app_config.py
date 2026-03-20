@@ -1,6 +1,36 @@
 import os
+import json as _json
 import streamlit as st
 from constants import PROGRAM_ERASMUS_OUT, PROGRAM_ERASMUS_IN, PROGRAM_SICUE_OUT
+
+
+def _get_cfg_path() -> str:
+    path = os.getenv("APP_CONFIG_PATH")
+    if path:
+        return path
+    return os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "config.json")
+
+
+def _read_cfg() -> dict:
+    try:
+        with open(_get_cfg_path(), "r", encoding="utf-8") as _f:
+            return _json.load(_f)
+    except Exception:
+        return {}
+
+
+def save_course(course: str) -> None:
+    """Guarda el curso seleccionado en config.json."""
+    import sys
+    try:
+        path = _get_cfg_path()
+        existing = _read_cfg()
+        existing["curso"] = course
+        with open(path, "w", encoding="utf-8") as _f:
+            _json.dump(existing, _f, indent=2)
+        print(f"[save_course] OK: curso={course!r} -> {path}", file=sys.stderr)
+    except Exception as e:
+        print(f"[save_course] ERROR: {e} (path={_get_cfg_path()!r})", file=sys.stderr)
 
 
 AVAILABLE_PROGRAMS = [PROGRAM_ERASMUS_OUT, PROGRAM_ERASMUS_IN, PROGRAM_SICUE_OUT]
@@ -23,7 +53,11 @@ def init_session_defaults() -> None:
         st.session_state["only_erasmus_out_no_LA"] = False
     
     if "global_sheet" not in st.session_state:
-        st.session_state["global_sheet"] = "Todas"
+        import sys
+        cfg = _read_cfg()
+        saved = cfg.get("curso")
+        print(f"[init_session] curso leído={saved!r} de {_get_cfg_path()!r}", file=sys.stderr)
+        st.session_state["global_sheet"] = saved  # None si no hay guardado
     
     if "view" not in st.session_state:
         st.session_state["view"] = "map"

@@ -185,7 +185,12 @@ DATA_DEMO_DIR = APPDATA_DIR / "data"
 # Python a usar para lanzar Streamlit y la API: preferimos el embebido,
 # fallback al Python del sistema si el embebido no existe.
 _PYTHON_EXE: Path | None = None
-CONFIG_PATH = APPDATA_DIR / "config.json"
+if getattr(sys, "frozen", False):
+    # Instalación compilada: config en AppData
+    CONFIG_PATH = APPDATA_DIR / "config.json"
+else:
+    # Desarrollo desde el repo: config en install_root/
+    CONFIG_PATH = Path(__file__).resolve().parent / "install_root" / "config.json"
 API_STATUS_PATH = APPDATA_DIR / "api_status.json"
 LAUNCHER_LOG_PATH = LOG_DIR / "launcher.log"
 APP_LOG_PATH = LOG_DIR / "app.log"
@@ -851,7 +856,7 @@ def start_processes(api_enabled: bool = True, api_disabled_reason: str | None = 
             import webview as _wv
             import json as _json_cfg
 
-            _CFG_PATH = str(APPDATA_DIR / "window_config.json")
+            _CFG_PATH = str(CONFIG_PATH)
 
             def _read_cfg():
                 try:
@@ -977,6 +982,27 @@ def start_processes(api_enabled: bool = True, api_disabled_reason: str | None = 
     }
 
     if (_cur !== 1.0) applyZoom(_cur);
+
+    // Re-aplicar cuando Streamlit recrea el iframe del mapa
+    (function() {
+        var _lastFrame = null, _pending = false;
+        function _recheck() {
+            _pending = false;
+            if (_cur === 1.0) return;
+            var frame = null, maxH = 0;
+            document.querySelectorAll('iframe').forEach(function(f) {
+                if (f.offsetHeight > maxH) { maxH = f.offsetHeight; frame = f; }
+            });
+            if (!frame || frame === _lastFrame) return;
+            _lastFrame = frame;
+            applyZoom(_cur);
+        }
+        new MutationObserver(function() {
+            if (_pending) return;
+            _pending = true;
+            setTimeout(_recheck, 300);
+        }).observe(document.body, { childList: true, subtree: true });
+    })();
 
     document.addEventListener('wheel', function(e) {
         if (!e.ctrlKey) return;

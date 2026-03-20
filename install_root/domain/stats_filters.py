@@ -3,6 +3,7 @@ from __future__ import annotations
 import streamlit as st
 from ui import stats_helpers as sh
 from constants import MOBILITY_OPTIONS, MOBILITY_LABELS
+from utils.app_config import save_course
 
 
 def render_filters_stats(available_courses: list[str]) -> None:
@@ -34,12 +35,11 @@ def render_filters_stats(available_courses: list[str]) -> None:
         st.markdown("#### 📅 Curso académico", unsafe_allow_html=True)
 
         if available_courses:
-            default_course = (
-                st.session_state.get("stats_course")
-                or st.session_state.get("global_sheet")
-                or available_courses[0]
-            )
+            saved_course = st.session_state.get("global_sheet")
+            default_course = saved_course or available_courses[0]
             if default_course not in available_courses:
+                if saved_course:
+                    st.info(f"ℹ️ El curso guardado '{saved_course}' ya no está disponible. Se usará '{available_courses[0]}'.")
                 default_course = available_courses[0]
 
             curso = st.selectbox(
@@ -51,7 +51,8 @@ def render_filters_stats(available_courses: list[str]) -> None:
                 label_visibility="collapsed",
             )
 
-            # Por coherencia con el mapa usamos también global_sheet
+            if curso != st.session_state.get("global_sheet"):
+                save_course(curso)
             st.session_state["global_sheet"] = curso
         else:
             st.info("No hay cursos disponibles. Revisa las hojas en los Excels.")
