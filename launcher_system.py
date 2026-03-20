@@ -988,6 +988,7 @@ def start_processes(api_enabled: bool = True, api_disabled_reason: str | None = 
                     js_api=_API(),
                     background_color='#FFFFFF',
                 )
+                _win.events.shown += lambda: _win.maximize()
 
                 def _inject_zoom():
                     try:

@@ -289,8 +289,9 @@ def _open_webview(url: str) -> None:
         ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID("MovilidadESII")
 
     win = webview.create_window("Movilidad ESII", url, width=1400, height=900,
-                                min_size=(800, 600), resizable=True, js_api=api,
-                                background_color='#FFFFFF')
+                                min_size=(800, 600), resizable=True,
+                                js_api=api, background_color='#FFFFFF')
+    win.events.shown += lambda: win.maximize()
 
     def _inject_zoom():
         try:
