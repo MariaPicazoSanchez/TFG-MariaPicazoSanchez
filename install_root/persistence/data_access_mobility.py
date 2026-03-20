@@ -1021,7 +1021,7 @@ def load_all_dataframes(config: dict, global_sheet: str, programs_to_load: list[
                 wanted = resolve_sheet(global_sheet, candidates)
                 if not wanted:
                     messages.append(
-                        f"ℹ️ {type_name}: hoja ‘{global_sheet}’ no encontrada "
+                        f"ℹ️ {type_name}: hoja '{global_sheet}' no encontrada "
                         f"en {os.path.basename(path)}"
                     )
                     continue
@@ -1040,8 +1040,8 @@ def load_all_dataframes(config: dict, global_sheet: str, programs_to_load: list[
         except Exception as e:
             # Si es SICUE OUT y el error es de indexación, suprimir mensaje genérico
             if type_name == PROGRAM_SICUE_OUT and (
-                ‘single positional indexer is out-of-bounds’ in str(e)
-                or ‘indexer’ in str(e)
+                'single positional indexer is out-of-bounds' in str(e)
+                or 'indexer' in str(e)
             ):
                 pass
             else:
