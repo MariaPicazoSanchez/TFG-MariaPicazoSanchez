@@ -888,14 +888,114 @@ def start_processes(api_enabled: bool = True, api_disabled_reason: str | None = 
                         f.write(_b64.b64decode(raw))
                     return {"ok": True, "path": save_path}
 
+            _ZOOM_JS = """
+(function() {
+    if (window.__zoomHandlerReady) return;
+    window.__zoomHandlerReady = true;
+    var _cur = 1.0;
+
+    function applyZoom(cur) {
+        _cur = cur;
+        document.body.style.zoom = cur === 1.0 ? '' : cur;
+
+        setTimeout(function() {
+            // Encontrar el iframe del mapa (el más alto)
+            var mapFrame = null, maxH = 0;
+            document.querySelectorAll('iframe').forEach(function(f) {
+                if (f.offsetHeight > maxH) { maxH = f.offsetHeight; mapFrame = f; }
+            });
+
+            var styleEl = document.getElementById('__map_fill_style');
+            if (!styleEl) {
+                styleEl = document.createElement('style');
+                styleEl.id = '__map_fill_style';
+                document.head.appendChild(styleEl);
+            }
+
+            if (!mapFrame || maxH < 100 || cur === 1.0) {
+                styleEl.textContent = '';
+                return;
+            }
+
+            // Marcar iframe y todos sus ancestros para targeting CSS
+            mapFrame.setAttribute('data-map-frame', '1');
+            var el = mapFrame.parentElement;
+            while (el && el !== document.body) {
+                el.setAttribute('data-map-wrap', '1');
+                el = el.parentElement;
+            }
+
+            // Posición visual del iframe tras aplicar el zoom
+            var topPx = Math.round(mapFrame.getBoundingClientRect().top);
+            var hCalc = 'calc((100vh - ' + topPx + 'px) / ' + cur + ')';
+
+            styleEl.textContent =
+                '[data-map-frame] { height: ' + hCalc + ' !important; } ' +
+                '[data-map-wrap]  { height: ' + hCalc + ' !important; overflow: visible !important; } ' +
+                '[data-testid="stSidebar"] { min-height: calc(100vh / ' + cur + ') !important; }';
+
+            // Invalidar Leaflet para que redibuje al nuevo tamaño
+            setTimeout(function() {
+                try {
+                    var w = mapFrame.contentWindow;
+                    if (!w) return;
+                    Object.keys(w).forEach(function(k) {
+                        try {
+                            var obj = w[k];
+                            if (obj && obj._leaflet_id && typeof obj.invalidateSize === 'function') {
+                                obj.invalidateSize(true);
+                            }
+                        } catch(e) {}
+                    });
+                } catch(e) {}
+            }, 80);
+        }, 150);
+    }
+
+    document.addEventListener('wheel', function(e) {
+        if (!e.ctrlKey) return;
+        e.preventDefault();
+        var cur = _cur;
+        if (e.deltaY < 0) cur = Math.min(+(cur + 0.1).toFixed(1), 3.0);
+        else               cur = Math.max(+(cur - 0.1).toFixed(1), 0.3);
+        applyZoom(cur);
+    }, { passive: false });
+
+    document.addEventListener('keydown', function(e) {
+        if (!e.ctrlKey) return;
+        var k = e.key;
+        var c = e.keyCode || e.which;
+        var zoomIn  = (k === '+' || k === '=' || k === 'Add'      || c === 187 || c === 107);
+        var zoomOut = (k === '-' || k === 'Subtract'              || c === 189 || c === 109);
+        var zoomRst = (k === '0'                                  || c === 48);
+        if (!zoomIn && !zoomOut && !zoomRst) return;
+        e.preventDefault();
+        var cur = _cur;
+        if (zoomIn)  cur = Math.min(+(cur + 0.1).toFixed(1), 3.0);
+        if (zoomOut) cur = Math.max(+(cur - 0.1).toFixed(1), 0.3);
+        if (zoomRst) cur = 1.0;
+        applyZoom(cur);
+    });
+})();
+"""
+
             if wait_for_http(url, timeout=30.0):
-                _wv.create_window(
+                _win = _wv.create_window(
                     "Movilidad ESII", url,
                     width=1400, height=900,
                     min_size=(800, 600),
                     resizable=True,
                     js_api=_API(),
+                    background_color='#FFFFFF',
                 )
+
+                def _inject_zoom():
+                    try:
+                        _win.evaluate_js(_ZOOM_JS)
+                    except Exception:
+                        pass
+
+                _win.events.loaded += _inject_zoom
                 _wv.start()  # Bloquea en el hilo principal hasta que el usuario cierra la ventana
                 LOGGER.info("Ventana pywebview cerrada.")
                 _webview_ok = True
