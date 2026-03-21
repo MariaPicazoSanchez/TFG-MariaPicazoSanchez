@@ -1,173 +1,73 @@
 # ── Standard library ────────────────────────────────────────────────────────
+import asyncio
 import ctypes
 import json
 import logging
 import os
-import secrets
 import shutil
 import socket
 import subprocess
 import sys
 import threading
 import time
-from http.server import BaseHTTPRequestHandler, HTTPServer
 from pathlib import Path
-from urllib.parse import urlparse, parse_qs
 import urllib.request
+from websockets.asyncio.server import serve as _ws_serve
 # ─────────────────────────────────────────────────────────────────────────────
 
 
-def start_control_server(port: int, token: str, shutdown_event: threading.Event):
+_WS_GRACE_SECONDS = 5  # segundos de gracia tras última desconexión WS
 
-    open_tabs: set[str] = set()
-    pending_close: dict[str, float] = {}  # tab_id -> timestamp de cierre programado
-    last_heartbeat: dict[str, float] = {}  # tab_id -> timestamp del último /open
-    CLOSE_DEBOUNCE = 1.0
-    # Tiempo de gracia tras recibir /close antes de confirmar el cierre.
-    # Debe ser mayor que el tiempo de recarga/re-render de Streamlit para evitar
-    # falsos positivos: F5 o cambio de vista envían /close y luego /open en ~2-10s.
-    PENDING_CLOSE_GRACE = 2.0
-    # Si un tab no envía /open en HEARTBEAT_TIMEOUT segundos, se considera cerrado.
-    # El JS envía /open cada 2s; 5s = ~2 intervalos fallidos → margen para re-renders
-    # rápidos sin disparar shutdown falso al cambiar de vista.
-    HEARTBEAT_TIMEOUT = 5.0
-    # Guard: cleanup_pending NO puede disparar shutdown hasta que al menos
-    # una pestaña haya enviado /open.  Evita cierre prematuro al arrancar,
-    # cuando open_tabs está vacío simplemente porque el navegador aún no abrió.
-    first_open_received = [False]   # [bool] mutable para acceso desde el hilo
-    LOGGER = logging.getLogger("movilidad_launcher")
 
-    class Handler(BaseHTTPRequestHandler):
+def start_ws_control_server(port: int, shutdown_event: threading.Event) -> None:
+    """
+    Inicia el servidor WebSocket de control en un hilo secundario.
 
-        def end_headers(self):
-            """Añade cabeceras CORS a todas las respuestas para permitir
-            que el iframe de Streamlit (puerto distinto) haga fetch al
-            servidor de control."""
-            self.send_header("Access-Control-Allow-Origin", "*")
-            self.send_header("Access-Control-Allow-Methods", "POST, GET, OPTIONS")
-            self.send_header("Access-Control-Allow-Headers", "Content-Type")
-            super().end_headers()
+    El navegador se conecta a ws://127.0.0.1:{port}/ y mantiene la conexión
+    abierta mientras la pestaña está activa.  Cuando todas las conexiones se
+    cierran (cierre real de pestaña), se espera _WS_GRACE_SECONDS antes de
+    señalizar shutdown_event — ese margen absorbe los F5/recargas, en los que
+    el navegador cierra y reabre la conexión en pocos segundos.
+    """
+    _log = logging.getLogger("movilidad_launcher")
+    active = [0]           # contador de conexiones WS activas
+    first_seen = [False]   # guard: no disparar shutdown antes de la 1ª conexión
+    pending = [None]       # asyncio.Task del shutdown con gracia
 
-        def do_OPTIONS(self):
-            """Responde a las preflight CORS que el navegador envía antes
-            de cada fetch cross-origin."""
-            self.send_response(204)
-            self.end_headers()
+    async def _handler(websocket) -> None:
+        first_seen[0] = True
+        active[0] += 1
+        _log.info("WS conectado (activas: %d)", active[0])
 
-        def do_POST(self):
-            u = urlparse(self.path)
-            qs = parse_qs(u.query)
-            if qs.get("token", [""])[0] != token:
-                self.send_response(403); self.end_headers(); return
-            now = time.time()
-            if u.path == "/open":
-                tab_id = qs.get("id", [""])[0]
-                if tab_id:
-                    open_tabs.add(tab_id)
-                    last_heartbeat[tab_id] = now   # registrar timestamp del heartbeat
-                    first_open_received[0] = True   # armar el watchdog de cierre
-                    # Cancelar pending_close para este tab Y cualquier pending de
-                    # /shutdown directo — así F5 cancela también el beacon /shutdown.
-                    for cancel_key in (tab_id, "__shutdown__"):
-                        if cancel_key in pending_close:
-                            del pending_close[cancel_key]
-                            if cancel_key in open_tabs and cancel_key != tab_id:
-                                open_tabs.discard(cancel_key)
-                            LOGGER.info("/open cancela pending: %s", cancel_key)
-                LOGGER.info("/open recibido: %s. Pestañas abiertas: %d", tab_id, len(open_tabs))
-                self.send_response(200)
-                self.end_headers()
-            elif u.path == "/close":
-                tab_id = qs.get("id", [""])[0]
-                if tab_id:
-                    if tab_id not in open_tabs and first_open_received[0]:
-                        # /open falló o el tabId cambió (localStorage no disponible).
-                        # Sintetizar la pestaña en open_tabs para que cleanup_pending
-                        # pueda disparar shutdown cuando expire la gracia.
-                        open_tabs.add(tab_id)
-                        LOGGER.warning(
-                            "/close para tab desconocido %s: "
-                            "sintetizado en open_tabs para cierre controlado.", tab_id
-                        )
-                    if tab_id in open_tabs:
-                        pending_close[tab_id] = now + PENDING_CLOSE_GRACE
-                        LOGGER.info(
-                            "/close recibido: %s. Pending_close hasta +%.0fs.",
-                            tab_id, PENDING_CLOSE_GRACE,
-                        )
-                elif first_open_received[0]:
-                    # Sin tab_id pero ya hubo /open → shutdown directo con gracia
-                    LOGGER.warning("/close sin tab_id con sesión activa: shutdown directo.")
-                    shutdown_event.set()
-                self.send_response(200)
-                self.end_headers()
-            elif u.path == "/shutdown":
-                # Recibido desde el browser (sendBeacon) o manualmente.
-                # Usamos la misma gracia que /close para que F5 pueda cancelarlo:
-                # el /open que llega tras F5 elimina __shutdown__ de pending_close.
-                tab_id = qs.get("id", [""])[0]
-                synthetic = "__shutdown__"
-                open_tabs.add(synthetic)
-                first_open_received[0] = True
-                pending_close[synthetic] = now + PENDING_CLOSE_GRACE
-                LOGGER.info(
-                    "/shutdown recibido (id=%s): grace %.0fs — F5 puede cancelarlo.",
-                    tab_id or "direct", PENDING_CLOSE_GRACE,
-                )
-                self.send_response(200)
-                self.end_headers()
-            else:
-                self.send_response(404)
-                self.end_headers()
+        # Si había un shutdown pendiente por recarga, cancelarlo
+        if pending[0] is not None and not pending[0].done():
+            pending[0].cancel()
+            _log.info("Shutdown WS cancelado por reconexión.")
 
-        def log_message(self, *args):  # silenciar logs del HTTPServer
-            pass
+        await websocket.wait_closed()
 
-    def cleanup_pending():
-        while True:
-            now = time.time()
-            to_remove = [tid for tid, ts in pending_close.items() if ts <= now]
-            for tid in to_remove:
-                if tid in open_tabs:
-                    open_tabs.remove(tid)
-                    last_heartbeat.pop(tid, None)
-                    LOGGER.info("pending_close ejecutado: %s. Pestañas abiertas: %d", tid, len(open_tabs))
-                del pending_close[tid]
+        active[0] -= 1
+        _log.info("WS desconectado (activas: %d). Grace %ds.", active[0], _WS_GRACE_SECONDS)
 
-            # ── Heartbeat timeout: mover tabs sin pulso a pending_close ───────
-            # Si un tab lleva HEARTBEAT_TIMEOUT segundos sin enviar /open,
-            # se considera cerrado y se pone en pending_close con la gracia normal.
-            if first_open_received[0]:
-                for tid in list(open_tabs):
-                    if tid not in pending_close:
-                        age = now - last_heartbeat.get(tid, 0)
-                        if age > HEARTBEAT_TIMEOUT:
-                            pending_close[tid] = now + PENDING_CLOSE_GRACE
-                            LOGGER.info(
-                                "Tab %s sin heartbeat (%.0fs > %.0fs) → pending_close",
-                                tid, age, HEARTBEAT_TIMEOUT,
-                            )
-
-            # ── Cierre inmediato cuando no queda ninguna pestaña ──────────────
-            if first_open_received[0] and not open_tabs and not pending_close:
-                LOGGER.info(
-                    "Todas las pestañas cerradas y sin gracias pendientes "
-                    "→ señal de shutdown inmediata."
-                )
+        if active[0] == 0 and first_seen[0]:
+            async def _delayed_shutdown() -> None:
+                await asyncio.sleep(_WS_GRACE_SECONDS)
+                _log.info("WS grace expirado → señal de shutdown.")
                 shutdown_event.set()
-                return  # el hilo ya no es necesario
 
-            time.sleep(1)
+            pending[0] = asyncio.create_task(_delayed_shutdown())
 
-    httpd = HTTPServer(("127.0.0.1", port), Handler)
-    httpd.open_tabs = open_tabs
-    httpd.pending_close = pending_close
-    httpd.first_open_received = first_open_received
-    t = threading.Thread(target=httpd.serve_forever, daemon=True)
-    t.start()
-    t2 = threading.Thread(target=cleanup_pending, daemon=True)
-    t2.start()
-    return httpd
+    async def _serve() -> None:
+        async with _ws_serve(_handler, "127.0.0.1", port):
+            _log.info("WS control server en ws://127.0.0.1:%d", port)
+            while not shutdown_event.is_set():
+                await asyncio.sleep(0.3)
+
+    threading.Thread(
+        target=lambda: asyncio.run(_serve()),
+        daemon=True,
+        name="ws-control",
+    ).start()
 
 
 LAUNCHER_VERSION = "envfix-2026-01-05-1.0"
@@ -181,6 +81,7 @@ def get_appdata_dir() -> Path:
 APPDATA_DIR = get_appdata_dir()
 LOG_DIR = APPDATA_DIR / "logs"
 DEMO_MODE: bool = "--demo" in sys.argv
+DEV_MODE:  bool = "--dev"  in sys.argv
 DATA_DEMO_DIR = APPDATA_DIR / "data"
 # Python a usar para lanzar Streamlit y la API: preferimos el embebido,
 # fallback al Python del sistema si el embebido no existe.
@@ -718,7 +619,7 @@ def wait_for_http(url: str, timeout: float = 20.0) -> bool:
     return False
 
 def start_processes(api_enabled: bool = True, api_disabled_reason: str | None = None) -> None:
-    py = get_runtime_python()
+    py = Path(sys.executable) if DEV_MODE else get_runtime_python()
 
     api_port, app_port = pick_two_free_ports()
     api_url = f"http://127.0.0.1:{api_port}"
@@ -741,13 +642,11 @@ def start_processes(api_enabled: bool = True, api_disabled_reason: str | None = 
     app_log = open(APP_LOG_PATH, "w", encoding="utf-8")
     api_log = open(API_LOG_PATH, "w", encoding="utf-8")
 
-    # --- CONTROL SERVER PARA SHUTDOWN EXPLÍCITO ---
+    # --- CONTROL SERVER WEBSOCKET PARA SHUTDOWN ---
     shutdown_event = threading.Event()
-    control_port = find_free_port()
-    shutdown_token = secrets.token_urlsafe(24)
-    control_httpd = start_control_server(control_port, shutdown_token, shutdown_event)
-    env_app["CONTROL_PORT"] = str(control_port)
-    env_app["SHUTDOWN_TOKEN"] = shutdown_token
+    ws_port = find_free_port()
+    start_ws_control_server(ws_port, shutdown_event)
+    env_app["WS_PORT"] = str(ws_port)
 
 
     try:
@@ -1168,13 +1067,6 @@ def start_processes(api_enabled: bool = True, api_disabled_reason: str | None = 
     finally:
         LOGGER.info("Deteniendo procesos...")
 
-        # 0) Apagar servidor de control
-        try:
-            control_httpd.shutdown()
-            control_httpd.server_close()
-        except Exception:
-            pass
-
         # 1) Terminar todos los procesos hijos y sus árboles
         shutdown_processes(
             [app_proc, api_proc],
@@ -1198,6 +1090,18 @@ def run_launcher() -> int:
     touch_initial_logs()
     setup_launcher_logging()
     LOGGER.info("MovilidadESII launcher %s iniciando.", LAUNCHER_VERSION)
+
+    if DEV_MODE:
+        # Modo desarrollo: sin lock de instancia, sin verificación de instalación,
+        # usa el Python que ejecuta este script directamente.
+        LOGGER.info("Modo --dev: saltando lock de instancia y verificación de dependencias.")
+        try:
+            start_processes(api_enabled=True)
+        except Exception as exc:
+            LOGGER.exception("Fallo en modo dev: %s", exc)
+            return 1
+        return 0
+
     lock_handle = single_instance_lock()
     if lock_handle is None and os.name == "nt":
         return 0

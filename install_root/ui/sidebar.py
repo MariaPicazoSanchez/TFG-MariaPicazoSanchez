@@ -316,6 +316,14 @@ def sidebar_controls() -> tuple[str | None, st.delta_generator.DeltaGenerator | 
             min-height: 300px !important;
         }
 
+        /* ── STREAMLIT STATUS BAR ─────────────────────────────────────
+           La barra de estado inferior de Streamlit (stBottom) se
+           posiciona fija al fondo y tapa la parte inferior del mapa
+           con una franja oscura. Se oculta por completo. */
+        [data-testid="stBottom"] {
+            display: none !important;
+        }
+
         /* ── ZOOM BODY FIX ────────────────────────────────────────────
            Cuando el launcher aplica zoom al body, la altura visual del
            body es zoom × 100% del viewport → deja una franja negra.
@@ -355,7 +363,7 @@ def sidebar_controls() -> tuple[str | None, st.delta_generator.DeltaGenerator | 
         var SID = '__zoom_layout_fix';
 
         function applyFix() {
-            var zoom = parseFloat(p.document.body.style.zoom);
+            var zoom = parseFloat(p.document.body.style.zoom) || 1.0;
 
             // Obtener o crear nuestro <style>
             var s = p.document.getElementById(SID);
@@ -367,33 +375,11 @@ def sidebar_controls() -> tuple[str | None, st.delta_generator.DeltaGenerator | 
             // (misma especificidad → el último declarado gana)
             p.document.head.appendChild(s);
 
-            if (!zoom || zoom >= 1.0) {
-                // Sin zoom: restaurar defaults y salir
-                s.textContent = '';
-                p.document.documentElement.style.removeProperty('overflow');
-                p.document.body.style.removeProperty('overflow');
-                return;
-            }
-
-            // Inverso del zoom, p.ej. 1/0.8 = 1.25
-            var inv = (1 / zoom).toFixed(6);
-
-            // A) Bloquear scroll de página (inline style, máxima prioridad)
-            p.document.documentElement.style.overflow = 'hidden';
-            p.document.body.style.overflow            = 'hidden';
-
-            // B-D) Cadena de alturas correcta
-            s.textContent = [
-                // Body llena la ventana visualmente
-                'body {',
-                '  min-height: calc(100% * ' + inv + ') !important;',
-                '}',
-                // stApp = altura visual completa de la ventana
-                '[data-testid="stApp"] {',
-                '  height:     calc(100% * ' + inv + ') !important;',
-                '  min-height: 0                        !important;',
-                '  overflow:   hidden                   !important;',
-                '}',
+            // Reglas comunes: cadena de alturas para llenar el viewport
+            // Se aplica SIEMPRE (zoom=1 y zoom<1) para evitar el fondo
+            // negro de pywebview que aparece debajo de stApp cuando su
+            // altura no llega a 100vh.
+            var common = [
                 // stAppViewContainer llena stApp
                 '[data-testid="stAppViewContainer"] {',
                 '  height:   100%   !important;',
@@ -412,7 +398,42 @@ def sidebar_controls() -> tuple[str | None, st.delta_generator.DeltaGenerator | 
                 '  min-height:     0    !important;',
                 '  padding-bottom: 0    !important;',
                 '}',
-            ].join('\\n');
+            ];
+
+            if (zoom >= 1.0) {
+                // Sin zoom: stApp ocupa el viewport completo, sin escalar
+                p.document.documentElement.style.removeProperty('overflow');
+                p.document.body.style.removeProperty('overflow');
+                s.textContent = [
+                    '[data-testid="stApp"] {',
+                    '  height:   100vh  !important;',
+                    '  overflow: hidden !important;',
+                    '}',
+                ].concat(common).join('\\n');
+                return;
+            }
+
+            // zoom < 1: ajuste de escala completo
+            // Inverso del zoom, p.ej. 1/0.8 = 1.25
+            var inv = (1 / zoom).toFixed(6);
+
+            // A) Bloquear scroll de página (inline style, máxima prioridad)
+            p.document.documentElement.style.overflow = 'hidden';
+            p.document.body.style.overflow            = 'hidden';
+
+            // B-D) Cadena de alturas con escala
+            s.textContent = [
+                // Body llena la ventana visualmente
+                'body {',
+                '  min-height: calc(100% * ' + inv + ') !important;',
+                '}',
+                // stApp = altura visual completa de la ventana
+                '[data-testid="stApp"] {',
+                '  height:     calc(100% * ' + inv + ') !important;',
+                '  min-height: 0                        !important;',
+                '  overflow:   hidden                   !important;',
+                '}',
+            ].concat(common).join('\\n');
         }
 
         applyFix();

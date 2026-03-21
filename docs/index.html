@@ -706,7 +706,7 @@
                     </svg>
                   </button>
                   <span class="code-copy-status visually-hidden" role="status" aria-live="polite"></span>
-                  <div class="code-scroll"><pre><code>py install_root/orchestrator/orchestrator.py</code></pre></div>
+                  <div class="code-scroll"><pre><code>py launcher_system.py --dev</code></pre></div>
                 </div>
               </li>
             </ol>
@@ -760,54 +760,47 @@
       <div class="container">
 
         <div class="section-header">
-          <span class="section-tag">Firma de código</span>
-          <h2 class="section-title">Firma Authenticode y SmartScreen</h2>
+          <span class="section-tag">Seguridad</span>
+          <h2 class="section-title">Advertencia de SmartScreen</h2>
         </div>
 
         <p class="section-intro">
-          Los instaladores están <strong>firmados digitalmente con un certificado Authenticode</strong>
-          (<em>Maria Picazo Sanchez &ndash; TFG</em>, válido 5 años).
-          La firma se aplica de forma automática en cada compilación de CI y queda
-          <strong>incrustada en el propio <code>.exe</code></strong>, de modo que Windows
-          identifica correctamente al publicador como <em>Maria Picazo Sanchez &ndash; TFG</em>
-          en lugar de mostrarlo como desconocido.
+          Los instaladores <strong>no están firmados digitalmente</strong>, por lo que Windows
+          los mostrará como de publicador desconocido. Esto es habitual en proyectos académicos
+          sin certificado de firma de código.
           <strong>La aplicación es completamente segura</strong>; el código fuente y el pipeline
           de construcción son públicamente auditables en este repositorio.
         </p>
 
-        <!-- Por qué puede seguir avisando -->
+        <!-- Por qué aparece el aviso -->
         <div class="smartscreen-callout">
           <span class="smartscreen-callout-icon" aria-hidden="true">&#9432;</span>
           <div>
-            <strong>¿Por qué puede seguir apareciendo el aviso?</strong>
-            <p>El aviso puede aparecer por dos razones independientes:</p>
+            <strong>¿Por qué aparece el aviso?</strong>
             <ul class="smartscreen-reasons">
               <li>
-                <strong>Raíz no de confianza.</strong>
-                El certificado es autofirmado: no está emitido por una CA comercial
-                (DigiCert, Sectigo&hellip;) ni encadenado a ninguna raíz que Windows
-                reconozca por defecto.
+                <strong>Sin firma de código.</strong>
+                El instalador no está firmado con un certificado Authenticode reconocido
+                por Windows, por lo que aparece como <em>«Publicador desconocido»</em>.
               </li>
               <li>
                 <strong>Sin reputación acumulada.</strong>
                 SmartScreen también evalúa cuántos usuarios han descargado y ejecutado
-                un archivo concreto. Un binario recién publicado parte de reputación
-                cero independientemente de su firma.
+                un archivo concreto. Un binario recién publicado parte de reputación cero.
               </li>
             </ul>
             <p>Es el comportamiento esperado en proyectos académicos y no indica ningún riesgo.</p>
           </div>
         </div>
 
-        <!-- Opciones para el usuario -->
+        <!-- Cómo resolver -->
         <h3 class="smartscreen-subheading">Cómo resolver la advertencia</h3>
 
         <div class="smartscreen-options">
 
           <div class="smartscreen-option smartscreen-option--primary">
             <div class="smartscreen-option-label">
-              <span class="install-badge install-badge--recommended">Recomendado</span>
-              Opción A &mdash; Desbloquear desde Propiedades
+              Desbloquear desde Propiedades
             </div>
             <p>El método más sencillo. No requiere ningún archivo adicional.</p>
             <ol class="smartscreen-steps">
@@ -851,57 +844,13 @@
             </p>
           </div>
 
-          <div class="smartscreen-option">
-            <div class="smartscreen-option-label">
-              Opción B &mdash; Confiar en el certificado de forma permanente
-            </div>
-            <p>
-              Instala la parte pública del certificado en
-              <strong>Editores de confianza</strong> del equipo local.
-              El certificado puede extraerse directamente del instalador:
-            </p>
-            <ol class="smartscreen-steps">
-              <li>
-                Haz clic derecho sobre el <code>.exe</code>
-                &rarr; <strong>Propiedades</strong>
-                &rarr; pestaña <strong>Firmas digitales</strong>.
-              </li>
-              <li>
-                Selecciona la firma <em>Maria Picazo Sanchez - TFG</em>
-                &rarr; <strong>Detalles</strong>
-                &rarr; <strong>Ver certificado</strong>.
-              </li>
-              <li>
-                En la pestaña <strong>General</strong> del certificado, haz clic en
-                <strong>Instalar certificado...</strong>
-                &rarr; <strong>Usuario actual</strong> (o <strong>Equipo local</strong>)
-                &rarr; <strong>Siguiente</strong>.
-              </li>
-              <li>
-                Deja la opción por defecto (<em>Seleccionar el almacén automáticamente</em>)
-                &rarr; <strong>Siguiente</strong>.
-              </li>
-              <li>
-                Haz clic en <strong>Finalizar</strong>.
-                Windows mostrará el mensaje <em>«La importación se realizó correctamente»</em>.
-              </li>
-            </ol>
-            <p>
-              A partir de ese momento cualquier ejecutable firmado con este
-              certificado será reconocido sin advertencias en ese equipo.
-            </p>
-          </div>
-
         </div>
 
         <p class="smartscreen-note">
-          <strong>Nota:</strong> para eliminar el aviso en cualquier equipo sin configuración
-          previa sería necesario un certificado comercial EV emitido por una CA reconocida
-          (DigiCert, Sectigo&hellip;). En el contexto de este proyecto, el certificado
-          autofirmado cumple los requisitos de integridad y autenticación del instalador:
-          garantiza que el archivo no ha sido modificado desde su firma y permite
-          identificar al publicador. Para una distribución académica de alcance limitado,
-          este nivel de protección es adecuado.
+          <strong>Nota:</strong> para eliminar el aviso de publicador desconocido sería
+          necesario un certificado de firma de código comercial emitido por una CA reconocida
+          (DigiCert, Sectigo&hellip;). Para una distribución académica de alcance limitado,
+          el desbloqueo manual desde Propiedades es suficiente.
         </p>
 
       </div>

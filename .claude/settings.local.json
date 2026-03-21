@@ -5,7 +5,9 @@
       "Read(//c/Users/maria/AppData/Local/MovilidadESII/app/**)",
       "Bash(grep -n \"def get_autofill_script\" \"C:/Users/maria/AppData/Local/MovilidadESII/app/\"**/*.py)",
       "Bash(git -C C:/Users/maria/Documents/GitHub/TFG-MariaPicazoSanchez diff HEAD -- launcher_system.py)",
-      "Bash(git -C C:/Users/maria/Documents/GitHub/TFG-MariaPicazoSanchez diff HEAD -- install_root/ui/sidebar.py)"
+      "Bash(git -C C:/Users/maria/Documents/GitHub/TFG-MariaPicazoSanchez diff HEAD -- install_root/ui/sidebar.py)",
+      "Bash(find /c/Users/maria/Documents/GitHub/TFG-MariaPicazoSanchez -name .streamlit -o -name config.toml -o -name *.md -type f)",
+      "Bash(grep -r \"height.*100vh\\\\|overflow.*auto\\\\|scrolling\" /c/Users/maria/Documents/GitHub/TFG-MariaPicazoSanchez/install_root --include=*.py)"
     ]
   }
 }

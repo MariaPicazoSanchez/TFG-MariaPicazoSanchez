@@ -185,73 +185,29 @@ def _render_view(dfs, base_map, materias, config):
 
 
 def _inject_orchestrator_ws() -> None:
-    control_port    = os.getenv("CONTROL_PORT")
-    shutdown_token  = os.getenv("SHUTDOWN_TOKEN")
-
-    if control_port and shutdown_token:
-        if "movilidad_tab_id" not in st.session_state:
-            import secrets as _sec
-            st.session_state["movilidad_tab_id"] = _sec.token_urlsafe(12)
-        tab_id   = st.session_state["movilidad_tab_id"]
-        base_url = f"http://127.0.0.1:{control_port}"
-        components.html(
-            f"""
-            <script>
-            (function() {{
-              var host; var usingTop = false;
-              try {{
-                if (window.top && window.top.setInterval) {{
-                  host = window.top; usingTop = (host !== window);
-                }} else {{ host = window; }}
-              }} catch (e) {{ host = window; }}
-              var base="{base_url}", token="{shutdown_token}", tabId="{tab_id}";
-              var _openUrl  = base + "/open?token="  + token + "&id=" + tabId;
-              var _closeUrl = base + "/close?token=" + token + "&id=" + tabId;
-              function _fetch(url,opts){{try{{(host.fetch||window.fetch)(url,opts).catch(function(){{}});}}catch(e){{}}}}
-              if (host.__movilidad_tab_closed) return;
-              _fetch(_openUrl, {{method:"POST",mode:"no-cors"}});
-              if (host.__movilidad_heartbeat) host.clearInterval(host.__movilidad_heartbeat);
-              host.__movilidad_heartbeat = host.setInterval(function(){{
-                if (!host.__movilidad_tab_closed) _fetch(_openUrl,{{method:"POST",mode:"no-cors"}});
-              }}, 2000);
-              if (usingTop && !host.__movilidad_ctrl_close) {{
-                host.__movilidad_ctrl_close = true;
-                host.__movilidad_notify_close = function(){{
-                  host.__movilidad_tab_closed = true;
-                  if (host.__movilidad_heartbeat){{ host.clearInterval(host.__movilidad_heartbeat); host.__movilidad_heartbeat=null; }}
-                  var sent=false;
-                  try{{sent=(host.navigator||navigator).sendBeacon(_closeUrl);}}catch(e){{}}
-                  if(!sent) _fetch(_closeUrl,{{method:"POST",keepalive:true,mode:"no-cors"}});
-                }};
-                try{{host.addEventListener("pagehide",host.__movilidad_notify_close);}}catch(e){{}}
-                try{{host.addEventListener("beforeunload",host.__movilidad_notify_close);}}catch(e){{}}
-              }}
-            }})();
-            </script>
-            """,
-            height=0, width=0,
-        )
-    else:
-        components.html(
-            """
-            <script>
-            (function() {
-              var host;
-              try { host = (window.top && window.top.setInterval) ? window.top : window; }
-              catch (e) { host = window; }
-              if (host.__movilidad_ws && host.__movilidad_ws.readyState === 0) return;
-              try {
-                var ws = new WebSocket("ws://localhost:8765/");
-                ws.onopen  = function() { console.log("[MovilidadESII] WebSocket conectado."); };
-                ws.onclose = function() { console.log("[MovilidadESII] WebSocket cerrado."); };
-                ws.onerror = function(e) { console.warn("[MovilidadESII] WebSocket error:", e); };
-                host.__movilidad_ws = ws;
-              } catch (e) { console.warn("[MovilidadESII] No se pudo abrir WebSocket:", e); }
-            })();
-            </script>
-            """,
-            height=0, width=0,
-        )
+    ws_port = os.getenv("WS_PORT")
+    if not ws_port:
+        return
+    components.html(
+        f"""
+        <script>
+        (function() {{
+          var host;
+          try {{ host = (window.top && window.top.setInterval) ? window.top : window; }}
+          catch (e) {{ host = window; }}
+          if (host.__movilidad_ws && host.__movilidad_ws.readyState <= 1) return;
+          try {{
+            var ws = new WebSocket("ws://127.0.0.1:{ws_port}/");
+            ws.onopen  = function() {{ console.log("[MovilidadESII] WS conectado."); }};
+            ws.onclose = function() {{ console.log("[MovilidadESII] WS cerrado."); }};
+            ws.onerror = function(e) {{ console.warn("[MovilidadESII] WS error:", e); }};
+            host.__movilidad_ws = ws;
+          }} catch (e) {{ console.warn("[MovilidadESII] No se pudo abrir WebSocket:", e); }}
+        }})();
+        </script>
+        """,
+        height=0, width=0,
+    )
 
 
 # ---------------------------------------------------------------------------

@@ -45,7 +45,7 @@ Windows desktop application that exposes a local web interface (Streamlit) backe
 
 ## 1. Process Architecture
 
-The project has **two independent launchers** that both start Streamlit + Flask, but differ in how they coordinate shutdown:
+`launcher_system.py` is the **single unified launcher** for all modes. It starts Streamlit + Flask, allocates ports dynamically, and coordinates shutdown via a WebSocket control server.
 
 ### System overview
 
@@ -58,13 +58,12 @@ flowchart TD
     classDef store    fill:#f3e8ff,stroke:#9333ea,color:#581c87
 
     subgraph PROC ["⚙ Process Launcher"]
-        SYS["launcher_system.py<br/>dynamic ports · HTTP control"]:::launcher
-        ORC["orchestrator.py<br/>fixed ports · WebSocket"]:::launcher
+        SYS["launcher_system.py<br/>--dev · --demo · production<br/>dynamic ports · WebSocket control"]:::launcher
     end
 
     subgraph APP ["Application"]
-        UI["Streamlit UI · :8501<br/>map · stats · new student"]:::app
-        API["Flask API · :5000<br/>/health · /update_student 🔒"]:::app
+        UI["Streamlit UI · :&lt;port_A&gt;<br/>map · stats · new student"]:::app
+        API["Flask API · :&lt;port_B&gt;<br/>/health · /update_student 🔒"]:::app
     end
 
     subgraph CORE ["Domain and Infrastructure"]
@@ -83,31 +82,26 @@ flowchart TD
     DOM -->|"openpyxl · xlrd"| XL
 ```
 
-### `launcher_system.py` — installer mode
+### `launcher_system.py`
 
 ```text
-launcher_system.py
- ├── thread:     HTTP control server  (dynamic port)  — shutdown via /open /close /shutdown
+launcher_system.py [--dev | --demo]
+ ├── thread (asyncio):  WebSocket control server  (dynamic port)  — shutdown when browser tab closes
  ├── subprocess: streamlit run install_root/web_app/my_app.py  → http://127.0.0.1:<port_A>
  └── subprocess: python   install_root/api/api.py              → http://127.0.0.1:<port_B>
 ```
 
-Both application ports are allocated dynamically at startup via `pick_two_free_ports()` (OS-assigned, `socket.bind("127.0.0.1", 0)`), so they will differ between runs. The API port is passed to both subprocesses via the `API_PORT` environment variable.
+All ports are allocated dynamically at startup via `pick_two_free_ports()` (OS-assigned, `socket.bind("127.0.0.1", 0)`), so they will differ between runs. The API port is passed to both subprocesses via the `API_PORT` environment variable; the WebSocket control port is passed as `WS_PORT`.
 
-A lightweight HTTP control server runs in a dedicated thread and handles coordinated shutdown when all browser tabs have been closed, via three internal endpoints: `/open`, `/close`, and `/shutdown`.
+The Streamlit app connects to the WebSocket server on load. When the browser tab is closed the connection drops; after a short grace period (to absorb F5 reloads) the launcher kills both child processes and exits cleanly.
 
-### `install_root/orchestrator/orchestrator.py` — development mode
+| Flag | Behaviour |
+|:---|:---|
+| *(none)* | Production mode — uses embedded/system Python, single-instance lock, AppData paths |
+| `--demo` | Production mode with sample data bundled by the installer |
+| `--dev` | Development mode — uses the running Python directly, skips installation checks and instance lock |
 
-```text
-orchestrator.py
- ├── WebSocket server on ws://localhost:8765  — shutdown when browser tab closes
- ├── subprocess: streamlit run install_root/web_app/my_app.py  → http://127.0.0.1:8501  (default)
- └── subprocess: python   install_root/api/api.py              → http://127.0.0.1:5000  (default)
-```
-
-The orchestrator uses the default Streamlit and Flask ports (no dynamic allocation). The Streamlit app connects to the WebSocket server on load; when the browser tab is closed the connection drops, the orchestrator kills both child processes and exits cleanly.
-
-Both launchers read `config.json` at startup to resolve the absolute paths of the Excel data files.
+`config.json` is read at startup to resolve the absolute paths of the Excel data files.
 
 ---
 
@@ -115,14 +109,12 @@ Both launchers read `config.json` at startup to resolve the absolute paths of th
 
 ```text
 TFG-MariaPicazoSanchez/
-├── launcher_system.py           # Unified launcher — pass --demo for demo mode
+├── launcher_system.py           # Unified launcher — --dev · --demo · production
 ├── config.json                  # Excel file paths per mobility programme
 ├── installer.iss                # Inno Setup script (demo build — bundles sample data, passes --demo)
 ├── installer_sindata.iss        # Inno Setup script (production build — no data bundled)
 ├── MovilidadESII.spec           # PyInstaller spec file
 └── install_root/
-    ├── orchestrator/
-    │   └── orchestrator.py      # Process manager — spawns Flask + Streamlit, shuts both down when the browser tab closes (WebSocket signal)
     ├── api/
     │   └── api.py               # Flask microservice (see §6)
     ├── web_app/
@@ -190,7 +182,8 @@ Path resolution is handled by `utils/app_config.py`.
 |:---|:---|:---|
 | `APP_CONFIG_PATH` | `config.json` | Override the config file location |
 | `API_HOST` | `127.0.0.1` | Flask API bind address |
-| `API_PORT` | *(dynamic)* | Flask API port — set automatically by `launcher_system.py`; in orchestrator/manual mode defaults to `5000` |
+| `API_PORT` | *(dynamic)* | Flask API port — set automatically by the launcher; defaults to `5000` in manual mode |
+| `WS_PORT` | *(dynamic)* | WebSocket control server port — set automatically by the launcher |
 
 ---
 
@@ -215,8 +208,7 @@ pip install -r install_root/requirements.txt
 | `streamlit` | 1.47.1 | Web UI framework |
 | `flask` | 3.1.2 | REST API server |
 | `flask-cors` | 6.0.1 | Cross-origin support for embedded iframes |
-| `websockets` | 16.0 | WebSocket server in the orchestrator (shutdown signal) |
-| `psutil` | 7.2.2 | Process-tree kill in the orchestrator |
+| `websockets` | 16.0 | WebSocket control server in the launcher (shutdown signal) |
 | `folium` | 0.20.0 | Interactive HTML map generation |
 | `streamlit-folium` | 0.25.3 | Folium embed in Streamlit |
 | `pandas` | 2.2.3 | In-memory DataFrame processing |
@@ -242,29 +234,22 @@ py -3.12 -m pip download -r install_root/requirements.txt -d wheelhouse --only-b
 
 ## 5. Running the Application
 
-### Recommended mode — Orchestrator
+### Development mode
 
 ```bash
-py install_root/orchestrator/orchestrator.py
+py launcher_system.py --dev
 ```
 
-Or from inside `install_root/`:
+Uses the Python interpreter that is already active (no embedded runtime lookup), skips the single-instance lock and installation checks. Ports are assigned dynamically. Closing the browser tab shuts down both processes cleanly via the WebSocket signal.
+
+### Production / installer mode
 
 ```bash
-cd install_root
-set APP_CONFIG_PATH=..\config.json
-python orchestrator/orchestrator.py
+py launcher_system.py          # production
+py launcher_system.py --demo   # demo (uses sample data bundled by the installer)
 ```
 
-Starts Streamlit (`http://127.0.0.1:8501`) and Flask (`http://127.0.0.1:5000`) automatically. Closing the browser tab shuts down both processes cleanly via the WebSocket signal.
-
-### Legacy mode — `launcher_system.py`
-
-```bash
-py launcher_system.py
-```
-
-Starts Streamlit and Flask with dynamically assigned ports and coordinates shutdown via an internal HTTP control server. Used mainly for the desktop installer build.
+Resolves the embedded or system Python, acquires a single-instance lock, verifies dependencies, and starts the app. Used by the desktop installer shortcut.
 
 ### Manual mode (individual processes)
 
@@ -291,7 +276,7 @@ python -m streamlit run web_app/my_app.py
 
 **Base URL:** `http://127.0.0.1:<API_PORT>`
 
-The port is dynamically allocated by `launcher_system.py`. In orchestrator or manual dev mode it defaults to `5000` unless overridden by `API_PORT`.
+The port is dynamically allocated by the launcher. In manual mode it defaults to `5000` unless overridden by the `API_PORT` environment variable.
 
 Write endpoints require the `X-API-TOKEN` header (see [§7 Security Model](#7-security-model)). The token is also accepted as a `token` query parameter for form-based submissions.
 
@@ -397,22 +382,16 @@ Compare the output with the corresponding entry in `SHA256.txt`. If they match, 
 
 ## 9. Windows SmartScreen Warning
 
-The installers are **Authenticode-signed** with a self-signed certificate (`Maria Picazo Sanchez - TFG`, valid 5 years). Signing is applied automatically on every CI build; no manual step is required. The certificate is embedded directly in the `.exe`, so Windows correctly identifies the publisher as **Maria Picazo Sanchez - TFG** instead of *Unknown Publisher*.
+The installers are **not code-signed**, so Windows will display them as *Unknown Publisher*. This is expected behaviour for academic projects without a commercial code-signing certificate.
 
 > **The application is safe to run.** Source code and build pipeline are fully auditable in this repository.
 
-### Why SmartScreen may still warn
+### Why SmartScreen warns
 
-A warning may still appear for two independent reasons:
-
-- **Untrusted root.** The certificate is self-signed — not issued by a commercial CA (DigiCert, Sectigo, etc.) and not chained to any root that Windows trusts by default.
-- **No accumulated reputation.** SmartScreen also scores how many users have downloaded and run a given binary. A newly published file starts with zero reputation regardless of its signature.
-
-This is expected behaviour for academic projects and does not indicate any threat.
+- **No code signature.** Without an Authenticode certificate recognised by Windows, the installer appears as *Unknown Publisher*.
+- **No accumulated reputation.** SmartScreen also scores how many users have downloaded and run a given binary. A newly published file starts with zero reputation.
 
 ### Resolving the warning
-
-**Option A — Unblock via file Properties** *(recommended)*
 
 1. Download the `.exe` file. **Do not run it yet.**
 2. Open the folder where the file was saved.
@@ -431,9 +410,7 @@ This is expected behaviour for academic projects and does not indicate any threa
 
 > If the *Unblock* checkbox is absent, the file was already unblocked or downloaded in a way that did not trigger the internet zone mark. No action needed.
 
-**Option B — Trust the certificate permanently**
-
-Install the public part of the certificate (`.cer`) into **Trusted Publishers** on the local machine (right-click → **Install Certificate** → **Local Machine** → **Trusted Publishers**). Any executable signed with this certificate will be silently trusted on that machine from then on.
+To permanently suppress the warning on any machine a commercial EV certificate from a recognised CA (DigiCert, Sectigo, etc.) would be required. For an academic distribution of limited scope, the manual unblock is sufficient.
 
 ---
 
