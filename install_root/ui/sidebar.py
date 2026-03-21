@@ -269,15 +269,170 @@ def sidebar_controls() -> tuple[str | None, st.delta_generator.DeltaGenerator | 
     st.markdown(
         """
         <style>
+        /* ── SIDEBAR ──────────────────────────────────────────────────
+           Especificidad [0,2,0] → gana al CSS del launcher [0,1,0].
+           NO tocamos height ni min-height: Streamlit (height:100%) +
+           el launcher (min-height:calc(100vh/zoom)) los gestionan. */
         [data-testid="stSidebar"][aria-expanded="true"] {
-            min-width: 325px;
-            max-width: 450px;
+            min-width:  325px;
+            max-width:  450px;
+            overflow-x: hidden !important;
+            overflow-y: auto   !important; /* scroll solo si el contenido no cabe */
         }
+
+        /* El div interior con especificidad [0,2,0] para ganar al launcher.
+           overflow:hidden evita que su contenido "sangre" hacia el contenedor
+           externo y dispare el scroll aunque visualmente todo quepa. */
+        [data-testid="stSidebar"][aria-expanded="true"] > div:first-child {
+            overflow:   hidden !important;
+            height:     auto   !important;
+            min-height: 0      !important;
+        }
+
+        /* Ocultar la barra de scroll en todo el sidebar
+           (el scroll sigue funcionando con rueda del ratón) */
+        [data-testid="stSidebar"],
+        [data-testid="stSidebar"] * {
+            scrollbar-width:    none !important; /* Firefox */
+            -ms-overflow-style: none !important; /* IE / Edge */
+        }
+        [data-testid="stSidebar"]::-webkit-scrollbar,
+        [data-testid="stSidebar"] *::-webkit-scrollbar {
+            display: none !important;
+            width:   0    !important;
+            height:  0    !important;
+        }
+
+        /* ── MAIN CONTENT ─────────────────────────────────────────────
+           Eliminar el padding inferior por defecto de Streamlit que
+           deja espacio vacío bajo el mapa al hacer scroll. */
+        [data-testid="stMainBlockContainer"] {
+            padding-bottom: 0 !important;
+        }
+
+        /* ── MAP IFRAME ───────────────────────────────────────────────
+           Altura mínima de seguridad para el iframe del mapa. */
+        [data-map-frame] {
+            min-height: 300px !important;
+        }
+
+        /* ── ZOOM BODY FIX ────────────────────────────────────────────
+           Cuando el launcher aplica zoom al body, la altura visual del
+           body es zoom × 100% del viewport → deja una franja negra.
+           El script de abajo inyecta min-height: calc(100% / zoom)
+           para que el body llene la ventana visualmente. */
         </style>
         """,
         unsafe_allow_html=True
     )
-    
+
+    # ── ZOOM LAYOUT FIX ────────────────────────────────────────────────────────
+    # Problema estructural cuando el launcher aplica zoom < 1 al body:
+    #
+    #   1. body.style.zoom = 0.8  →  body visual = 80% de la ventana  →  franja
+    #      negra en el 20% inferior (body no llena la ventana).
+    #
+    #   2. El launcher marca con [data-map-wrap] TODOS los ancestros del iframe
+    #      del mapa y les asigna height:hCalc. Pero esos ancestros también
+    #      contienen el título y el aviso, de modo que su contenido CSS supera
+    #      hCalc  →  desbordamiento  →  el body genera scroll.
+    #
+    # Solución en 3 pasos (sin tocar el EXE instalado):
+    #   A) html + body → overflow:hidden  (bloquea el scroll de página)
+    #   B) stApp       → height = 100% × (1/zoom)  (llena la ventana visual)
+    #   C) stMain      → height:100%; overflow-y:auto  (scrollea en stats)
+    #   D) stMainBlockContainer → height:auto  (deja que su contenido fluya)
+    #
+    # El style tag se mueve al FINAL de <head> cada vez que se aplica, así
+    # gana sobre las reglas del launcher con igual especificidad (el que va
+    # después en <head> tiene prioridad en CSS para !important iguales).
+    with st.sidebar:
+        st.components.v1.html(
+            """<script>
+(function() {
+    try {
+        var p   = window.parent;
+        var SID = '__zoom_layout_fix';
+
+        function applyFix() {
+            var zoom = parseFloat(p.document.body.style.zoom);
+
+            // Obtener o crear nuestro <style>
+            var s = p.document.getElementById(SID);
+            if (!s) {
+                s = p.document.createElement('style');
+                s.id = SID;
+            }
+            // Mover SIEMPRE al final de <head> para ganar al launcher
+            // (misma especificidad → el último declarado gana)
+            p.document.head.appendChild(s);
+
+            if (!zoom || zoom >= 1.0) {
+                // Sin zoom: restaurar defaults y salir
+                s.textContent = '';
+                p.document.documentElement.style.removeProperty('overflow');
+                p.document.body.style.removeProperty('overflow');
+                return;
+            }
+
+            // Inverso del zoom, p.ej. 1/0.8 = 1.25
+            var inv = (1 / zoom).toFixed(6);
+
+            // A) Bloquear scroll de página (inline style, máxima prioridad)
+            p.document.documentElement.style.overflow = 'hidden';
+            p.document.body.style.overflow            = 'hidden';
+
+            // B-D) Cadena de alturas correcta
+            s.textContent = [
+                // Body llena la ventana visualmente
+                'body {',
+                '  min-height: calc(100% * ' + inv + ') !important;',
+                '}',
+                // stApp = altura visual completa de la ventana
+                '[data-testid="stApp"] {',
+                '  height:     calc(100% * ' + inv + ') !important;',
+                '  min-height: 0                        !important;',
+                '  overflow:   hidden                   !important;',
+                '}',
+                // stAppViewContainer llena stApp
+                '[data-testid="stAppViewContainer"] {',
+                '  height:   100%   !important;',
+                '  overflow: hidden !important;',
+                '}',
+                // stMain llena stAppViewContainer; puede scrollear
+                // internamente (necesario para la vista de estadísticas)
+                '[data-testid="stMain"] {',
+                '  height:     100%  !important;',
+                '  overflow-y: auto  !important;',
+                '}',
+                // stMainBlockContainer: altura natural para no luchar
+                // con el iframe del mapa (que ya tiene height:hCalc del launcher)
+                '[data-testid="stMainBlockContainer"] {',
+                '  height:         auto !important;',
+                '  min-height:     0    !important;',
+                '  padding-bottom: 0    !important;',
+                '}',
+            ].join('\\n');
+        }
+
+        applyFix();
+        setTimeout(applyFix,  400);  // reintento: zoom puede no haberse aplicado aún
+        setTimeout(applyFix, 1500);  // reintento de seguridad
+
+        // Reaccionar cuando el launcher cambie body.style (zoom)
+        new MutationObserver(applyFix).observe(p.document.body, {
+            attributes: true, attributeFilter: ['style']
+        });
+
+        // Mantener el fix al redimensionar la ventana
+        p.addEventListener('resize', applyFix);
+
+    } catch(e) { /* silencioso en producción */ }
+})();
+</script>""",
+            height=0,
+        )
+
     if "view" not in st.session_state:
         st.session_state["view"] = "map"
 

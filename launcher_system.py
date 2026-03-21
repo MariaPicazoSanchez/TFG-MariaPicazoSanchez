@@ -924,7 +924,12 @@ def start_processes(api_enabled: bool = True, api_disabled_reason: str | None = 
 
     function applyZoom(cur) {
         _cur = cur;
-        document.body.style.zoom = cur === 1.0 ? '' : cur;
+        document.body.style.zoom      = cur === 1.0 ? ''                          : cur;
+        // Con zoom<1, el body sólo cubre zoom×100% de la ventana visualmente.
+        // min-height corrige la altura y overflow:hidden bloquea el scroll de página.
+        document.body.style.minHeight                  = cur < 1.0 ? 'calc(100% / ' + cur + ')' : '';
+        document.body.style.overflow                   = cur < 1.0 ? 'hidden' : '';
+        document.documentElement.style.overflow        = cur < 1.0 ? 'hidden' : '';
         try { if (window.pywebview && window.pywebview.api) window.pywebview.api.save_zoom(cur); } catch(e) {}
 
         setTimeout(function() {
@@ -961,8 +966,8 @@ def start_processes(api_enabled: bool = True, api_disabled_reason: str | None = 
             styleEl.textContent =
                 '[data-map-frame] { height: ' + hCalc + ' !important; } ' +
                 '[data-map-wrap]  { height: ' + hCalc + ' !important; overflow: visible !important; } ' +
-                '[data-testid="stSidebar"] { min-height: calc(100vh / ' + cur + ') !important; overflow-y: hidden !important; } ' +
-                '[data-testid="stSidebar"] > div { min-height: inherit !important; }';
+                '[data-testid="stSidebar"] { min-height: calc(100vh / ' + cur + ') !important; overflow-x: hidden !important; overflow-y: visible !important; } ' +
+                '[data-testid="stSidebar"] > div:first-child { overflow: visible !important; height: auto !important; min-height: 0 !important; }';
 
             // Invalidar Leaflet para que redibuje al nuevo tamaño
             setTimeout(function() {

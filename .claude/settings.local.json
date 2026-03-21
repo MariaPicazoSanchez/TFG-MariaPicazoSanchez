@@ -1,0 +1,11 @@
+{
+  "permissions": {
+    "allow": [
+      "Read(//c/Users/maria/AppData/Local/MovilidadESII/app/ui/**)",
+      "Read(//c/Users/maria/AppData/Local/MovilidadESII/app/**)",
+      "Bash(grep -n \"def get_autofill_script\" \"C:/Users/maria/AppData/Local/MovilidadESII/app/\"**/*.py)",
+      "Bash(git -C C:/Users/maria/Documents/GitHub/TFG-MariaPicazoSanchez diff HEAD -- launcher_system.py)",
+      "Bash(git -C C:/Users/maria/Documents/GitHub/TFG-MariaPicazoSanchez diff HEAD -- install_root/ui/sidebar.py)"
+    ]
+  }
+}

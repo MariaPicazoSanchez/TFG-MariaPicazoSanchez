@@ -303,6 +303,33 @@ def show_map(
     except Exception as e:
         logger.warning("Error inyectando materias_editor.js inline: %s", e)
 
+    # Inyectar script de reinicio de Leaflet con reintentos para pywebview
+    _reinit_script = """
+<script>
+(function() {
+    function _invalidateAll() {
+        try {
+            Object.keys(window).forEach(function(k) {
+                try {
+                    var obj = window[k];
+                    if (obj && obj._leaflet_id && typeof obj.invalidateSize === 'function') {
+                        obj.invalidateSize(true);
+                    }
+                } catch(e) {}
+            });
+        } catch(e) {}
+    }
+    // Reintentos: 300ms, 700ms, 1500ms, 3000ms
+    [300, 700, 1500, 3000].forEach(function(t) {
+        setTimeout(_invalidateAll, t);
+    });
+})();
+</script>"""
+    if "</body>" in html_map:
+        html_map = html_map.replace("</body>", _reinit_script + "</body>")
+    else:
+        html_map += _reinit_script
+
     # Guardamos el HTML completo del mapa para poder descargarlo luego
     st.session_state["last_map_html"] = html_map
 

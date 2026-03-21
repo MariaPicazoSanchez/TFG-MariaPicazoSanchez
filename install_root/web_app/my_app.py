@@ -135,15 +135,11 @@ def _load_dataframes_with_cache(config, global_sheet: str):
     # para evitar llamar a st.* dentro de @st.cache_data
     if isinstance(result, tuple) and len(result) == 2:
         dfs, messages = result
-        for msg in messages:
-            if msg.startswith("⚠️"):
-                st.warning(msg)
-            else:
-                st.info(msg)
     else:
         dfs = result  # compatibilidad con versiones anteriores
+        messages = []
 
-    return dfs, cfg_mtimes
+    return dfs, cfg_mtimes, messages
 
 
 def _load_materias_with_cache(config, cfg_mtimes):
@@ -287,7 +283,7 @@ def main():
 
     # Cargar datos
     global_sheet = st.session_state.get("global_sheet", None)
-    dfs, cfg_mtimes = _load_dataframes_with_cache(config, global_sheet)
+    dfs, cfg_mtimes, load_messages = _load_dataframes_with_cache(config, global_sheet)
 
     build_search_index(dfs)
     if search_slot is not None:
@@ -297,6 +293,13 @@ def main():
     handle_open_excel_query()
 
     st.title("Visualización de Movilidad ESII")
+
+    # Avisos de coordenadas faltantes, justo bajo el título
+    for msg in load_messages:
+        if msg.startswith("⚠️"):
+            st.warning(msg)
+        else:
+            st.info(msg)
 
     has_data = check_dataframes_have_data(dfs)
     st.session_state["has_data"] = has_data
