@@ -193,6 +193,7 @@ def get_placeholder(config: dict, key: str) -> str:
 
 def route_editor(config: dict) -> None:
     st.sidebar.subheader("📁 Modificar fuentes de datos")
+    
 
     entries = [
         (PROGRAM_SICUE_OUT, "📘 SICUE OUT"),
@@ -242,7 +243,26 @@ def route_editor(config: dict) -> None:
             new_config[key] = val
         else:
             new_config[key] = config.get(key, "")
-
+    st.sidebar.markdown(
+        """
+        <a href='https://mariapicazosanchez.github.io/TFG-MariaPicazoSanchez/excel_structure.html' target='_blank' style="
+            display: block;
+            width: 100%;
+            background: #e3f2fd;
+            color: #1565c0;
+            font-weight: 600;
+            padding: 0.4em 1em;
+            border-radius: 6px;
+            text-decoration: none;
+            margin-bottom: 0.7em;
+            text-align: center;
+            box-sizing: border-box;
+            transition: background 0.2s, color 0.2s;">
+            📄 Ver ejemplo de estructura
+        </a>
+        """,
+        unsafe_allow_html=True
+    )
 
     col1, col2 = st.sidebar.columns(2)
     if col1.button("❌", use_container_width=True):
