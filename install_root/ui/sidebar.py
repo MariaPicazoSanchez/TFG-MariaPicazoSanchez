@@ -310,6 +310,17 @@ def sidebar_controls() -> tuple[str | None, st.delta_generator.DeltaGenerator | 
             padding-bottom: 0 !important;
         }
 
+        /* El hijo directo de stMainBlockContainer es el wrapper que
+           Streamlit añade con margin-bottom: 1rem (16 px).
+           Con zoom ≠ 1, esos 16 px hacen que el contenido supere la
+           altura de stMain → scrollbar oculto → al aplicar hCalc el
+           mapa no llega al borde → franja de fondo oscuro visible.
+           Fijamos margin-bottom: 0 para que stMainBlockContainer
+           border-box = padTop + iframe(hCalc) = stMain exactamente. */
+        [data-testid="stMainBlockContainer"] > div {
+            margin-bottom: 0 !important;
+        }
+
         /* ── MAP IFRAME ───────────────────────────────────────────────
            Altura mínima de seguridad para el iframe del mapa. */
         [data-map-frame] {

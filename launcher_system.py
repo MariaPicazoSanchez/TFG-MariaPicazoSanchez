@@ -860,20 +860,49 @@ def start_processes(api_enabled: bool = True, api_disabled_reason: str | None = 
                 el = el.parentElement;
             }
 
-            // Posición visual del iframe tras aplicar el zoom
-            var topPx = Math.round(mapFrame.getBoundingClientRect().top);
-            var hCalc = 'calc((100vh - ' + topPx + 'px) / ' + cur + ')';
+            // Estrategia: position:absolute + inset:0 en stMainBlockContainer.
+            //
+            // Por qué falla height:100% con border-box:
+            //   stMainBlockContainer tiene padding-top ≈96 px (Streamlit 1.47).
+            //   Con border-box, height:100% incluye ese padding → el área de
+            //   contenido queda 96 px más corta que stMain → franja negra/recorte.
+            //
+            // Solución: position:absolute + inset:0 ignora completamente padding
+            // y box-sizing: el elemento se ancla a los cuatro bordes de stMain
+            // (su containing block posicionado) y lo llena al 100% en píxeles
+            // reales, independientemente de cualquier padding interno.
+            //
+            // Cadena resultante (zoom ≠ 1):
+            //   stApp                = calc(100vh * inv)    ← sidebar applyFix
+            //   stMain               = 100%; position:relative; overflow:hidden
+            //   stMainBlockContainer = absolute; inset:0; padding:0
+            //   wrapper divs         = height:100%
+            //   iframe               = height:100%
+            //
+            // Al navegar a stats/new_user: styleEl queda vacío → stMain vuelve
+            // a overflow-y:auto (sidebar) para scroll normal del contenido.
 
             styleEl.textContent =
-                '[data-map-frame] { height: ' + hCalc + ' !important; } ' +
-                // Sólo los wrappers intermedios (no stMain/stAppViewContainer/stApp,
-                // que gestiona applyFix del sidebar con height:100%/calc(100vh*inv)).
-                // Si se les aplica hCalc también, stMain queda más corto que stApp
-                // y la diferencia aparece como franja negra al fondo.
-                '[data-map-wrap]:not([data-testid="stMain"])' +
+                // stMain: containing block posicionado para el absolute child.
+                // overflow:hidden recorta cualquier desbordamiento residual.
+                // Especificidad (0,2,0) > sidebar (0,1,0), ambos !important.
+                '[data-map-wrap][data-testid="stMain"]' +
+                ' { position: relative !important; overflow: hidden !important; } ' +
+                // stMainBlockContainer: se ancla a los 4 bordes de stMain.
+                // inset:0 ignora padding y box-sizing → cubre stMain al 100%.
+                // padding:0 elimina el hueco superior de Streamlit (≈96 px).
+                '[data-map-wrap][data-testid="stMainBlockContainer"]' +
+                ' { position: absolute !important; inset: 0 !important;' +
+                '   height: auto !important; padding: 0 !important;' +
+                '   overflow: hidden !important; } ' +
+                // Wrappers intermedios y iframe: cadena 100% hasta el iframe.
+                '[data-map-frame] { height: 100% !important; } ' +
+                '[data-map-wrap]' +
+                ':not([data-testid="stMainBlockContainer"])' +
+                ':not([data-testid="stMain"])' +
                 ':not([data-testid="stAppViewContainer"])' +
                 ':not([data-testid="stApp"])' +
-                ' { height: ' + hCalc + ' !important; overflow: visible !important; } ' +
+                ' { height: 100% !important; overflow: visible !important; } ' +
                 '[data-testid="stSidebar"] { min-height: calc(100vh / ' + cur + ') !important; overflow-x: hidden !important; overflow-y: visible !important; } ' +
                 '[data-testid="stSidebar"] > div:first-child { overflow: visible !important; height: auto !important; min-height: 0 !important; }';
 
