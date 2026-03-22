@@ -866,7 +866,14 @@ def start_processes(api_enabled: bool = True, api_disabled_reason: str | None = 
 
             styleEl.textContent =
                 '[data-map-frame] { height: ' + hCalc + ' !important; } ' +
-                '[data-map-wrap]  { height: ' + hCalc + ' !important; overflow: visible !important; } ' +
+                // Sólo los wrappers intermedios (no stMain/stAppViewContainer/stApp,
+                // que gestiona applyFix del sidebar con height:100%/calc(100vh*inv)).
+                // Si se les aplica hCalc también, stMain queda más corto que stApp
+                // y la diferencia aparece como franja negra al fondo.
+                '[data-map-wrap]:not([data-testid="stMain"])' +
+                ':not([data-testid="stAppViewContainer"])' +
+                ':not([data-testid="stApp"])' +
+                ' { height: ' + hCalc + ' !important; overflow: visible !important; } ' +
                 '[data-testid="stSidebar"] { min-height: calc(100vh / ' + cur + ') !important; overflow-x: hidden !important; overflow-y: visible !important; } ' +
                 '[data-testid="stSidebar"] > div:first-child { overflow: visible !important; height: auto !important; min-height: 0 !important; }';
 
