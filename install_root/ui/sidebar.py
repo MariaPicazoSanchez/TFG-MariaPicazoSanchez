@@ -317,11 +317,13 @@ def sidebar_controls() -> tuple[str | None, st.delta_generator.DeltaGenerator | 
         }
 
         /* ── STREAMLIT STATUS BAR ─────────────────────────────────────
-           La barra de estado inferior de Streamlit (stBottom) se
-           posiciona fija al fondo y tapa la parte inferior del mapa
-           con una franja oscura. Se oculta por completo. */
-        [data-testid="stBottom"] {
+           stBottom es position:fixed al fondo del viewport y tapa
+           la parte inferior del mapa con una franja oscura.
+           Ocultamos el contenedor exterior y el interior. */
+        [data-testid="stBottom"],
+        [data-testid="stBottomBlockContainer"] {
             display: none !important;
+            height:  0    !important;
         }
 
         /* ── ZOOM BODY FIX ────────────────────────────────────────────
@@ -335,25 +337,20 @@ def sidebar_controls() -> tuple[str | None, st.delta_generator.DeltaGenerator | 
     )
 
     # ── ZOOM LAYOUT FIX ────────────────────────────────────────────────────────
-    # Problema estructural cuando el launcher aplica zoom < 1 al body:
+    # Ajuste de layout dinámico para body.style.zoom del launcher.
     #
-    #   1. body.style.zoom = 0.8  →  body visual = 80% de la ventana  →  franja
-    #      negra en el 20% inferior (body no llena la ventana).
+    # El launcher gestiona:  body.style.zoom,  body/html overflow,  hCalc del mapa.
+    # Este fragmento gestiona únicamente la cadena de alturas de Streamlit para
+    # que stApp llene siempre el viewport visualmente, sin scroll de página ni
+    # franja negra debajo del contenido:
     #
-    #   2. El launcher marca con [data-map-wrap] TODOS los ancestros del iframe
-    #      del mapa y les asigna height:hCalc. Pero esos ancestros también
-    #      contienen el título y el aviso, de modo que su contenido CSS supera
-    #      hCalc  →  desbordamiento  →  el body genera scroll.
+    #   stApp       → height = 100vh / zoom  (ocupa exactamente el viewport)
+    #   stAppViewContainer → 100% de stApp
+    #   stMain      → 100% con overflow-y:auto  (scroll interno en vista stats)
+    #   stMainBlockContainer → height:auto  (flujo natural del contenido)
     #
-    # Solución en 3 pasos (sin tocar el EXE instalado):
-    #   A) html + body → overflow:hidden  (bloquea el scroll de página)
-    #   B) stApp       → height = 100% × (1/zoom)  (llena la ventana visual)
-    #   C) stMain      → height:100%; overflow-y:auto  (scrollea en stats)
-    #   D) stMainBlockContainer → height:auto  (deja que su contenido fluya)
-    #
-    # El style tag se mueve al FINAL de <head> cada vez que se aplica, así
-    # gana sobre las reglas del launcher con igual especificidad (el que va
-    # después en <head> tiene prioridad en CSS para !important iguales).
+    # El style se mueve al final de <head> en cada llamada para ganar sobre
+    # reglas anteriores con la misma especificidad.
     with st.sidebar:
         st.components.v1.html(
             """<script>
@@ -364,76 +361,50 @@ def sidebar_controls() -> tuple[str | None, st.delta_generator.DeltaGenerator | 
 
         function applyFix() {
             var zoom = parseFloat(p.document.body.style.zoom) || 1.0;
+            // inv = 1/zoom  →  stApp altura CSS tal que visual = 100vh
+            // Ej: zoom=1.1 → inv≈0.909 → stApp=818px CSS → 818×1.1=900px visual ✓
+            //     zoom=0.9 → inv≈1.111 → stApp=1000px CSS → 1000×0.9=900px visual ✓
+            var inv = (1 / zoom).toFixed(6);
 
-            // Obtener o crear nuestro <style>
+            // Obtener o crear nuestro <style> y moverlo al final de <head>
+            // para que tenga prioridad sobre reglas anteriores del launcher.
             var s = p.document.getElementById(SID);
             if (!s) {
                 s = p.document.createElement('style');
                 s.id = SID;
             }
-            // Mover SIEMPRE al final de <head> para ganar al launcher
-            // (misma especificidad → el último declarado gana)
             p.document.head.appendChild(s);
 
-            // Reglas comunes: cadena de alturas para llenar el viewport
-            // Se aplica SIEMPRE (zoom=1 y zoom<1) para evitar el fondo
-            // negro de pywebview que aparece debajo de stApp cuando su
-            // altura no llega a 100vh.
-            var common = [
+            // El overflow de html/body lo gestiona exclusivamente el launcher:
+            //   zoom < 1 → overflow:hidden (evita scroll cuando body encoge)
+            //   zoom ≥ 1 → overflow:''    (libre; stApp llena viewport exacto)
+            // No lo tocamos aquí para no interferir con body.style.zoom.
+
+            s.textContent = [
+                // stApp ocupa exactamente el viewport en píxeles visuales
+                '[data-testid="stApp"] {',
+                '  height:   calc(100vh * ' + inv + ') !important;',
+                '  overflow: hidden                     !important;',
+                '}',
                 // stAppViewContainer llena stApp
                 '[data-testid="stAppViewContainer"] {',
-                '  height:   100%   !important;',
+                '  height:   100% !important;',
                 '  overflow: hidden !important;',
                 '}',
-                // stMain llena stAppViewContainer; puede scrollear
-                // internamente (necesario para la vista de estadísticas)
+                // stMain llena stAppViewContainer y scrollea internamente
+                // (necesario para la vista de estadísticas)
                 '[data-testid="stMain"] {',
-                '  height:     100%  !important;',
-                '  overflow-y: auto  !important;',
+                '  height:     100% !important;',
+                '  overflow-y: auto !important;',
                 '}',
-                // stMainBlockContainer: altura natural para no luchar
-                // con el iframe del mapa (que ya tiene height:hCalc del launcher)
+                // stMainBlockContainer: altura natural para que el iframe
+                // del mapa (con hCalc del launcher) fluya sin restricciones
                 '[data-testid="stMainBlockContainer"] {',
                 '  height:         auto !important;',
                 '  min-height:     0    !important;',
                 '  padding-bottom: 0    !important;',
                 '}',
-            ];
-
-            if (zoom >= 1.0) {
-                // Sin zoom: stApp ocupa el viewport completo, sin escalar
-                p.document.documentElement.style.removeProperty('overflow');
-                p.document.body.style.removeProperty('overflow');
-                s.textContent = [
-                    '[data-testid="stApp"] {',
-                    '  height:   100vh  !important;',
-                    '  overflow: hidden !important;',
-                    '}',
-                ].concat(common).join('\\n');
-                return;
-            }
-
-            // zoom < 1: ajuste de escala completo
-            // Inverso del zoom, p.ej. 1/0.8 = 1.25
-            var inv = (1 / zoom).toFixed(6);
-
-            // A) Bloquear scroll de página (inline style, máxima prioridad)
-            p.document.documentElement.style.overflow = 'hidden';
-            p.document.body.style.overflow            = 'hidden';
-
-            // B-D) Cadena de alturas con escala
-            s.textContent = [
-                // Body llena la ventana visualmente
-                'body {',
-                '  min-height: calc(100% * ' + inv + ') !important;',
-                '}',
-                // stApp = altura visual completa de la ventana
-                '[data-testid="stApp"] {',
-                '  height:     calc(100% * ' + inv + ') !important;',
-                '  min-height: 0                        !important;',
-                '  overflow:   hidden                   !important;',
-                '}',
-            ].concat(common).join('\\n');
+            ].join('\\n');
         }
 
         applyFix();

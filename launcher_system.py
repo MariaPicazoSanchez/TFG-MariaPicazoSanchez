@@ -1,3 +1,5 @@
+#!python3.12
+# -*- coding: utf-8 -*-
 # ── Standard library ────────────────────────────────────────────────────────
 import asyncio
 import ctypes
@@ -942,7 +944,22 @@ def start_processes(api_enabled: bool = True, api_disabled_reason: str | None = 
                 _was_maximized = bool(_cfg.get("maximized", True))
                 _kw = {}
                 if "x" in _cfg and "y" in _cfg:
-                    _kw["x"], _kw["y"] = int(_cfg["x"]), int(_cfg["y"])
+                    _x, _y = int(_cfg["x"]), int(_cfg["y"])
+                    _w = int(_cfg.get("width", 1400))
+                    _h = int(_cfg.get("height", 900))
+                    # Validar que la ventana queda al menos parcialmente visible
+                    # en el escritorio virtual (multi-monitor).  GetSystemMetrics:
+                    #   76=SM_XVIRTUALSCREEN, 77=SM_YVIRTUALSCREEN
+                    #   78=SM_CXVIRTUALSCREEN, 79=SM_CYVIRTUALSCREEN
+                    _sm = ctypes.windll.user32.GetSystemMetrics
+                    _vx, _vy = _sm(76), _sm(77)
+                    _vw, _vh = _sm(78), _sm(79)
+                    _on_screen = (
+                        _x < _vx + _vw - 50 and _y < _vy + _vh - 50
+                        and _x > _vx - _w + 50 and _y > _vy - _h + 50
+                    )
+                    if _on_screen:
+                        _kw["x"], _kw["y"] = _x, _y
 
                 _win = _wv.create_window(
                     "Movilidad ESII", url,
@@ -971,12 +988,23 @@ def start_processes(api_enabled: bool = True, api_disabled_reason: str | None = 
                                         ("rcNormal", ctypes.wintypes.RECT)]
                         wp = _WP(); wp.length = ctypes.sizeof(wp)
                         ctypes.windll.user32.GetWindowPlacement(hwnd, ctypes.byref(wp))
-                        _write_cfg({
-                            "maximized": wp.showCmd == 3,
-                            "x": wp.rcNormal.left, "y": wp.rcNormal.top,
-                            "width":  wp.rcNormal.right  - wp.rcNormal.left,
-                            "height": wp.rcNormal.bottom - wp.rcNormal.top,
-                        })
+                        _is_max = wp.showCmd == 3
+                        _state: dict = {"maximized": _is_max}
+                        # Cuando la ventana está maximizada, rcNormal contiene la
+                        # posición de restauración virtual de Win32 (-32768, 32767),
+                        # que no corresponde a ninguna coordenada visible en pantalla.
+                        # Solo guardamos x/y cuando la ventana está en estado normal.
+                        if not _is_max:
+                            _rx = wp.rcNormal.left
+                            _ry = wp.rcNormal.top
+                            _rw = wp.rcNormal.right  - wp.rcNormal.left
+                            _rh = wp.rcNormal.bottom - wp.rcNormal.top
+                            if _rw > 0 and _rh > 0:
+                                _state.update({
+                                    "x": _rx, "y": _ry,
+                                    "width": _rw, "height": _rh,
+                                })
+                        _write_cfg(_state)
                     except Exception:
                         pass
 
@@ -1083,6 +1111,7 @@ def start_processes(api_enabled: bool = True, api_disabled_reason: str | None = 
         LOGGER.info("Procesos detenidos.")
         # Forzar salida del launcher para evitar que hilos daemon lo retengan
         sys.exit(0)
+
 
 
 def run_launcher() -> int:
