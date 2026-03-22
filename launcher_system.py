@@ -852,6 +852,28 @@ def start_processes(api_enabled: bool = True, api_disabled_reason: str | None = 
                 return;
             }
 
+            // Medir el padding horizontal NATURAL de stMainBlockContainer
+            // (antes de aplicar nuestro override de padding:0).
+            // Lo cacheamos en window.__mapNatPadH para que llamadas sucesivas
+            // no lean el valor ya sobreescrito a 0.
+            if (!window.__mapNatPadH) {
+                var _mbc = document.querySelector('[data-testid="stMainBlockContainer"]');
+                if (_mbc) {
+                    var _s = getComputedStyle(_mbc);
+                    var _pl = parseFloat(_s.paddingLeft)  || 0;
+                    var _pr = parseFloat(_s.paddingRight) || 0;
+                    // Usar el mayor de los dos lados y fijar un mínimo de 8 px
+                    window.__mapNatPadH = Math.max(_pl, _pr, 8);
+                } else {
+                    window.__mapNatPadH = 16; // fallback: 1rem estándar Streamlit
+                }
+            }
+            // Margen lateral CSS tal que margen visual = __mapNatPadH px siempre.
+            // Con body.style.zoom = cur, un valor CSS de (padH/cur) px se ve
+            // como padH px en pantalla → uniformidad a cualquier nivel de zoom.
+            var padH    = window.__mapNatPadH;
+            var marginH = 'calc(' + padH + 'px / ' + cur + ')';
+
             // Marcar iframe y todos sus ancestros para targeting CSS
             mapFrame.setAttribute('data-map-frame', '1');
             var el = mapFrame.parentElement;
@@ -860,27 +882,21 @@ def start_processes(api_enabled: bool = True, api_disabled_reason: str | None = 
                 el = el.parentElement;
             }
 
-            // Estrategia: position:absolute + inset:0 en stMainBlockContainer.
+            // Estrategia: position:absolute + inset para stMainBlockContainer.
             //
-            // Por qué falla height:100% con border-box:
-            //   stMainBlockContainer tiene padding-top ≈96 px (Streamlit 1.47).
-            //   Con border-box, height:100% incluye ese padding → el área de
-            //   contenido queda 96 px más corta que stMain → franja negra/recorte.
-            //
-            // Solución: position:absolute + inset:0 ignora completamente padding
-            // y box-sizing: el elemento se ancla a los cuatro bordes de stMain
-            // (su containing block posicionado) y lo llena al 100% en píxeles
-            // reales, independientemente de cualquier padding interno.
+            // • inset vertical  = 0      → cubre toda la altura de stMain
+            //   sin depender de box-sizing ni padding-top (≈96 px Streamlit).
+            // • inset horizontal = padH/cur px → margen visual constante igual
+            //   al padding natural de Streamlit a zoom=1 (normalmente 1rem=16px).
+            // • padding:0 elimina el relleno interno para que el iframe ocupe
+            //   todo el espacio delimitado por el inset.
             //
             // Cadena resultante (zoom ≠ 1):
             //   stApp                = calc(100vh * inv)    ← sidebar applyFix
             //   stMain               = 100%; position:relative; overflow:hidden
-            //   stMainBlockContainer = absolute; inset:0; padding:0
+            //   stMainBlockContainer = absolute; inset:0 marginH; padding:0
             //   wrapper divs         = height:100%
             //   iframe               = height:100%
-            //
-            // Al navegar a stats/new_user: styleEl queda vacío → stMain vuelve
-            // a overflow-y:auto (sidebar) para scroll normal del contenido.
 
             styleEl.textContent =
                 // stMain: containing block posicionado para el absolute child.
@@ -888,12 +904,16 @@ def start_processes(api_enabled: bool = True, api_disabled_reason: str | None = 
                 // Especificidad (0,2,0) > sidebar (0,1,0), ambos !important.
                 '[data-map-wrap][data-testid="stMain"]' +
                 ' { position: relative !important; overflow: hidden !important; } ' +
-                // stMainBlockContainer: se ancla a los 4 bordes de stMain.
-                // inset:0 ignora padding y box-sizing → cubre stMain al 100%.
-                // padding:0 elimina el hueco superior de Streamlit (≈96 px).
+                // stMainBlockContainer: inset:0 lo ancla a los 4 bordes de stMain.
+                // El margen lateral se crea con padding interno (más robusto que
+                // usar right:X, que depende del borde derecho de stMain, el cual
+                // puede quedar fuera de la viewport al hacer zoom in).
+                // box-sizing:border-box asegura que padding no añade altura extra.
                 '[data-map-wrap][data-testid="stMainBlockContainer"]' +
                 ' { position: absolute !important; inset: 0 !important;' +
-                '   height: auto !important; padding: 0 !important;' +
+                '   height: auto !important;' +
+                '   padding: 0 ' + marginH + ' !important;' +
+                '   box-sizing: border-box !important;' +
                 '   overflow: hidden !important; } ' +
                 // Wrappers intermedios y iframe: cadena 100% hasta el iframe.
                 '[data-map-frame] { height: 100% !important; } ' +
