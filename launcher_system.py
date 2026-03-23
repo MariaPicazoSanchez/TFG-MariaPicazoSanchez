@@ -956,9 +956,24 @@ def start_processes(api_enabled: bool = True, api_disabled_reason: str | None = 
             document.querySelectorAll('iframe').forEach(function(f) {
                 if (f.offsetHeight > maxH) { maxH = f.offsetHeight; frame = f; }
             });
-            if (!frame || frame === _lastFrame) return;
-            _lastFrame = frame;
-            applyZoom(_cur);
+            var hasMapFrame = frame && maxH >= 100;
+            if (hasMapFrame && frame !== _lastFrame) {
+                _lastFrame = frame;
+                applyZoom(_cur);
+            } else if (!hasMapFrame && _lastFrame) {
+                // El mapa desapareció (navegación a otra vista): limpiar atributos
+                // y CSS de posicionamiento para que los dropdowns funcionen bien.
+                _lastFrame = null;
+                var styleEl = document.getElementById('__map_fill_style');
+                if (styleEl) styleEl.textContent = '';
+                document.querySelectorAll('[data-map-wrap]').forEach(function(el) {
+                    el.removeAttribute('data-map-wrap');
+                });
+                document.querySelectorAll('[data-map-frame]').forEach(function(el) {
+                    el.removeAttribute('data-map-frame');
+                });
+                window.__mapNatPadH = null;
+            }
         }
         new MutationObserver(function() {
             if (_pending) return;

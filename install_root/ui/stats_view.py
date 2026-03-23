@@ -529,6 +529,40 @@ def render_stats_view() -> None:
         st.session_state["export_xlsx_name"] = filename
         st.session_state["export_generate"] = False
 
+    # Mostrar el botón adecuado usando st.components.v1.html para máxima compatibilidad JS
+    xlsx_bytes = st.session_state.get("export_xlsx_bytes")
+    xlsx_name = st.session_state.get("export_xlsx_name")
+    if xlsx_bytes and xlsx_name:
+        import base64
+        import streamlit.components.v1 as components
+        xlsx_b64 = base64.b64encode(xlsx_bytes).decode("utf-8")
+        components.html(f"""
+<button onclick=\"saveExcelFile()\">💾 Guardar Excel</button>
+<script>
+function saveExcelFile() {{
+    if (!window.pywebview) {{
+        alert('pywebview NO disponible');
+        return;
+    }}
+    window.pywebview.api.save_file(
+        'data:application/vnd.openxmlformats-officedocument.spreadsheetml.sheet;base64,{xlsx_b64}',
+        '{xlsx_name}'
+    ).then(r => {{
+        alert(JSON.stringify(r));
+    }}).catch(e => {{
+        alert('ERROR: ' + e);
+    }});
+}}
+</script>
+""", height=120)
+        # Botón de descarga normal (web)
+        st.download_button(
+            label="⬇️ Descargar Excel",
+            data=xlsx_bytes,
+            file_name=xlsx_name,
+            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        )
+
 
     # ===========================
     # DETALLES

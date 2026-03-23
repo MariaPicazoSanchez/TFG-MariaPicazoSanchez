@@ -323,11 +323,28 @@ def sidebar_controls() -> tuple[str | None, st.delta_generator.DeltaGenerator | 
             height:  0    !important;
         }
 
+        /* ── STREAMLIT HEADER / TOOLBAR ──────────────────────────────
+           En pywebview la barra de título es nativa (OS). El header de
+           Streamlit (botón Deploy, menú ⋮) ocupa ~2.875rem de alto y
+           fuerza a stMainBlockContainer a añadir padding-top enorme.
+           Lo ocultamos para que el contenido use todo el espacio. */
+        [data-testid="stHeader"] {
+            display: none !important;
+            height:  0    !important;
+        }
+
         /* ── MAIN CONTENT ─────────────────────────────────────────────
-           Eliminar el padding inferior por defecto de Streamlit que
-           deja espacio vacío bajo el mapa al hacer scroll. */
+           Eliminar todos los paddings por defecto de Streamlit para que
+           el contenido ocupe el área completa igual que el mapa.
+           El mapa sobre-escribe esto con position:absolute+inset:0
+           (especificidad [0,2,0] > [0,1,0] aquí), así que no le afecta. */
         [data-testid="stMainBlockContainer"] {
-            padding-bottom: 0 !important;
+            padding-top:    1rem !important;
+            padding-left:   1rem !important;
+            padding-right:  1rem !important;
+            padding-bottom: 0    !important;
+            box-sizing:     border-box !important;
+            width:          100% !important;
         }
 
         /* El hijo directo de stMainBlockContainer es el wrapper que
@@ -422,16 +439,23 @@ def sidebar_controls() -> tuple[str | None, st.delta_generator.DeltaGenerator | 
                 '  height:   100% !important;',
                 '  overflow: hidden !important;',
                 '}',
-                // stMain llena stAppViewContainer y scrollea internamente
-                // (necesario para la vista de estadísticas)
+                // stMain llena stAppViewContainer. El scroll se delega a
+                // stMainBlockContainer para que height:100% en el hijo funcione
+                // correctamente en WebView2 (min-height:100% en flex items es
+                // poco fiable en Chromium cuando el padre usa overflow:auto).
                 '[data-testid="stMain"] {',
-                '  height:     100% !important;',
-                '  overflow-y: auto !important;',
+                '  height:   100%   !important;',
+                '  overflow: hidden !important;',
                 '}',
-                // stMainBlockContainer: altura natural para que el iframe
-                // del mapa (con hCalc del launcher) fluya sin restricciones
+                // stMainBlockContainer: height:100% lo ancla exactamente a
+                // stMain (llena todo el viewport → sin franja oscura aunque el
+                // contenido sea corto). overflow-y:auto permite scroll cuando
+                // el contenido supera la altura del viewport.
+                // El mapa sobreescribe esto con position:absolute+inset:0
+                // (especificidad [0,2,0] > [0,1,0]) → no le afecta.
                 '[data-testid="stMainBlockContainer"] {',
-                '  height:         auto !important;',
+                '  height:         100% !important;',
+                '  overflow-y:     auto !important;',
                 '  min-height:     0    !important;',
                 '  padding-bottom: 0    !important;',
                 '}',

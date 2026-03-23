@@ -208,20 +208,12 @@ def render_filters_stats(available_courses: list[str]) -> None:
                     st.info("💡 Selecciona al menos una tabla para exportar.")
                 else:
                     xlsx_bytes, xlsx_name = sh.build_export_xlsx(course, selections, config_fp)
-
-                    downloaded = st.download_button(
-                        "⬇️ Descargar Excel",
-                        data=xlsx_bytes,
-                        file_name=xlsx_name,
-                        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                        use_container_width=True,
-                        type="secondary",
-                    )
-
-                    # Si quieres que tras descargar se cierre y vuelva el botón:
-                    if downloaded:
-                        st.session_state["export_open"] = False
-                        st.rerun()
+                    import os
+                    if st.button("💾 Guardar Excel en Descargas", use_container_width=True):
+                        ruta = os.path.join(os.path.expanduser("~"), "Downloads", xlsx_name)
+                        with open(ruta, "wb") as f:
+                            f.write(xlsx_bytes)
+                        st.success(f"Archivo guardado en: {ruta}")
 
 
     # Resumen de filtros activos

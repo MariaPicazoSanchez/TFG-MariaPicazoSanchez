@@ -241,7 +241,7 @@ def build_export_xlsx(
     xlsx = build_stats_excel(
         tables=tables,
         meta={"Curso": course},
-        warnings=warnings,
+        export_warnings=warnings,
     )
     filename = f"estadisticas_{course}.xlsx".replace("/", "-")
     return xlsx, filename
