@@ -825,19 +825,61 @@ def start_processes(api_enabled: bool = True, api_disabled_reason: str | None = 
 
     function applyZoom(cur) {
         _cur = cur;
-        document.body.style.zoom      = cur === 1.0 ? ''                          : cur;
-        // Con zoom<1, el body sólo cubre zoom×100% de la ventana visualmente.
-        // min-height corrige la altura y overflow:hidden bloquea el scroll de página.
-        document.body.style.minHeight                  = cur < 1.0 ? 'calc(100% / ' + cur + ')' : '';
-        document.body.style.overflow                   = cur < 1.0 ? 'hidden' : '';
-        document.documentElement.style.overflow        = cur < 1.0 ? 'hidden' : '';
-        try { if (window.pywebview && window.pywebview.api) window.pywebview.api.save_zoom(cur); } catch(e) {}
 
+        // =========================
+        // ZOOM BASE
+        // =========================
+        document.body.style.zoom = cur === 1.0 ? '' : cur;
+        document.body.style.minHeight = cur < 1.0 ? 'calc(100% / ' + cur + ')' : '';
+        document.body.style.overflow = cur < 1.0 ? 'hidden' : '';
+        document.documentElement.style.overflow = cur < 1.0 ? 'hidden' : '';
+
+        try {
+            if (window.pywebview && window.pywebview.api) {
+                window.pywebview.api.save_zoom(cur);
+            }
+        } catch(e) {}
+
+        // =========================
+        // GLOBAL
+        // =========================
+        var globalFix = document.getElementById('__global_layout_fix');
+        if (!globalFix) {
+            globalFix = document.createElement('style');
+            globalFix.id = '__global_layout_fix';
+            document.head.appendChild(globalFix);
+        }
+
+        globalFix.textContent = `
+            html, body {
+                height: 100% !important;
+                min-height: 100% !important;
+            }
+
+            [data-testid="stAppViewContainer"] {
+                min-height: calc(100vh / ${cur}) !important;
+            }
+
+            [data-testid="stMain"] {
+                min-height: calc(100vh / ${cur}) !important;
+            }
+
+            [data-testid="stMainBlockContainer"] {
+                min-height: calc(100vh / ${cur}) !important;
+            }
+        `;
+
+        // =========================
+        // MAPA 
+        // =========================
         setTimeout(function() {
-            // Encontrar el iframe del mapa (el más alto)
+
             var mapFrame = null, maxH = 0;
             document.querySelectorAll('iframe').forEach(function(f) {
-                if (f.offsetHeight > maxH) { maxH = f.offsetHeight; mapFrame = f; }
+                if (f.offsetHeight > maxH) {
+                    maxH = f.offsetHeight;
+                    mapFrame = f;
+                }
             });
 
             var styleEl = document.getElementById('__map_fill_style');
@@ -852,85 +894,57 @@ def start_processes(api_enabled: bool = True, api_disabled_reason: str | None = 
                 return;
             }
 
-            // Medir el padding horizontal NATURAL de stMainBlockContainer
-            // (antes de aplicar nuestro override de padding:0).
-            // Lo cacheamos en window.__mapNatPadH para que llamadas sucesivas
-            // no lean el valor ya sobreescrito a 0.
             if (!window.__mapNatPadH) {
                 var _mbc = document.querySelector('[data-testid="stMainBlockContainer"]');
                 if (_mbc) {
                     var _s = getComputedStyle(_mbc);
-                    var _pl = parseFloat(_s.paddingLeft)  || 0;
+                    var _pl = parseFloat(_s.paddingLeft) || 0;
                     var _pr = parseFloat(_s.paddingRight) || 0;
-                    // Usar el mayor de los dos lados y fijar un mínimo de 8 px
                     window.__mapNatPadH = Math.max(_pl, _pr, 8);
                 } else {
-                    window.__mapNatPadH = 16; // fallback: 1rem estándar Streamlit
+                    window.__mapNatPadH = 16;
                 }
             }
-            // Margen lateral CSS tal que margen visual = __mapNatPadH px siempre.
-            // Con body.style.zoom = cur, un valor CSS de (padH/cur) px se ve
-            // como padH px en pantalla → uniformidad a cualquier nivel de zoom.
-            var padH    = window.__mapNatPadH;
+
+            var padH = window.__mapNatPadH;
             var marginH = 'calc(' + padH + 'px / ' + cur + ')';
 
-            // Marcar iframe y todos sus ancestros para targeting CSS
             mapFrame.setAttribute('data-map-frame', '1');
+
             var el = mapFrame.parentElement;
             while (el && el !== document.body) {
                 el.setAttribute('data-map-wrap', '1');
                 el = el.parentElement;
             }
 
-            // Estrategia: position:absolute + inset para stMainBlockContainer.
-            //
-            // • inset vertical  = 0      → cubre toda la altura de stMain
-            //   sin depender de box-sizing ni padding-top (≈96 px Streamlit).
-            // • inset horizontal = padH/cur px → margen visual constante igual
-            //   al padding natural de Streamlit a zoom=1 (normalmente 1rem=16px).
-            // • padding:0 elimina el relleno interno para que el iframe ocupe
-            //   todo el espacio delimitado por el inset.
-            //
-            // Cadena resultante (zoom ≠ 1):
-            //   stApp                = calc(100vh * inv)    ← sidebar applyFix
-            //   stMain               = 100%; position:relative; overflow:hidden
-            //   stMainBlockContainer = absolute; inset:0 marginH; padding:0
-            //   wrapper divs         = height:100%
-            //   iframe               = height:100%
-
             styleEl.textContent =
-                // stMain: containing block posicionado para el absolute child.
-                // overflow:hidden recorta cualquier desbordamiento residual.
-                // Especificidad (0,2,0) > sidebar (0,1,0), ambos !important.
                 '[data-map-wrap][data-testid="stMain"]' +
                 ' { position: relative !important; overflow: hidden !important; } ' +
-                // stMainBlockContainer: inset:0 lo ancla a los 4 bordes de stMain.
-                // El margen lateral se crea con padding interno (más robusto que
-                // usar right:X, que depende del borde derecho de stMain, el cual
-                // puede quedar fuera de la viewport al hacer zoom in).
-                // box-sizing:border-box asegura que padding no añade altura extra.
+
                 '[data-map-wrap][data-testid="stMainBlockContainer"]' +
                 ' { position: absolute !important; inset: 0 !important;' +
                 '   height: auto !important;' +
                 '   padding: 0 ' + marginH + ' !important;' +
                 '   box-sizing: border-box !important;' +
                 '   overflow: hidden !important; } ' +
-                // Wrappers intermedios y iframe: cadena 100% hasta el iframe.
+
                 '[data-map-frame] { height: 100% !important; } ' +
+
                 '[data-map-wrap]' +
                 ':not([data-testid="stMainBlockContainer"])' +
                 ':not([data-testid="stMain"])' +
                 ':not([data-testid="stAppViewContainer"])' +
                 ':not([data-testid="stApp"])' +
                 ' { height: 100% !important; overflow: visible !important; } ' +
+
                 '[data-testid="stSidebar"] { min-height: calc(100vh / ' + cur + ') !important; overflow-x: hidden !important; overflow-y: visible !important; } ' +
                 '[data-testid="stSidebar"] > div:first-child { overflow: visible !important; height: auto !important; min-height: 0 !important; }';
 
-            // Invalidar Leaflet para que redibuje al nuevo tamaño
             setTimeout(function() {
                 try {
                     var w = mapFrame.contentWindow;
                     if (!w) return;
+
                     Object.keys(w).forEach(function(k) {
                         try {
                             var obj = w[k];
@@ -941,71 +955,47 @@ def start_processes(api_enabled: bool = True, api_disabled_reason: str | None = 
                     });
                 } catch(e) {}
             }, 80);
+
         }, 150);
     }
 
     if (_cur !== 1.0) applyZoom(_cur);
 
-    // Re-aplicar cuando Streamlit recrea el iframe del mapa
-    (function() {
-        var _lastFrame = null, _pending = false;
-        function _recheck() {
-            _pending = false;
-            if (_cur === 1.0) return;
-            var frame = null, maxH = 0;
-            document.querySelectorAll('iframe').forEach(function(f) {
-                if (f.offsetHeight > maxH) { maxH = f.offsetHeight; frame = f; }
-            });
-            var hasMapFrame = frame && maxH >= 100;
-            if (hasMapFrame && frame !== _lastFrame) {
-                _lastFrame = frame;
-                applyZoom(_cur);
-            } else if (!hasMapFrame && _lastFrame) {
-                // El mapa desapareció (navegación a otra vista): limpiar atributos
-                // y CSS de posicionamiento para que los dropdowns funcionen bien.
-                _lastFrame = null;
-                var styleEl = document.getElementById('__map_fill_style');
-                if (styleEl) styleEl.textContent = '';
-                document.querySelectorAll('[data-map-wrap]').forEach(function(el) {
-                    el.removeAttribute('data-map-wrap');
-                });
-                document.querySelectorAll('[data-map-frame]').forEach(function(el) {
-                    el.removeAttribute('data-map-frame');
-                });
-                window.__mapNatPadH = null;
-            }
-        }
-        new MutationObserver(function() {
-            if (_pending) return;
-            _pending = true;
-            setTimeout(_recheck, 300);
-        }).observe(document.body, { childList: true, subtree: true });
-    })();
-
     document.addEventListener('wheel', function(e) {
         if (!e.ctrlKey) return;
         e.preventDefault();
+
         var cur = _cur;
+
         if (e.deltaY < 0) cur = Math.min(+(cur + 0.1).toFixed(1), 3.0);
-        else               cur = Math.max(+(cur - 0.1).toFixed(1), 0.3);
+        else cur = Math.max(+(cur - 0.1).toFixed(1), 0.3);
+
         applyZoom(cur);
     }, { passive: false });
 
     document.addEventListener('keydown', function(e) {
         if (!e.ctrlKey) return;
+
         var k = e.key;
         var c = e.keyCode || e.which;
-        var zoomIn  = (k === '+' || k === '=' || k === 'Add'      || c === 187 || c === 107);
-        var zoomOut = (k === '-' || k === 'Subtract'              || c === 189 || c === 109);
-        var zoomRst = (k === '0'                                  || c === 48);
+
+        var zoomIn  = (k === '+' || k === '=' || k === 'Add' || c === 187 || c === 107);
+        var zoomOut = (k === '-' || k === 'Subtract' || c === 189 || c === 109);
+        var zoomRst = (k === '0' || c === 48);
+
         if (!zoomIn && !zoomOut && !zoomRst) return;
+
         e.preventDefault();
+
         var cur = _cur;
+
         if (zoomIn)  cur = Math.min(+(cur + 0.1).toFixed(1), 3.0);
         if (zoomOut) cur = Math.max(+(cur - 0.1).toFixed(1), 0.3);
         if (zoomRst) cur = 1.0;
+
         applyZoom(cur);
     });
+
 })();
 """
 
