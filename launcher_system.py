@@ -967,8 +967,8 @@ def start_processes(api_enabled: bool = True, api_disabled_reason: str | None = 
 
         var cur = _cur;
 
-        if (e.deltaY < 0) cur = Math.min(+(cur + 0.1).toFixed(1), 3.0);
-        else cur = Math.max(+(cur - 0.1).toFixed(1), 0.3);
+        if (e.deltaY < 0) cur = Math.min(+(cur + 0.1).toFixed(1), 1.1);
+        else cur = Math.max(+(cur - 0.1).toFixed(1), 0.8);
 
         applyZoom(cur);
     }, { passive: false });
@@ -989,8 +989,8 @@ def start_processes(api_enabled: bool = True, api_disabled_reason: str | None = 
 
         var cur = _cur;
 
-        if (zoomIn)  cur = Math.min(+(cur + 0.1).toFixed(1), 3.0);
-        if (zoomOut) cur = Math.max(+(cur - 0.1).toFixed(1), 0.3);
+        if (zoomIn)  cur = Math.min(+(cur + 0.1).toFixed(1), 1.1);
+        if (zoomOut) cur = Math.max(+(cur - 0.1).toFixed(1), 0.9);
         if (zoomRst) cur = 1.0;
 
         applyZoom(cur);
@@ -1001,7 +1001,7 @@ def start_processes(api_enabled: bool = True, api_disabled_reason: str | None = 
 
             if wait_for_http(url, timeout=30.0):
                 _cfg = _read_cfg()
-                _init_zoom = float(_cfg.get("zoom", 1.0))
+                _init_zoom = max(0.8, min(1.1, float(_cfg.get("zoom", 1.0))))
                 _was_maximized = bool(_cfg.get("maximized", True))
                 _kw = {}
                 if "x" in _cfg and "y" in _cfg:
