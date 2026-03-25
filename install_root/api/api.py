@@ -129,6 +129,16 @@ def parse_materias_raw(materias_raw: str):
                         str(item.get("asignatura") or item.get("nombre") or "")
                         .strip()
                     )
+                    # Sanear dato corrupto: si asig es un JSON anidado, extraer el valor real
+                    if asig and (asig.startswith("[") or asig.startswith("{")):
+                        try:
+                            _inner = json.loads(asig)
+                            if isinstance(_inner, list) and _inner and isinstance(_inner[0], dict):
+                                asig = str(_inner[0].get("asignatura") or _inner[0].get("nombre") or asig).strip()
+                            elif isinstance(_inner, dict):
+                                asig = str(_inner.get("asignatura") or _inner.get("nombre") or asig).strip()
+                        except Exception:
+                            pass
                     if not asig:
                         continue
 
@@ -316,8 +326,14 @@ def update_student():
             logger.debug("materias_in parseadas = %d", len(materias_in))
 
             # Validación Erasmus IN: debe tener al menos una asignatura
-            if es_erasmus_in and not materias_in:
+            # (los alumnos de investigación están exentos; siempre conservan "Estancia Investigación")
+            is_investigacion = (form.get("is_investigacion", "") == "1")
+            if es_erasmus_in and not materias_in and not is_investigacion:
                 return _build_js_response(False, ["El alumno debe tener al menos una asignatura."])
+
+            # Si es investigación y materias_raw llegó vacío, restaurar la materia por defecto
+            if is_investigacion and not materias_in:
+                materias_in = [{"asignatura": "Estancia Investigaci\u00f3n", "cuat": "", "firmado": "", "link_la": ""}]
 
             materias_sheet_name = (form.get("materias_sheet_name") or "").strip()
             logger.debug("materias_sheet_name='%s'", materias_sheet_name)

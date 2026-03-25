@@ -39,6 +39,17 @@ def build_materias_blocks(e, programa: str, row_index_attr: str, idx_attr: str, 
         continue
 
       asig = _clean(m.get("asignatura"))
+      # Sanear dato corrupto: si asig es un JSON (todo el payload guardado como string)
+      # extraer la asignatura real del primer elemento
+      if asig and (asig.startswith("[") or asig.startswith("{")):
+        try:
+          _parsed = json.loads(asig)
+          if isinstance(_parsed, list) and _parsed and isinstance(_parsed[0], dict):
+            asig = _clean(_parsed[0].get("asignatura") or _parsed[0].get("nombre")) or asig
+          elif isinstance(_parsed, dict):
+            asig = _clean(_parsed.get("asignatura") or _parsed.get("nombre")) or asig
+        except Exception:
+          pass
       if not asig:
         continue
 
@@ -197,6 +208,7 @@ def build_materias_blocks(e, programa: str, row_index_attr: str, idx_attr: str, 
     # ---- 5) Bloque de EDICIÓN (lista + editor + textarea) ----
     if es_investigacion:
         materias_edit_block = f"""
+      <input type="hidden" name="is_investigacion" value="1">
       <div class="field full">
         <label>Tipo de estancia</label>
         <div class="no-mat">Estancia de investigaci\u00f3n</div>

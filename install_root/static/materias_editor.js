@@ -344,6 +344,10 @@
         const progInput = form.querySelector('input[name="programa"]');
         if (!progInput || progInput.value.toLowerCase() !== PROGRAMA_ERASMUS_IN) return;
 
+        // Alumnos de investigación no necesitan asignaturas
+        const isInvestigacion = form.querySelector('input[name="is_investigacion"]')?.value === "1";
+        if (isInvestigacion) return;
+
         const textarea = form.querySelector('textarea[name="materias_raw"]');
         let materias = [];
         try { materias = JSON.parse(textarea?.value ?? "[]"); } catch (_) {}

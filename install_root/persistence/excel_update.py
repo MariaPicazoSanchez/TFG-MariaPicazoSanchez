@@ -854,6 +854,17 @@ def actualizar_excel_materias_para_estudiante(materias_in, est, materias_path: s
             if not isinstance(m, dict):
                 continue
             asig = str(m.get("asignatura") or m.get("nombre") or "").strip()
+            # Sanear dato corrupto: si asig es un JSON anidado, extraer el valor real
+            if asig and (asig.startswith("[") or asig.startswith("{")):
+                try:
+                    import json as _j
+                    _inner = _j.loads(asig)
+                    if isinstance(_inner, list) and _inner and isinstance(_inner[0], dict):
+                        asig = str(_inner[0].get("asignatura") or _inner[0].get("nombre") or asig).strip()
+                    elif isinstance(_inner, dict):
+                        asig = str(_inner.get("asignatura") or _inner.get("nombre") or asig).strip()
+                except Exception:
+                    pass
             if not asig:
                 continue
             item_origen = str(m.get("origen") or "").strip()
