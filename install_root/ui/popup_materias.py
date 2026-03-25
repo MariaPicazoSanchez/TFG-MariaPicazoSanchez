@@ -24,6 +24,11 @@ def build_materias_blocks(e, programa: str, row_index_attr: str, idx_attr: str, 
 
     has_materias = len(materias) > 0
 
+    es_investigacion = any(
+        m.get("asignatura", "").strip().lower() == "estancia investigaci\u00f3n"
+        for m in materias if isinstance(m, dict)
+    )
+
     pills = []   # para la vista
     lines = []   # "Asignatura | Cuat | x"
     materias_items = []  # filas <li> editables
@@ -107,7 +112,9 @@ def build_materias_blocks(e, programa: str, row_index_attr: str, idx_attr: str, 
     materias_items_html = "\n".join(materias_items)
 
     # ---- 2) Bloque de VISTA ----
-    if pills:
+    if es_investigacion:
+        materias_view_html = "<div class='no-mat'>Alumno de estancia de investigaci\u00f3n</div>"
+    elif pills:
         materias_view_html = (
           "<details class='mat' role='group'>"
           f"<summary>📚 Materias ({len(pills)})</summary>"
@@ -135,6 +142,8 @@ def build_materias_blocks(e, programa: str, row_index_attr: str, idx_attr: str, 
     catalog_for_editor = []
     for a in (asignaturas_catalog or []):
         asig_name = a.get("asignatura", "")
+        if asig_name.strip().lower() == "estancia investigación":
+            continue
         a_cuat = str(a.get("cuat") or "").replace(".0", "").strip()
         matr_a = a.get("matriculados")
         cupo_a = a.get("cupo")
@@ -160,19 +169,13 @@ def build_materias_blocks(e, programa: str, row_index_attr: str, idx_attr: str, 
     catalog_json = json.dumps(catalog_for_editor, ensure_ascii=False)
     catalog_json_escaped = catalog_json.replace('"', '&quot;')
 
-    # ---- 5) Bloque de EDICIÓN (lista + editor + textarea) ----
-    materias_edit_block = f"""
-      <div class="field full materias-block" data-catalog="{catalog_json_escaped}" data-student-cuat="{html.escape(student_cuat or '', quote=True)}">
-        <label>Asignaturas (materias_in)</label>
-
-        <ul class="materias-list">
-          {materias_items_html}
+    add_row_html = "" if es_investigacion else """
           <li style="height:0.5rem;"></li>
           <li class="materia-row add-row">
             <button type="button" class="icon-btn materia-add"> Añadir asignatura</button>
-          </li>
-        </ul>
+          </li>"""
 
+    editor_html = "" if es_investigacion else f"""
         <div class="materia-editor" style="display:none;">
           <div class="field">
             <label>Asignatura</label>
@@ -189,8 +192,29 @@ def build_materias_blocks(e, programa: str, row_index_attr: str, idx_attr: str, 
               <button type="button" class="materia-save" style="flex:1 1 0;">Guardar</button>
             </div>
           </div>
-        </div>
-        <!-- Representación “raw” en texto, para enviar en el form -->
+        </div>"""
+
+    # ---- 5) Bloque de EDICIÓN (lista + editor + textarea) ----
+    if es_investigacion:
+        materias_edit_block = f"""
+      <div class="field full">
+        <label>Tipo de estancia</label>
+        <div class="no-mat">Estancia de investigaci\u00f3n</div>
+        <textarea name="materias_raw" style="display:none;">{html.escape(materias_text)}</textarea>
+      </div>
+    """
+    else:
+        materias_edit_block = f"""
+      <div class="field full materias-block" data-catalog="{catalog_json_escaped}" data-student-cuat="{html.escape(student_cuat or '', quote=True)}">
+        <label>Asignaturas (materias_in)</label>
+
+        <ul class="materias-list">
+          {materias_items_html}
+          {add_row_html}
+        </ul>
+
+        {editor_html}
+        <!-- Representación "raw" en texto, para enviar en el form -->
         <textarea name="materias_raw" style="display:none;">{html.escape(materias_text)}</textarea>
       </div>
     """
