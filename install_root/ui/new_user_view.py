@@ -48,6 +48,8 @@ def _clear_new_user_form_state():
         st.session_state[k] = ""
     
     st.session_state["nu_firmado_la"] = False
+    st.session_state["nu_investigacion_in"] = False
+    st.session_state["_nu_inv_stable"] = False
     st.session_state["nu_estado"] = ESTADOS_FIRMA[0] if ESTADOS_FIRMA else ""
 
 # ────────────────────────────────────────────────────────────────────────────────
@@ -397,6 +399,15 @@ def render_new_user_form(available_types: list[str], config: dict) -> dict | Non
         xlsx_path = config.get(PROGRAM_ERASMUS_IN, "")
         universidades_in = get_universities_from_coords_sheet(xlsx_path)
         uni_country_map_in = get_university_country_map(xlsx_path)
+        # Streamlit puede limpiar el widget state de nu_investigacion_in cuando
+        # file_picker_button llama a st.rerun() antes de que el checkbox se renderice.
+        # Por eso mantenemos una clave estable (_nu_inv_stable) que no es un widget
+        # y que Streamlit no limpia automáticamente. Usamos el widget state si está
+        # disponible (valor más reciente), y si no, recurrimos a la clave estable.
+        es_investigacion = st.session_state.get(
+            "nu_investigacion_in",
+            st.session_state.get("_nu_inv_stable", False)
+        )
         with st.container(border=True):
             col1, col2 = st.columns(2)
 
@@ -418,6 +429,14 @@ def render_new_user_form(available_types: list[str], config: dict) -> dict | Non
                     file_picker_button("📁", "nu_la_in", "nu_la_in_browse", "Abrir explorador de archivos.")
                 with la_col1:
                     extra["la_in"] = st.text_input("LA (enlace o ruta)", key="nu_la_in")
+
+                st.markdown("<div style='margin-top:30px'></div>", unsafe_allow_html=True)
+                extra["investigacion_in"] = st.checkbox(
+                    "Investigación",
+                    key="nu_investigacion_in"
+                )
+                # Guardar en clave estable (no-widget) para sobrevivir al widget cleanup de Streamlit
+                st.session_state["_nu_inv_stable"] = extra["investigacion_in"]
 
             # AUTOCOMPLETAR PAÍS (antes del selectbox)
             pais_sugerido = ""
@@ -441,6 +460,7 @@ def render_new_user_form(available_types: list[str], config: dict) -> dict | Non
                     options=COUNTRY_OPTIONS,
                     key="nu_pais_in"
                 )
+                
                 st.markdown("<div style='margin-top:30px'></div>", unsafe_allow_html=True)
 
                 extra["firmado_la"] = "x" if st.checkbox(
@@ -451,135 +471,138 @@ def render_new_user_form(available_types: list[str], config: dict) -> dict | Non
             # ASIGNATURAS (YA DENTRO)
             # ─────────────────────────────
 
-            st.divider()
-            st.markdown("#### 📚 Asignaturas")
+            if not es_investigacion:
+                st.divider()
+                st.markdown("#### 📚 Asignaturas")
 
-            materias_key = "nu_materias_in"
-            # Asegurar que materias siempre sea una lista
-            if materias_key not in st.session_state or not isinstance(st.session_state[materias_key], list):
-                st.session_state[materias_key] = []
-            materias = st.session_state[materias_key]
+                materias_key = "nu_materias_in"
+                # Asegurar que materias siempre sea una lista
+                if materias_key not in st.session_state or not isinstance(st.session_state[materias_key], list):
+                    st.session_state[materias_key] = []
+                materias = st.session_state[materias_key]
 
-            cuatrimestre_seleccionado = st.session_state.get("nu_cuatri_in", "")
+                cuatrimestre_seleccionado = st.session_state.get("nu_cuatri_in", "")
 
-            if cuatrimestre_seleccionado:
-                asignaturas_sugerencias = [
-                    a["asignatura"]
-                    for a in asignaturas_catalog
-                    if a.get("cuat") == cuatrimestre_seleccionado
-                ]
-            else:
-                asignaturas_sugerencias = [
-                    a["asignatura"]
-                    for a in asignaturas_catalog
-                ]
+                if cuatrimestre_seleccionado:
+                    asignaturas_sugerencias = [
+                        a["asignatura"]
+                        for a in asignaturas_catalog
+                        if a.get("cuat") == cuatrimestre_seleccionado
+                        and a["asignatura"].strip().lower() != "estancia investigación"
+                    ]
+                else:
+                    asignaturas_sugerencias = [
+                        a["asignatura"]
+                        for a in asignaturas_catalog
+                        if a["asignatura"].strip().lower() != "estancia investigación"
+                    ]
 
-            header_cols = st.columns([8, 1], vertical_alignment="bottom")
+                header_cols = st.columns([8, 1], vertical_alignment="bottom")
 
-            # Mapa nombre -> info del catálogo para mostrar matriculados/cupo
-            catalog_map = {a["asignatura"]: a for a in asignaturas_catalog}
+                # Mapa nombre -> info del catálogo para mostrar matriculados/cupo
+                catalog_map = {a["asignatura"]: a for a in asignaturas_catalog}
 
-            header_cols_h = st.columns([8, 2, 1], vertical_alignment="bottom")
-            with header_cols_h[0]:
-                st.caption("Nombre de la asignatura")
-            with header_cols_h[1]:
-                st.caption("Matr. / Cupo")
-            with header_cols_h[2]:
-                if st.button("➕ Añadir", key=f"{materias_key}_add"):
-                    materias.append({"nombre": ""})
+                header_cols_h = st.columns([8, 2, 1], vertical_alignment="bottom")
+                with header_cols_h[0]:
+                    st.caption("Nombre de la asignatura")
+                with header_cols_h[1]:
+                    st.caption("Matr. / Cupo")
+                with header_cols_h[2]:
+                    if st.button("➕ Añadir", key=f"{materias_key}_add"):
+                        materias.append({"nombre": ""})
 
-            delete_idx = None
+                delete_idx = None
 
-            for i, mat in enumerate(materias):
-                # Leer selección actual del session_state ANTES de renderizar columnas
-                raw_sel = st.session_state.get(f"{materias_key}_select_{i}")
-                nom_actual = _asig_nombre_puro(raw_sel) if raw_sel else _asig_nombre_puro(mat.get("nombre", ""))
-                info = catalog_map.get(nom_actual)
+                for i, mat in enumerate(materias):
+                    # Leer selección actual del session_state ANTES de renderizar columnas
+                    raw_sel = st.session_state.get(f"{materias_key}_select_{i}")
+                    nom_actual = _asig_nombre_puro(raw_sel) if raw_sel else _asig_nombre_puro(mat.get("nombre", ""))
+                    info = catalog_map.get(nom_actual)
 
-                row_cols = st.columns([8, 2, 1], vertical_alignment="center")
-                with row_cols[0]:
-                    valor_actual = mat.get("nombre", "")
-                    seleccion = st.selectbox(
-                        f"Asignatura {i+1}",
-                        options=asignaturas_sugerencias,
-                        index=asignaturas_sugerencias.index(valor_actual)
-                            if valor_actual in asignaturas_sugerencias else None,
-                        key=f"{materias_key}_select_{i}",
-                        label_visibility="collapsed",
-                        placeholder="Seleccionar o escribir...",
-                        accept_new_options=True
-                    )
-                    mat["nombre"] = _asig_nombre_puro(seleccion) if seleccion else ""
-                with row_cols[1]:
-                    if info:
-                        matr = info.get("matriculados")
-                        cupo = info.get("cupo")
-                        # +1 porque este estudiante aún no está guardado
-                        matr_display = (matr + 1) if matr is not None else None
-                        if matr_display is not None and cupo is not None:
-                            color = "#e05252" if matr_display > cupo else "#4caf50"
-                            st.markdown(
-                                f"<p style='margin:-0.5rem 0 0 -0.1rem;font-size:1.1rem;font-weight:700;"
-                                f"color:{color};text-align:left;line-height:2.4rem'>"
-                                f"{matr_display}&nbsp;/&nbsp;{cupo}</p>",
-                                unsafe_allow_html=True
-                            )
-                        elif matr_display is not None:
-                            st.markdown(
-                                f"<p style='margin:-0.5rem 0 0 -0.1rem;font-size:1.1rem;font-weight:700;"
-                                f"color:#888;text-align:left;line-height:2.4rem'>"
-                                f"{matr_display}</p>",
-                                unsafe_allow_html=True
-                            )
-                    else:
-                        st.empty()
-                with row_cols[2]:
-                    if st.button(
-                        "❌",
-                        key=f"{materias_key}_del_{i}",
-                        help="Eliminar asignatura",
-                        type="secondary",
-                        use_container_width=True
-                    ):
-                        delete_idx = i
+                    row_cols = st.columns([8, 2, 1], vertical_alignment="center")
+                    with row_cols[0]:
+                        valor_actual = mat.get("nombre", "")
+                        seleccion = st.selectbox(
+                            f"Asignatura {i+1}",
+                            options=asignaturas_sugerencias,
+                            index=asignaturas_sugerencias.index(valor_actual)
+                                if valor_actual in asignaturas_sugerencias else None,
+                            key=f"{materias_key}_select_{i}",
+                            label_visibility="collapsed",
+                            placeholder="Seleccionar o escribir...",
+                            accept_new_options=True
+                        )
+                        mat["nombre"] = _asig_nombre_puro(seleccion) if seleccion else ""
+                    with row_cols[1]:
+                        if info:
+                            matr = info.get("matriculados")
+                            cupo = info.get("cupo")
+                            # +1 porque este estudiante aún no está guardado
+                            matr_display = (matr + 1) if matr is not None else None
+                            if matr_display is not None and cupo is not None:
+                                color = "#e05252" if matr_display > cupo else "#4caf50"
+                                st.markdown(
+                                    f"<p style='margin:-0.5rem 0 0 -0.1rem;font-size:1.1rem;font-weight:700;"
+                                    f"color:{color};text-align:left;line-height:2.4rem'>"
+                                    f"{matr_display}&nbsp;/&nbsp;{cupo}</p>",
+                                    unsafe_allow_html=True
+                                )
+                            elif matr_display is not None:
+                                st.markdown(
+                                    f"<p style='margin:-0.5rem 0 0 -0.1rem;font-size:1.1rem;font-weight:700;"
+                                    f"color:#888;text-align:left;line-height:2.4rem'>"
+                                    f"{matr_display}</p>",
+                                    unsafe_allow_html=True
+                                )
+                        else:
+                            st.empty()
+                    with row_cols[2]:
+                        if st.button(
+                            "❌",
+                            key=f"{materias_key}_del_{i}",
+                            help="Eliminar asignatura",
+                            type="secondary",
+                            use_container_width=True
+                        ):
+                            delete_idx = i
 
-            if delete_idx is not None:
-                materias.pop(delete_idx)
+                if delete_idx is not None:
+                    materias.pop(delete_idx)
 
-            # ── Validación en tiempo real ──────────────────────────────────
-            if not materias:
-                st.warning("Debes añadir al menos una asignatura antes de guardar el estudiante.")
-            else:
-                nombres_rellenos = [(i, (m.get("nombre") or "").strip()) for i, m in enumerate(materias)]
+                # ── Validación en tiempo real ──────────────────────────────────
+                if not materias:
+                    st.warning("Debes añadir al menos una asignatura antes de guardar el estudiante.")
+                else:
+                    nombres_rellenos = [(i, (m.get("nombre") or "").strip()) for i, m in enumerate(materias)]
 
-                # Filas vacías
-                vacias = [i + 1 for i, n in nombres_rellenos if not n]
-                if vacias:
-                    fila_txt = ", ".join(f"#{f}" for f in vacias)
-                    st.warning(
-                        f"⚠️ {'La asignatura' if len(vacias) == 1 else 'Las asignaturas'} "
-                        f"{fila_txt} {'está vacía' if len(vacias) == 1 else 'están vacías'}. "
-                        f"Rellénala{'s' if len(vacias) > 1 else ''} o elimínala{'s' if len(vacias) > 1 else ''}."
-                    )
+                    # Filas vacías
+                    vacias = [i + 1 for i, n in nombres_rellenos if not n]
+                    if vacias:
+                        fila_txt = ", ".join(f"#{f}" for f in vacias)
+                        st.warning(
+                            f"⚠️ {'La asignatura' if len(vacias) == 1 else 'Las asignaturas'} "
+                            f"{fila_txt} {'está vacía' if len(vacias) == 1 else 'están vacías'}. "
+                            f"Rellénala{'s' if len(vacias) > 1 else ''} o elimínala{'s' if len(vacias) > 1 else ''}."
+                        )
 
-                # Duplicados (solo entre las que tienen nombre)
-                seen_norm: dict[str, int] = {}
-                duplicadas: list[str] = []
-                for i, n in nombres_rellenos:
-                    if not n:
-                        continue
-                    nk = _normalize_subject_name(n)
-                    if nk in seen_norm:
-                        duplicadas.append(n)
-                    else:
-                        seen_norm[nk] = i + 1
+                    # Duplicados (solo entre las que tienen nombre)
+                    seen_norm: dict[str, int] = {}
+                    duplicadas: list[str] = []
+                    for i, n in nombres_rellenos:
+                        if not n:
+                            continue
+                        nk = _normalize_subject_name(n)
+                        if nk in seen_norm:
+                            duplicadas.append(n)
+                        else:
+                            seen_norm[nk] = i + 1
 
-                if duplicadas:
-                    dup_txt = ", ".join(sorted(set(duplicadas)))
-                    st.error(
-                        f"❌ Asignatura{'s' if len(set(duplicadas)) > 1 else ''} "
-                        f"repetida{'s' if len(set(duplicadas)) > 1 else ''}: {dup_txt}"
-                    )
+                    if duplicadas:
+                        dup_txt = ", ".join(sorted(set(duplicadas)))
+                        st.error(
+                            f"❌ Asignatura{'s' if len(set(duplicadas)) > 1 else ''} "
+                            f"repetida{'s' if len(set(duplicadas)) > 1 else ''}: {dup_txt}"
+                        )
     # _____________________________________
     # SICUE OUT
     # _____________________________________
@@ -831,29 +854,38 @@ def render_new_user_form(available_types: list[str], config: dict) -> dict | Non
         }
     if tipo_norm == "Erasmus IN":
         materias_payload = []
-        
+
         # Obtener valores globales del estudiante para todas las asignaturas
         cuat_global = extra.get("cuatrimestre_in", "")
         firmado_global = extra.get("firmado_la", "")
         la_global = extra.get("la_in", "")
-        
-        for m in st.session_state.get("nu_materias_in", []):
-            nom = _asig_nombre_puro((m.get("nombre") or "").strip())
-            if not nom:
-                # ignoramos filas vacías
-                continue
-            materias_payload.append({
-                "asignatura": nom,
+        es_investigacion = extra.get("investigacion_in", False)
+
+        if es_investigacion:
+            materias_payload = [{
+                "asignatura": "Estancia Investigación",
                 "cuat": cuat_global,
                 "firmado": firmado_global,
                 "link_la": la_global
-            })
-        
-        # Validar que hay al menos una asignatura
-        if not materias_payload:
-            st.toast("Debes añadir al menos una asignatura para Erasmus IN", icon="❌")
-            return None
-        
+            }]
+        else:
+            for m in st.session_state.get("nu_materias_in", []):
+                nom = _asig_nombre_puro((m.get("nombre") or "").strip())
+                if not nom:
+                    # ignoramos filas vacías
+                    continue
+                materias_payload.append({
+                    "asignatura": nom,
+                    "cuat": cuat_global,
+                    "firmado": firmado_global,
+                    "link_la": la_global
+                })
+
+            # Validar que hay al menos una asignatura
+            if not materias_payload:
+                st.toast("Debes añadir al menos una asignatura para Erasmus IN", icon="❌")
+                return None
+
         if materias_payload:
             payload["materias_in"] = materias_payload
     else:
