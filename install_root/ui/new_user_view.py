@@ -412,7 +412,11 @@ def render_new_user_form(available_types: list[str], config: dict) -> dict | Non
                     help="Selecciona una universidad o escribe una nueva",
                     accept_new_options=True,
                 )
-                with st.container():
+                la_col1, la_col2 = st.columns([8, 1.5])
+                with la_col2:
+                    st.markdown("<br>", unsafe_allow_html=True)
+                    file_picker_button("📁", "nu_la_in", "nu_la_in_browse", "Abrir explorador de archivos.")
+                with la_col1:
                     extra["la_in"] = st.text_input("LA (enlace o ruta)", key="nu_la_in")
 
             # AUTOCOMPLETAR PAÍS (antes del selectbox)
