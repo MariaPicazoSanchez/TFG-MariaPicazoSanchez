@@ -74,16 +74,16 @@ jobs:
             --name MovilidadESII `
             launcher_system.py
 
-      - name: Create installer (demo data)
-        shell: pwsh
-        run: |
-          & "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" installer.iss
-
       # =========================
       # BUILD INSTALLERS
       # =========================
 
-      - name: Create installer (no demo data)
+      - name: Create installer (con datos)
+        shell: pwsh
+        run: |
+          & "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" installer.iss
+
+      - name: Create installer (sin datos)
         shell: pwsh
         run: |
           & "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" installer_sindata.iss
@@ -96,30 +96,52 @@ jobs:
           Remove-Item *.spec -ErrorAction Ignore
 
       # =========================
+      # EMPAQUETAR EN ZIP
+      # =========================
+
+      - name: Empaquetar instaladores en ZIP
+        shell: pwsh
+        run: |
+          $version = "${{ inputs.version }}"
+          Compress-Archive `
+            -Path "output\MovilidadESII_Installer_ConData.exe" `
+            -DestinationPath "output\MovilidadESII_ConData_${version}.zip" `
+            -Force
+          Compress-Archive `
+            -Path "output\MovilidadESII_Installer_SinData.exe" `
+            -DestinationPath "output\MovilidadESII_SinData_${version}.zip" `
+            -Force
+
+      # =========================
       # GENERATE HASH
       # =========================
 
       - name: Generate SHA256 hashes
         shell: pwsh
         run: |
-          certutil -hashfile output\MovilidadESII_Installer_ConData.exe SHA256 > output\SHA256.txt
-          certutil -hashfile output\MovilidadESII_Installer_SinData.exe SHA256 >> output\SHA256.txt
+          $version = "${{ inputs.version }}"
+          $out = "output\SHA256.txt"
+          "MovilidadESII_ConData_${version}.zip" | Out-File $out -Encoding utf8
+          certutil -hashfile "output\MovilidadESII_ConData_${version}.zip" SHA256 >> $out
+          "" >> $out
+          "MovilidadESII_SinData_${version}.zip" | Out-File $out -Append -Encoding utf8
+          certutil -hashfile "output\MovilidadESII_SinData_${version}.zip" SHA256 >> $out
 
       # =========================
       # ARTIFACTS
       # =========================
 
-      - name: Upload installer demo
+      - name: Upload artifact (con datos)
         uses: actions/upload-artifact@v4
         with:
-          name: installer-demo
-          path: output/MovilidadESII_Installer_ConData.exe
+          name: MovilidadESII-ConData-${{ inputs.version }}
+          path: output/MovilidadESII_ConData_${{ inputs.version }}.zip
 
-      - name: Upload installer clean
+      - name: Upload artifact (sin datos)
         uses: actions/upload-artifact@v4
         with:
-          name: installer-clean
-          path: output/MovilidadESII_Installer_SinData.exe
+          name: MovilidadESII-SinData-${{ inputs.version }}
+          path: output/MovilidadESII_SinData_${{ inputs.version }}.zip
 
       # =========================
       # RELEASE
@@ -131,8 +153,8 @@ jobs:
           tag_name: ${{ inputs.version }}
           name: MovilidadESII ${{ inputs.version }}
           files: |
-            output/MovilidadESII_Installer_ConData.exe
-            output/MovilidadESII_Installer_SinData.exe
+            output/MovilidadESII_ConData_${{ inputs.version }}.zip
+            output/MovilidadESII_SinData_${{ inputs.version }}.zip
             output/SHA256.txt
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
