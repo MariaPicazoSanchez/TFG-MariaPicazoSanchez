@@ -2,6 +2,7 @@ import json
 import logging
 import os
 import re
+from copy import copy
 
 import pandas as pd
 import streamlit as st
@@ -166,16 +167,32 @@ def _append_erasmus_in_with_subjects(xlsx_path: str, row_data: dict, target_shee
         # Añadir las nuevas filas justo después
         insert_row = last_row + 1
         
+        # Fila de referencia para copiar formato (última fila con datos de la tabla)
+        fmt_row = last_row if last_row >= table_info.data_start else table_info.header_row
+
         for i, fila in enumerate(rows_to_add):
             r = insert_row + i
+            # Copiar formato de la fila de referencia antes de escribir el valor
+            for col_idx in range(1, ws.max_column + 1):
+                src = ws.cell(row=fmt_row, column=col_idx)
+                dst = ws.cell(row=r, column=col_idx)
+                if src.has_style:
+                    dst._style = copy(src._style)
             if c_asig: ws.cell(row=r, column=c_asig).value = fila["Asignatura"]
-            if c_est: ws.cell(row=r, column=c_est).value = fila["Estudiante"]
-            if c_ori: ws.cell(row=r, column=c_ori).value = fila["Origen"]
-            if c_uni: ws.cell(row=r, column=c_uni).value = fila["Universidad Origen"]
+            if c_est:  ws.cell(row=r, column=c_est).value  = fila["Estudiante"]
+            if c_ori:  ws.cell(row=r, column=c_ori).value  = fila["Origen"]
+            if c_uni:  ws.cell(row=r, column=c_uni).value  = fila["Universidad Origen"]
             if c_cuat: ws.cell(row=r, column=c_cuat).value = fila["Cuat"]
-            if c_fir: ws.cell(row=r, column=c_fir).value = fila["Firmado"]
-            if c_la: ws.cell(row=r, column=c_la).value = fila["LA"]
-        
+            if c_fir:  ws.cell(row=r, column=c_fir).value  = fila["Firmado"]
+            if c_la:   ws.cell(row=r, column=c_la).value   = fila["LA"]
+
+        # Extender el rango de la tabla Excel para incluir las nuevas filas
+        last_inserted = insert_row + len(rows_to_add) - 1
+        for tbl in ws.tables.values():
+            from openpyxl.utils import range_boundaries, get_column_letter
+            min_col, min_row, max_col, _ = range_boundaries(tbl.ref)
+            tbl.ref = f"{get_column_letter(min_col)}{min_row}:{get_column_letter(max_col)}{last_inserted}"
+
         wb.save(xlsx_path)
         wb.close()
         return True, None
