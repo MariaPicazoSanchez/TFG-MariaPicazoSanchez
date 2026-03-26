@@ -324,13 +324,34 @@ def sidebar_controls() -> tuple[str | None, st.delta_generator.DeltaGenerator | 
         }
 
         /* ── STREAMLIT HEADER / TOOLBAR ──────────────────────────────
-           En pywebview la barra de título es nativa (OS). El header de
-           Streamlit (botón Deploy, menú ⋮) ocupa ~2.875rem de alto y
-           fuerza a stMainBlockContainer a añadir padding-top enorme.
-           Lo ocultamos para que el contenido use todo el espacio. */
+           NO usamos display:none porque eso oculta también el botón de
+           sidebar (los hijos de display:none no se pueden re-mostrar con CSS).
+           En su lugar: height:0 + overflow:visible para que el botón
+           del sidebar pueda "escapar" del header y ser visible. */
         [data-testid="stHeader"] {
+            height:     0           !important;
+            min-height: 0           !important;
+            overflow:   visible     !important;
+            background: transparent !important;
+            padding:    0           !important;
+        }
+
+        /* Ocultar el contenido del header que NO queremos ver:
+           toolbar de deploy, decoración, status... */
+        [data-testid="stToolbar"],
+        [data-testid="stDecoration"],
+        [data-testid="stStatusWidget"] {
             display: none !important;
-            height:  0    !important;
+        }
+
+        /* Botón de colapsar/expandir el sidebar: fijarlo en la esquina
+           superior izquierda, por encima de todo el contenido. */
+        [data-testid="stSidebarCollapseButton"] {
+            position: fixed   !important;
+            top:      0.4rem  !important;
+            left:     0.4rem  !important;
+            z-index:  9999    !important;
+            display:  block   !important;
         }
 
         /* ── MAIN CONTENT ─────────────────────────────────────────────
@@ -382,6 +403,73 @@ def sidebar_controls() -> tuple[str | None, st.delta_generator.DeltaGenerator | 
         </style>
         """,
         unsafe_allow_html=True
+    )
+
+    # ── SIDEBAR TOGGLE BUTTON ──────────────────────────────────────────────────
+    # Inyectar un botón flotante custom que aparece cuando el sidebar está
+    # colapsado. Al hacer clic simula el clic en el botón nativo de Streamlit.
+    st.components.v1.html(
+        """
+        <script>
+        (function() {
+            var BTN_ID = '__sidebar_expand_btn';
+
+            function getSidebarBtn() {
+                var doc = window.parent ? window.parent.document : document;
+                return doc.querySelector('[data-testid="stSidebarCollapseButton"] button')
+                    || doc.querySelector('[data-testid="stSidebarCollapseButton"]');
+            }
+
+            function isSidebarCollapsed() {
+                var doc = window.parent ? window.parent.document : document;
+                var sidebar = doc.querySelector('[data-testid="stSidebar"]');
+                return sidebar && sidebar.getAttribute('aria-expanded') === 'false';
+            }
+
+            function createBtn(doc) {
+                var btn = doc.createElement('button');
+                btn.id = BTN_ID;
+                btn.title = 'Mostrar panel lateral';
+                btn.innerHTML = '&#9776;';
+                btn.style.cssText = [
+                    'position:fixed', 'top:8px', 'left:8px', 'z-index:99999',
+                    'background:#262730', 'color:#fff', 'border:none',
+                    'border-radius:6px', 'padding:6px 10px', 'font-size:18px',
+                    'cursor:pointer', 'display:none', 'line-height:1',
+                    'box-shadow:0 2px 6px rgba(0,0,0,.4)'
+                ].join(';');
+                btn.addEventListener('click', function() {
+                    var nb = getSidebarBtn();
+                    if (nb) nb.click();
+                });
+                doc.body.appendChild(btn);
+                return btn;
+            }
+
+            function update() {
+                var doc = window.parent ? window.parent.document : document;
+                var btn = doc.getElementById(BTN_ID) || createBtn(doc);
+                btn.style.display = isSidebarCollapsed() ? 'block' : 'none';
+            }
+
+            function startObserver() {
+                var doc = window.parent ? window.parent.document : document;
+                var sidebar = doc.querySelector('[data-testid="stSidebar"]');
+                if (!sidebar) { setTimeout(startObserver, 300); return; }
+                update();
+                new MutationObserver(update).observe(sidebar,
+                    { attributes: true, attributeFilter: ['aria-expanded'] });
+            }
+
+            if (document.readyState === 'loading') {
+                document.addEventListener('DOMContentLoaded', startObserver);
+            } else {
+                startObserver();
+            }
+        })();
+        </script>
+        """,
+        height=0,
     )
 
     # ── ZOOM LAYOUT FIX ────────────────────────────────────────────────────────
