@@ -192,7 +192,9 @@ def file_picker_button(label: str, text_input_key: str, button_id: str, help: st
             current_val = st.session_state.get(text_input_key, "")
             path = pick_local_file(current_val)
             if path:
-                st.session_state[text_input_key] = path
+                # Guardar en clave buffer (no-widget) para que Streamlit no la limpie
+                # al hacer rerun antes de que el text_input se renderice
+                st.session_state["_buf_" + text_input_key] = path
         else:
             st.sidebar.warning("Ejecuta la app en local para seleccionar rutas del equipo.")
         st.rerun()
@@ -220,6 +222,13 @@ def _asig_nombre_puro(label: str) -> str:
 def render_new_user_form(available_types: list[str], config: dict) -> dict | None:
     from domain import ESTADOS_FIRMA, ICON_BY_TIPO, CITIES_ES
     from persistence import append_user_to_excel, first_sheet_name
+
+    # Transferir valores de buffer (file picker) a claves de widget ANTES de renderizar
+    # Esto evita que Streamlit limpie el widget state al hacer rerun desde file_picker_button
+    for _buf_key in [k for k in st.session_state if k.startswith("_buf_nu_")]:
+        _widget_key = _buf_key[len("_buf_"):]
+        st.session_state[_widget_key] = st.session_state.pop(_buf_key)
+
     # Si venimos de un guardado correcto:
     if st.session_state.pop("_user_saved", False):
         _clear_new_user_form_state()
