@@ -88,25 +88,40 @@ def _unique_sheets_from_config_or_files(cfg: dict) -> list[str]:
                 names.add(str(name))
     return sorted(names)
 
-def pick_local_file(initial_path: str | None = None) -> str | None:
-    """Abre el explorador de archivos usando PowerShell y devuelve la ruta seleccionada (solo Windows)."""
-    script = r"""
+def pick_local_file(initial_path: str | None = None, file_filter: str | None = None) -> str | None:
+    """Abre el explorador de archivos usando PowerShell y devuelve la ruta seleccionada (solo Windows).
+
+    file_filter: cadena de filtro para OpenFileDialog, p.ej.
+        'PDF y Word (*.pdf;*.doc;*.docx)|*.pdf;*.doc;*.docx|Todos (*.*)|*.*'
+        Si es None, permite todos los archivos.
+    """
+    if file_filter is None:
+        file_filter = "Todos los archivos (*.*)|*.*"
+    # Escapar las comillas simples para PowerShell
+    ps_filter = file_filter.replace("'", "''")
+    script = f"""
+[Console]::OutputEncoding = [System.Text.Encoding]::UTF8
 Add-Type -AssemblyName System.Windows.Forms
 $form = New-Object System.Windows.Forms.Form
 $form.TopMost = $true
 $form.WindowState = 'Minimized'
 $form.Show()
 $dialog = New-Object System.Windows.Forms.OpenFileDialog
-$dialog.Filter = 'Excel Files (*.xlsx;*.xls)|*.xlsx;*.xls|CSV Files (*.csv)|*.csv|All Files (*.*)|*.*'
-if ($dialog.ShowDialog($form) -eq 'OK') {
+$dialog.Filter = '{ps_filter}'
+$dialog.SupportMultiDottedExtensions = $true
+if ($dialog.ShowDialog($form) -eq 'OK') {{
     Write-Output $dialog.FileName
-}
+}}
 $form.Close()
 """
     try:
-        result = subprocess.run([
-            "powershell", "-Command", script
-        ], capture_output=True, text=True)
+        result = subprocess.run(
+            ["powershell", "-NoProfile", "-Command", script],
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+        )
         path = result.stdout.strip()
         return path if path else None
     except Exception as e:

@@ -181,7 +181,12 @@ def _normalize_subject_name(s: str) -> str:
     s = ''.join(ch for ch in s if not unicodedata.combining(ch))
     return s.casefold()
 
-def file_picker_button(label: str, text_input_key: str, button_id: str, help: str = "Seleccionar archivo del equipo"):
+_FILTER_ALL      = None  # cualquier archivo (LA)
+_FILTER_PDF_WORD = "PDF y Word|*.pdf;*.docx|Todos|*.*"
+
+def file_picker_button(label: str, text_input_key: str, button_id: str,
+                       help: str = "Seleccionar archivo del equipo",
+                       file_filter: str | None = _FILTER_PDF_WORD):
     invisible_suffix = _invisible_suffix_from_id(button_id)
     real_label = label + invisible_suffix
 
@@ -190,7 +195,7 @@ def file_picker_button(label: str, text_input_key: str, button_id: str, help: st
     if clicked:
         if USE_LOCAL_PICKER:
             current_val = st.session_state.get(text_input_key, "")
-            path = pick_local_file(current_val)
+            path = pick_local_file(current_val, file_filter=file_filter)
             if path:
                 # Guardar en clave buffer (no-widget) para que Streamlit no la limpie
                 # al hacer rerun antes de que el text_input se renderice
@@ -397,7 +402,7 @@ def render_new_user_form(available_types: list[str], config: dict) -> dict | Non
                     extra["la_out"] = st.text_input("LA (enlace o ruta)", key="nu_la_out_opt")
                 with la_col2:
                     st.markdown("<br>", unsafe_allow_html=True)
-                    file_picker_button("📁", "nu_la_out_opt", "nu_la_out_opt_browse", "Abrir explorador de archivos.")
+                    file_picker_button("📁", "nu_la_out_opt", "nu_la_out_opt_browse", "Abrir explorador de archivos.", file_filter=_FILTER_ALL)
                 
     
     # _____________________________________
@@ -435,7 +440,7 @@ def render_new_user_form(available_types: list[str], config: dict) -> dict | Non
                 la_col1, la_col2 = st.columns([8, 1.5])
                 with la_col2:
                     st.markdown("<br>", unsafe_allow_html=True)
-                    file_picker_button("📁", "nu_la_in", "nu_la_in_browse", "Abrir explorador de archivos.")
+                    file_picker_button("📁", "nu_la_in", "nu_la_in_browse", "Abrir explorador de archivos.", file_filter=_FILTER_ALL)
                 with la_col1:
                     extra["la_in"] = st.text_input("LA (enlace o ruta)", key="nu_la_in")
 
@@ -670,7 +675,7 @@ def render_new_user_form(available_types: list[str], config: dict) -> dict | Non
                 la_col1, la_col2 = st.columns([8, 1.5])
                 with la_col2:
                     st.markdown("<br>", unsafe_allow_html=True)
-                    file_picker_button("📁", "nu_la_sicue", "nu_la_sicue_browse", "Abrir explorador de archivos.")
+                    file_picker_button("📁", "nu_la_sicue", "nu_la_sicue_browse", "Abrir explorador de archivos.", file_filter=_FILTER_ALL)
                 with la_col1:
                     extra["la_in"] = st.text_input("LA (enlace o ruta)", key="nu_la_sicue")
 
