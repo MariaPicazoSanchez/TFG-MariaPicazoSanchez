@@ -5,10 +5,10 @@ POPUP_STYLES = """
   color: #1f2937;
   background: #fff;
   border-radius: 12px;
-  padding: 6px 12px 12px 12px;
-  width: 520px;
-  max-width: 520px;
+  padding: 6px 28px 12px 12px;
+  width: 100%;
   box-sizing: border-box;
+  overflow-x: hidden;
   box-shadow: 0 6px 18px rgba(15,23,42,0.12);
 }
 

@@ -136,11 +136,20 @@ def show_map(
         except Exception:
             m = folium.Map(location=(40.4168, -3.7038), zoom_start=4, tiles="OpenStreetMap")
 
-    # Quitar padding del popup de Leaflet (global)
+    # Quitar padding del popup de Leaflet (global) y estilizar el botón ×
     m.get_root().html.add_child(folium.Element("""
     <style>
-      .leaflet-popup-content { margin:0 !important; }
-      .leaflet-popup-content-wrapper { padding:0 !important; }
+      .leaflet-popup-content { margin:0 !important; overflow-x:hidden !important; }
+      .leaflet-popup-content-wrapper {
+        padding:0 !important;
+        overflow:hidden !important;
+        width:460px !important;
+        min-width:460px !important;
+        box-sizing:border-box !important;
+      }
+      .leaflet-popup-close-button:hover {
+        color:#dc2626 !important;
+      }
     </style>
     """))
 
@@ -258,7 +267,7 @@ def show_map(
             content = generate_dynamic_popup(row_for_popup, program, row_index)
             n = max(1, len(filtered_ests))
 
-            popup = folium.Popup(content, max_width=480, max_height=600)
+            popup = folium.Popup(content, max_width=460)
             marker_icon = PROGRAM_ICONS.get(program, "map-marker")
             angle = 0
             if program == PROGRAM_ERASMUS_IN:
