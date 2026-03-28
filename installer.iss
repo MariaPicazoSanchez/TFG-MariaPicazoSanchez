@@ -193,6 +193,29 @@ begin
     LogLine('No se pudo crear config.json');
 end;
 
+procedure KillAppProcesses();
+var
+  RC: Integer;
+  PSCmd: string;
+begin
+  LogLine('Cerrando procesos de la aplicación anterior...');
+
+  { Matar el ejecutable principal (y sus procesos hijo PyInstaller) }
+  Exec('taskkill.exe', '/F /T /IM MovilidadESII.exe', '', SW_HIDE, ewWaitUntilTerminated, RC);
+  LogLine('taskkill MovilidadESII.exe -> ' + IntToStr(RC));
+
+  { Matar procesos python / pythonw del runtime de MovilidadESII }
+  PSCmd := '-NoProfile -Command "Get-Process -Name python,pythonw -ErrorAction SilentlyContinue | ' +
+           'Where-Object { $_.Path -like ''*MovilidadESII*'' } | ' +
+           'Stop-Process -Force -ErrorAction SilentlyContinue"';
+  Exec('powershell.exe', PSCmd, '', SW_HIDE, ewWaitUntilTerminated, RC);
+  LogLine('Kill python runtime processes -> ' + IntToStr(RC));
+
+  { Breve espera para que el SO libere los ficheros bloqueados }
+  Sleep(2000);
+  LogLine('Espera post-kill completada');
+end;
+
 procedure InstallPythonIfMissing();
 var
   RC: Integer;
@@ -319,6 +342,13 @@ begin
     exit;
   end else FindClose(FR);
 
+  { En reinstalación: borrar site-packages para evitar DLLs bloqueadas (p.ej. pyarrow) }
+  if DirExists(PyDir() + '\Lib\site-packages') then
+  begin
+    DelTree(PyDir() + '\Lib\site-packages', True, True, True);
+    LogLine('site-packages antiguo eliminado para reinstalación limpia');
+  end;
+
   ExecLogged(BasePythonExe, '-m pip install --upgrade pip', '', RC);
 
   Cmd := Quote(BasePythonExe) + ' -m pip install --no-index --find-links ' + Quote(Wheelhouse) + ' pip setuptools wheel';
@@ -411,6 +441,8 @@ begin
     WizardForm.StatusLabel.Update;
     EnsureLogs();
     LogLine('POSTINSTALL start');
+
+    KillAppProcesses();
 
     EnsureBaseConfig();
 
