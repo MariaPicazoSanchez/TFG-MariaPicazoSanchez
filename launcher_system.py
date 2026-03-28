@@ -1071,6 +1071,96 @@ def start_processes(api_enabled: bool = True, api_disabled_reason: str | None = 
 
                 _win.events.closed += _save_window_state
 
+                # -------------------------------------------------------
+                # Bandeja del sistema (system tray)
+                # Al pulsar X la ventana se oculta; el programa sigue
+                # corriendo. Desde el icono de bandeja el usuario puede
+                # restaurar la ventana o cerrar la app por completo.
+                # -------------------------------------------------------
+                try:
+                    import pystray as _pystray
+                    from PIL import Image as _PILImage
+
+                    _ico_path = str(
+                        Path(__file__).parent / "install_root" / "MovilidadESII.ico"
+                    )
+                    _tray_ref = [None]  # [pystray.Icon | None]
+
+                    def _tray_stop():
+                        if _tray_ref[0] is not None:
+                            try:
+                                _tray_ref[0].stop()
+                            except Exception:
+                                pass
+                            _tray_ref[0] = None
+
+                    def _tray_restore(icon, item):
+                        """Restaurar ventana desde la bandeja."""
+                        _tray_stop()
+                        try:
+                            _win.show()
+                        except Exception:
+                            pass
+
+                    def _tray_quit(icon, item):
+                        """Cerrar aplicación completamente desde la bandeja."""
+                        _tray_stop()
+                        try:
+                            _win.destroy()
+                        except Exception:
+                            pass
+
+                    def _on_closing():
+                        """
+                        Intercepta el cierre de ventana (clic en X).
+                        Oculta la ventana y crea el icono en la bandeja.
+                        Devuelve False para cancelar el cierre real.
+                        """
+                        _save_window_state()
+                        if _tray_ref[0] is None:
+                            try:
+                                _img = _PILImage.open(_ico_path)
+                                _menu = _pystray.Menu(
+                                    _pystray.MenuItem(
+                                        "Restaurar ventana",
+                                        _tray_restore,
+                                        default=True,
+                                    ),
+                                    _pystray.MenuItem(
+                                        "Cerrar aplicación",
+                                        _tray_quit,
+                                    ),
+                                )
+                                _icon = _pystray.Icon(
+                                    "MovilidadESII",
+                                    _img,
+                                    "Movilidad ESII",
+                                    _menu,
+                                )
+                                _tray_ref[0] = _icon
+                                threading.Thread(
+                                    target=_icon.run, daemon=True
+                                ).start()
+                            except Exception as _te:
+                                LOGGER.warning(
+                                    "No se pudo crear icono de bandeja: %s", _te
+                                )
+                                return  # Sin bandeja → permite el cierre normal
+                        try:
+                            _win.hide()
+                        except Exception:
+                            pass
+                        return False  # Cancela el cierre de la ventana
+
+                    _win.events.closing += _on_closing
+                    LOGGER.info("Bandeja del sistema configurada.")
+                except ImportError:
+                    LOGGER.warning(
+                        "pystray no instalado — la X cerrará la app directamente."
+                    )
+                except Exception as _tray_err:
+                    LOGGER.warning("Error configurando bandeja: %s", _tray_err)
+
                 def _inject_zoom():
                     try:
                         js = _ZOOM_JS.replace("var _cur = 1.0;", "var _cur = " + str(_init_zoom) + ";")
