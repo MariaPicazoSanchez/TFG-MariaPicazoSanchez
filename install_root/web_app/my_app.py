@@ -221,6 +221,16 @@ def main():
         initial_sidebar_state="expanded"
     )
 
+    # Limpiar caché al inicio de cada nueva sesión de navegador
+    if not st.session_state.get("_session_cache_cleared"):
+        st.cache_data.clear()
+        for _k in [k for k in st.session_state if "cache" in k.lower()]:
+            try:
+                del st.session_state[_k]
+            except Exception:
+                pass
+        st.session_state["_session_cache_cleared"] = True
+
     _inject_orchestrator_ws()
     init_session_defaults()
 

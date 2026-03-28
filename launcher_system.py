@@ -1169,6 +1169,15 @@ def start_processes(api_enabled: bool = True, api_disabled_reason: str | None = 
             except Exception:
                 pass
 
+        # 3) Eliminar caché de Streamlit en disco
+        for _cache_dir in (
+            Path.home() / ".streamlit" / ".cache",
+            Path.home() / ".streamlit" / "cache",
+        ):
+            if _cache_dir.exists():
+                shutil.rmtree(_cache_dir, ignore_errors=True)
+                LOGGER.info("Caché eliminada: %s", _cache_dir)
+
         LOGGER.info("Procesos detenidos.")
         # Forzar salida del launcher para evitar que hilos daemon lo retengan
         sys.exit(0)
