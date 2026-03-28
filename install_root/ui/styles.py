@@ -61,23 +61,41 @@ POPUP_STYLES = """
 
 .head {
   display:flex;
+  flex-direction:column;
+  gap:4px;
+  margin-bottom:6px;
+}
+
+.head-top {
+  display:flex;
   justify-content:space-between;
   align-items:center;
-  margin-bottom:6px;
   gap:8px;
 }
 
-.title-wrap {
+.head-bottom {
   display:flex;
-  flex-direction:column;
-  gap:2px;
+  justify-content:flex-end;
+  align-items:center;
+  gap:6px;
 }
 
-.head-right {
-  display:flex;
-  flex-direction:column;
-  align-items:flex-end;
+.resp-chip {
+  display:inline-flex;
+  align-items:center;
   gap:4px;
+  font-size:11px;
+  font-weight:600;
+  color:#1e40af;
+  background:#eff6ff;
+  border:1px solid #bfdbfe;
+  border-radius:999px;
+  padding:2px 10px;
+  white-space:nowrap;
+  max-width:190px;
+  overflow:hidden;
+  text-overflow:ellipsis;
+  flex-shrink:0;
 }
 
 .badges {

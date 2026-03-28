@@ -21,6 +21,124 @@ def get_university_country_map(path: str) -> dict:
         return {str(row[1]).strip(): str(row[0]).strip() for _, row in df_coords.iterrows()}
     except Exception:
         return {}
+
+def get_university_responsable_map(path: str) -> dict:
+    """
+    Returns {university: responsable} from the 'Coordenadas' sheet (col1/col3).
+
+    Si la columna de responsable (col3/D) ya existe y tiene datos, se usa directamente.
+    Si no existe o está vacía, escanea las hojas de alumnos del Excel para construir
+    el mapa {universidad → responsable} y lo escribe en col3 de Coordenadas para
+    que la próxima vez se lea directamente de ahí.
+    """
+    if not path:
+        return {}
+    try:
+        df_coords = pd.read_excel(path, sheet_name="Coordenadas", header=None, dtype=str)
+
+        # ── 1. Intentar leer de col3 (columna D) ──────────────────────────────
+        if df_coords.shape[1] >= 4:
+            result = {}
+            for _, row in df_coords.iterrows():
+                uni  = str(row.iloc[1] if pd.notna(row.iloc[1]) else "").strip()
+                resp = str(row.iloc[3] if pd.notna(row.iloc[3]) else "").strip()
+                if uni and resp and resp.lower() not in ("nan", "none", ""):
+                    result[uni] = resp
+            if result:
+                return result
+
+        # ── 2. Construir el mapa escaneando hojas de alumnos ─────────────────
+        resp_map = _build_responsable_from_students(path)
+        if resp_map:
+            _write_responsable_to_coordenadas(path, resp_map)
+        return resp_map
+
+    except Exception:
+        return {}
+
+
+def _build_responsable_from_students(path: str) -> dict:
+    """
+    Recorre las hojas de datos del Excel buscando columnas de universidad
+    y responsable, y construye el mapa {universidad: responsable}.
+    La primera ocurrencia por universidad es la que se conserva.
+    """
+    import re
+
+    def _is_academic_sheet(name: str) -> bool:
+        return bool(re.search(r'\d{4}|\d{2}[-/]\d{2}', str(name)))
+
+    def _pick_col(df: pd.DataFrame, *names: str):
+        norm = lambda s: s.strip().lower()
+        for n in names:
+            for c in df.columns:
+                if norm(str(c)) == norm(n):
+                    return c
+        return None
+
+    resp_map: dict = {}
+    try:
+        wb_sheets = pd.ExcelFile(path, engine="openpyxl").sheet_names
+    except Exception:
+        return {}
+
+    hojas = [s for s in wb_sheets if _is_academic_sheet(s)]
+    if not hojas:
+        hojas = [s for s in wb_sheets if s.lower() != "coordenadas"]
+
+    for sheet in hojas:
+        try:
+            df = pd.read_excel(path, sheet_name=sheet, engine="openpyxl", dtype=str)
+            df.columns = [str(c).strip() for c in df.columns]
+
+            c_uni  = _pick_col(df, "Destino", "destino", "Universidad", "universidad")
+            c_resp = _pick_col(
+                df,
+                "Responsable programa", "responsable programa",
+                "Responsable del programa", "responsable del programa",
+                "Responsable", "responsable",
+            )
+
+            if not c_uni or not c_resp:
+                continue
+
+            for _, row in df.iterrows():
+                uni  = str(row.get(c_uni,  "") or "").strip()
+                resp = str(row.get(c_resp, "") or "").strip()
+                if (uni and resp
+                        and uni.lower()  not in ("nan", "none", "")
+                        and resp.lower() not in ("nan", "none", "")):
+                    resp_map.setdefault(uni, resp)  # primera ocurrencia gana
+
+        except Exception:
+            continue
+
+    return resp_map
+
+
+def _write_responsable_to_coordenadas(path: str, resp_map: dict) -> None:
+    """
+    Escribe el responsable de cada universidad en la columna D (col3)
+    de la hoja 'Coordenadas', creando la celda si no existe.
+    """
+    import logging as _logging
+    _log = _logging.getLogger("movilidad_ui")
+    try:
+        from openpyxl import load_workbook
+        wb = load_workbook(path)
+        if "Coordenadas" not in wb.sheetnames:
+            return
+        ws = wb["Coordenadas"]
+        for r_idx in range(1, ws.max_row + 1):
+            uni_val = str(ws.cell(row=r_idx, column=2).value or "").strip()
+            if uni_val and uni_val.lower() not in ("nan", "none", ""):
+                resp_val = resp_map.get(uni_val, "")
+                if resp_val:
+                    ws.cell(row=r_idx, column=4).value = resp_val
+        wb.save(path)
+        _log.info("Responsables escritos en hoja Coordenadas: %d universidades", len(resp_map))
+    except Exception as e:
+        _log.warning("No se pudo escribir responsable en Coordenadas: %s", e)
 from constants import PROGRAM_ERASMUS_IN, PROGRAM_ERASMUS_OUT
 from constants import PROGRAM_ERASMUS_OUT, PROGRAM_ERASMUS_IN, PROGRAM_SICUE_OUT
 from domain.validators import (DataValidator, safe_int_convert, is_duration_valid)
@@ -323,6 +441,7 @@ def render_new_user_form(available_types: list[str], config: dict) -> dict | Non
         xlsx_path = config.get(PROGRAM_ERASMUS_OUT, "")
         universidades_out = get_universities_from_coords_sheet(xlsx_path)
         uni_country_map_out = get_university_country_map(xlsx_path)
+        resp_map_out = get_university_responsable_map(xlsx_path)
         with st.container(border=True):
             # Campos comunes
             col1, col2 = st.columns(2)
@@ -396,7 +515,10 @@ def render_new_user_form(available_types: list[str], config: dict) -> dict | Non
             with col2:
                 extra["curso"] = st.selectbox("Curso", options=["","1", "2", "3", "4"], key="nu_curso")
                 extra["ciudad"] = st.text_input("Ciudad", key="nu_ciudad")
-                extra["resp_prog"] = st.text_input("Responsable del programa", key="nu_resp_prog")
+                resp_auto = resp_map_out.get((destino_origen or "").strip(), "")
+                extra["resp_prog"] = resp_auto
+                if resp_auto:
+                    st.caption(f"Responsable: **{resp_auto}**")
                 la_col1, la_col2 = st.columns([8, 1.5])
                 with la_col1:
                     extra["la_out"] = st.text_input("LA (enlace o ruta)", key="nu_la_out_opt")

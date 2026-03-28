@@ -8,6 +8,7 @@ from streamlit_folium import st_folium
 
 from constants import PROGRAM_ERASMUS_IN, PROGRAM_ERASMUS_OUT, PROGRAM_SICUE_OUT
 from domain import PROGRAM_COLORS, PROGRAM_ICONS
+from ui.new_user_view import get_university_responsable_map
 from export import add_export_control, add_program_legend
 from .popup_templates import generate_dynamic_popup,get_autofill_script
 
@@ -185,12 +186,20 @@ def show_map(
         get_autofill_script(st.session_state.get("config", {}))
     ))
 
+    # Cargar mapa {universidad → responsable} por programa
+    _config = st.session_state.get("config", {})
+    _resp_maps = {
+        prog: get_university_responsable_map(_config.get(prog, ""))
+        for prog in (PROGRAM_ERASMUS_OUT, PROGRAM_ERASMUS_IN, PROGRAM_SICUE_OUT)
+    }
+
     # 2) Pintar TODOS los programas presentes en dfs
     for program, df in dfs.items():
         if df is None or df.empty:
             continue
 
-        color = PROGRAM_COLORS.get(program, "blue")
+        color    = PROGRAM_COLORS.get(program, "blue")
+        resp_map = _resp_maps.get(program, {})
         
         # Convertir df a lista de dicts agrupados
         # El df ya viene agrupado de load_erasmus_out con columna 'estudiantes' como lista
@@ -255,7 +264,6 @@ def show_map(
             if program == PROGRAM_ERASMUS_IN:
                 angle = 180
 
-            # Siempre usar Icon normal (pin) independientemente del número de estudiantes
             icon = folium.Icon(
                 color=color,
                 icon_color='black',
@@ -264,10 +272,27 @@ def show_map(
                 angle=angle
             )
 
+            # Tooltip HTML: universidad + responsable + nº alumnos
+            uni_name  = row.get("universidad", "")
+            resp_val  = resp_map.get(uni_name.strip(), "")
+            resp_line = (
+                f"<div style='color:#6b7280;font-size:11px;margin-top:2px;'>👤 {resp_val}</div>"
+                if resp_val else ""
+            )
+            n_label = f"{n} alumno{'s' if n != 1 else ''}"
+            tooltip = folium.Tooltip(
+                f"<div style='font-family:sans-serif;padding:2px 4px;'>"
+                f"<div style='font-weight:700;font-size:13px;'>{uni_name}</div>"
+                f"{resp_line}"
+                f"<div style='color:#2563eb;font-size:11px;font-weight:600;margin-top:3px;'>"
+                f"({n_label})</div>"
+                f"</div>"
+            )
+
             folium.Marker(
                 location=[lat, lon],
                 popup=popup,
-                tooltip=f"{row.get('universidad','')} ({row.get('pais','') or row.get('ciudad','')}) · {n} alumno(s)",
+                tooltip=tooltip,
                 icon=icon,
             ).add_to(m)
 

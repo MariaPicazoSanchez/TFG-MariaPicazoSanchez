@@ -17,7 +17,7 @@ from .popup_helpers import (
 from .popup_materias import build_materias_blocks
 import json
 from persistence.data_access_mobility import get_universities_from_coords_sheet, get_universities_from_sicue_data
-from ui.new_user_view import get_university_country_map
+from ui.new_user_view import get_university_country_map, get_university_responsable_map
 from constants import PROGRAM_ERASMUS_IN, PROGRAM_ERASMUS_OUT, PROGRAM_SICUE_OUT
 config = st.session_state.get("config", {})
 logger = logging.getLogger("movilidad_ui")
@@ -78,6 +78,7 @@ def generate_dynamic_popup(row, programa: str, row_index: int) -> str:
     Sin JavaScript: solo HTML + CSS.
     """
     universidad = html.escape(str(row.get("universidad", "")) or "Sin universidad")
+    universidad_raw = str(row.get("universidad", "")).strip()
     pais = html.escape(str(row.get("pais", "") or ""))
     # Buscar la ciudad en varias columnas posibles del row (por si tiene distinto nombre)
     ciudad_raw = None
@@ -99,6 +100,7 @@ def generate_dynamic_popup(row, programa: str, row_index: int) -> str:
     )
     pais_map_out = get_university_country_map(config.get(PROGRAM_ERASMUS_OUT, ""))
     pais_map_in  = get_university_country_map(config.get(PROGRAM_ERASMUS_IN, ""))
+    resp_map_out = get_university_responsable_map(config.get(PROGRAM_ERASMUS_OUT, ""))
     excel_path = config.get(programa)
     materias_excel_path = config.get(f"{programa}_MATERIAS")
 
@@ -413,9 +415,9 @@ def generate_dynamic_popup(row, programa: str, row_index: int) -> str:
             if "SICUE" in prog_upper:
                 grid_fields += [dur_field, coord_field, gest_field, la_field, plan_field, destino_field_sicue, ciudad_field_sicue]
 
-            # Erasmus OUT: nombre, email, curso, duración, LA, plan, ToR, responsable, destino, país, ciudad
+            # Erasmus OUT: nombre, email, curso, duración, LA, plan, ToR, destino, país, ciudad
             elif "ERASMUS OUT" == prog_upper:
-                grid_fields += [curso_field, dur_field, la_field, plan_field, tor_field, responsable_field, destino_field, pais_field, ciudad_field]
+                grid_fields += [curso_field, dur_field, la_field, plan_field, tor_field, destino_field, pais_field, ciudad_field]
 
             # Erasmus IN: nombre, email, cuatrimestre, LA, origen, país, ciudad
             elif "ERASMUS IN" == prog_upper:
@@ -470,7 +472,6 @@ def generate_dynamic_popup(row, programa: str, row_index: int) -> str:
               view_small.append(_view_link("Learning Agreement", la_val, open_in_system=True))
               view_small.append(_view_link("Propuesta Alumno LA", plan_val, open_in_system=True))
               view_small.append(_view_link("ToR", tor_val, open_in_system=True))
-              view_small.append(_view_line("Responsable", responsable_val))
 
             elif "ERASMUS IN" == prog_upper:
               view_small.append(_view_line("Cuatrimestre", cuatri_val))
@@ -587,14 +588,21 @@ def generate_dynamic_popup(row, programa: str, row_index: int) -> str:
               </li>
             """)
 
+    responsable_uni = resp_map_out.get(universidad_raw, "")
+    resp_chip_html = (
+        f'<span class="resp-chip">👤 {html.escape(responsable_uni)}</span>'
+        if responsable_uni else ""
+    )
+
     html_out = f"""
     <div class="al-popup">
 
       <header class="head">
-        <div class="title-wrap">
+        <div class="head-top">
           <div class="title">{universidad}</div>
+          {resp_chip_html}
         </div>
-        <div class="head-right">
+        <div class="head-bottom">
           <div class="badges">
             <span class="badge count">{n}</span>
           </div>
