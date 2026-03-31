@@ -1087,7 +1087,8 @@ def start_processes(api_enabled: bool = True, api_disabled_reason: str | None = 
                         _ico_path = str(
                             Path(__file__).parent / "install_root" / "MovilidadESII.ico"
                         )
-                    _tray_ref = [None]  # [pystray.Icon | None]
+                    _tray_ref = [None]   # [pystray.Icon | None]
+                    _quit_flag = [False]  # True → cierre real desde la bandeja
 
                     def _tray_stop():
                         if _tray_ref[0] is not None:
@@ -1107,6 +1108,7 @@ def start_processes(api_enabled: bool = True, api_disabled_reason: str | None = 
 
                     def _tray_quit(icon, item):
                         """Cerrar aplicación completamente desde la bandeja."""
+                        _quit_flag[0] = True
                         _tray_stop()
                         try:
                             _win.destroy()
@@ -1116,9 +1118,12 @@ def start_processes(api_enabled: bool = True, api_disabled_reason: str | None = 
                     def _on_closing():
                         """
                         Intercepta el cierre de ventana (clic en X).
-                        Oculta la ventana y crea el icono en la bandeja.
+                        Si _quit_flag está activo, permite el cierre real.
+                        Si no, oculta la ventana y crea el icono en la bandeja.
                         Devuelve False para cancelar el cierre real.
                         """
+                        if _quit_flag[0]:
+                            return  # Cierre real desde bandeja → no cancelar
                         _save_window_state()
                         if _tray_ref[0] is None:
                             try:
