@@ -455,29 +455,31 @@
                   <thead>
                     <tr>
                       <th class="row-num"></th>
-                      <th>A</th><th>B</th><th>C</th>
+                      <th>A</th><th>B</th><th>C</th><th>D</th>
                     </tr>
                   </thead>
                   <tbody>
                     <tr class="table-header">
                       <td class="row-num">1</td>
-                      <td>País</td><td>Universidad</td><td>Coordenadas</td>
+                      <td>País</td><td>Universidad</td><td>Coordenadas</td><td>Coordinador</td>
                     </tr>
                     <tr>
                       <td class="row-num">2</td>
                       <td class="cell-example">Alemania</td>
                       <td class="cell-example">TU Berlin</td>
                       <td class="cell-example">52.5122, 13.3271</td>
+                      <td class="cell-example">Prof. Müller</td>
                     </tr>
                     <tr>
                       <td class="row-num">3</td>
                       <td class="cell-example">Bélgica</td>
                       <td class="cell-example">KU Leuven</td>
                       <td class="cell-example">50.8798, 4.7005</td>
+                      <td class="cell-optional">—</td>
                     </tr>
                     <tr>
                       <td class="row-num">4</td>
-                      <td colspan="3" class="cell-optional" style="text-align:center;padding:.6rem;">… más universidades …</td>
+                      <td colspan="4" class="cell-optional" style="text-align:center;padding:.6rem;">… más universidades …</td>
                     </tr>
                   </tbody>
                 </table>
@@ -485,7 +487,8 @@
               <div class="excel-notes">
                 <ul>
                   <li>Esta hoja actúa como <strong>caché geográfica</strong>: evita geocodificaciones repetidas.</li>
-                  <li>Al añadir un nuevo estudiante, si su universidad ya está aquí sus coordenadas se toman directamente.</li>
+                  <li>Al añadir un nuevo estudiante, si su universidad ya está aquí sus coordenadas y coordinador se toman directamente.</li>
+                  <li><strong>Coordinador:</strong> columna opcional. Si no existe, la aplicación la genera automáticamente a partir del campo <em>Responsable de programa</em> de la hoja del curso académico, agrupando por universidad. Una vez creada, <strong>el valor de esta hoja tiene prioridad</strong>: la app no lo sobreescribe aunque cambie el responsable en el curso académico. Para cambiar un coordinador, edítalo directamente aquí. Si la columna aún no existe, cambia el <em>Responsable de programa</em> en la fila con la universidad correspondiente del curso académico y se actualizará al relanzar la aplicación.</li>
                   <li>El selector de universidad en el formulario se alimenta de esta lista.</li>
                 </ul>
               </div>

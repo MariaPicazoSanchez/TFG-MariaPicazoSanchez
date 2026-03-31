@@ -1081,9 +1081,12 @@ def start_processes(api_enabled: bool = True, api_disabled_reason: str | None = 
                     import pystray as _pystray
                     from PIL import Image as _PILImage
 
-                    _ico_path = str(
-                        Path(__file__).parent / "install_root" / "MovilidadESII.ico"
-                    )
+                    if getattr(sys, "frozen", False):
+                        _ico_path = str(Path(sys.executable).parent / "MovilidadESII.ico")
+                    else:
+                        _ico_path = str(
+                            Path(__file__).parent / "install_root" / "MovilidadESII.ico"
+                        )
                     _tray_ref = [None]  # [pystray.Icon | None]
 
                     def _tray_stop():
