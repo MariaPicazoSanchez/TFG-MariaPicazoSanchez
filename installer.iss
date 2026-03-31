@@ -270,6 +270,23 @@ begin
   LogLine('Python embebido instalado: ' + BasePythonExe);
 end;
 
+procedure CleanPythonEnv();
+begin
+  { En reinstalación: borrar site-packages y Scripts para forzar pip limpio.
+    Si no, InstallGetPip salta porque Scripts\pip.exe existe, pero site-packages
+    ya no tiene el módulo pip y falla "-m pip". }
+  if DirExists(PyDir() + '\Lib\site-packages') then
+  begin
+    DelTree(PyDir() + '\Lib\site-packages', True, True, True);
+    LogLine('site-packages antiguo eliminado para reinstalación limpia');
+  end;
+  if DirExists(PyDir() + '\Scripts') then
+  begin
+    DelTree(PyDir() + '\Scripts', True, True, True);
+    LogLine('Scripts antiguo eliminado para forzar reinstalación de pip');
+  end;
+end;
+
 procedure InstallGetPip();
 var
   RC: Integer;
@@ -341,13 +358,6 @@ begin
     FailAndStop('Falta wheel-*.whl en wheelhouse. (offline pip no puede continuar)');
     exit;
   end else FindClose(FR);
-
-  { En reinstalación: borrar site-packages para evitar DLLs bloqueadas (p.ej. pyarrow) }
-  if DirExists(PyDir() + '\Lib\site-packages') then
-  begin
-    DelTree(PyDir() + '\Lib\site-packages', True, True, True);
-    LogLine('site-packages antiguo eliminado para reinstalación limpia');
-  end;
 
   ExecLogged(BasePythonExe, '-m pip install --upgrade pip', '', RC);
 
@@ -450,6 +460,7 @@ begin
     LogLine('Python base seleccionado: ' + BasePythonExe);
     if (BasePythonExe = '') or (not FileExists(BasePythonExe)) then exit;
 
+    CleanPythonEnv();
     InstallGetPip();
 
     InstallDepsOffline();
