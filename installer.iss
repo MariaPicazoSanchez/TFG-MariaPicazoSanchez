@@ -17,7 +17,6 @@ OutputBaseFilename=MovilidadESII_Installer_ConData
 Compression=lzma
 SolidCompression=yes
 PrivilegesRequired=lowest
-PrivilegesRequiredOverridesAllowed=dialog
 ArchitecturesAllowed=x64
 ArchitecturesInstallIn64BitMode=x64
 SetupLogging=yes
