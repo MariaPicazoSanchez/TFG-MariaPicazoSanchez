@@ -14,6 +14,20 @@ from .popup_templates import generate_dynamic_popup,get_autofill_script
 
 logger = logging.getLogger("movilidad_ui")
 
+# Caché en memoria del JS de materias: se lee del disco una sola vez por proceso.
+_MATERIAS_EDITOR_JS: str | None = None
+
+def _get_materias_editor_js() -> str:
+    global _MATERIAS_EDITOR_JS
+    if _MATERIAS_EDITOR_JS is None:
+        js_path = Path(__file__).resolve().parents[1] / "static" / "materias_editor.js"
+        if js_path.exists():
+            _MATERIAS_EDITOR_JS = js_path.read_text(encoding="utf-8")
+        else:
+            logger.warning("No se encontró JS de materias en: %s", js_path)
+            _MATERIAS_EDITOR_JS = ""
+    return _MATERIAS_EDITOR_JS
+
 
 def add_points_to_map(m, df, nombre_capa, color):
     """Añade puntos de un DataFrame al mapa."""
@@ -323,17 +337,13 @@ def show_map(
 
     # Incrustar materias_editor.js dentro del iframe del mapa (más robusto que src externo)
     try:
-        js_path = Path(__file__).resolve().parents[1] / "static" / "materias_editor.js"
-        # Ajusta parents[...] si tu estructura es distinta
-        if js_path.exists():
-            js_code = js_path.read_text(encoding="utf-8")
+        js_code = _get_materias_editor_js()
+        if js_code:
             inline_tag = f"<script>\n{js_code}\n</script>"
             if "</body>" in html_map:
                 html_map = html_map.replace("</body>", inline_tag + "</body>")
             else:
                 html_map += inline_tag
-        else:
-            logger.warning("No se encontró JS de materias en: %s", js_path)
     except Exception as e:
         logger.warning("Error inyectando materias_editor.js inline: %s", e)
 

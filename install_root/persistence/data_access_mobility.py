@@ -664,29 +664,43 @@ def load_erasmus_in(path: str, sheet_name: str | None = None, _messages: list | 
                  df['universidad'].head().tolist() if 'universidad' in df.columns else 'N/A')
 
     def _to_records(g: pd.DataFrame) -> list[dict]:
-        # Deduplicar por estudiante (hay múltiples filas por alumno, una por asignatura)
-        seen = set()
-        records = []
+        # Deduplicar por estudiante (hay múltiples filas por alumno, una por asignatura).
+        # Si la primera fila tiene algún campo vacío (ej. cuatrimestre), se rellena
+        # con el primer valor no nulo que aparezca en filas posteriores del mismo alumno.
+        seen: dict = {}   # est -> record
+        records: list = []
         cols = ["estudiante", "cuatrimestre", "link_LA"]
         if c_email: cols.insert(1, c_email)
         cols = [c for c in cols if c in g.columns]
+
+        def _is_empty(v) -> bool:
+            return v is None or str(v).strip().lower() in ("", "nan", "none")
+
         for raw in g.to_dict('records'):
             est = raw.get("estudiante") or ""
-            if est in seen:
+            if not est:
                 continue
-            seen.add(est)
-            record = {}
-            for col in cols:
-                if col in raw:
-                    if col == c_email and c_email != "email":
-                        record["email"] = raw[col]
-                    else:
-                        record[col] = raw[col]
-            if c_ciudad and c_ciudad in raw:
-                record["ciudad"] = raw[c_ciudad]
-            if c_uni and c_uni in raw:
-                record["universidad de origen"] = raw[c_uni]
-            records.append(record)
+            if est not in seen:
+                record: dict = {}
+                for col in cols:
+                    if col in raw:
+                        key = "email" if (col == c_email and c_email != "email") else col
+                        record[key] = raw[col]
+                if c_ciudad and c_ciudad in raw:
+                    record["ciudad"] = raw[c_ciudad]
+                if c_uni and c_uni in raw:
+                    record["universidad de origen"] = raw[c_uni]
+                seen[est] = record
+                records.append(record)
+            else:
+                # Rellenar campos nulos del registro ya creado con datos de esta fila
+                record = seen[est]
+                for col in cols:
+                    if col not in raw:
+                        continue
+                    key = "email" if (col == c_email and c_email != "email") else col
+                    if _is_empty(record.get(key)) and not _is_empty(raw[col]):
+                        record[key] = raw[col]
         return records
 
     # Fase 4: Clustering de coordenadas

@@ -161,7 +161,13 @@ def generate_dynamic_popup(row, programa: str, row_index: int) -> str:
             email_val  = _clean(e.get("email"))
             
             curso_val_raw  = _clean(e.get("curso") or row.get("curso") or row.get("Curso"))
-            cuatri_val_raw = _clean(e.get("cuatrimestre"))
+            _mat_in_for_cuat = e.get("materias_in") if isinstance(e, dict) else []
+            _cuat_from_mat = (
+                _clean(_mat_in_for_cuat[0].get("cuat"))
+                if _mat_in_for_cuat and isinstance(_mat_in_for_cuat, list) and isinstance(_mat_in_for_cuat[0], dict)
+                else None
+            )
+            cuatri_val_raw = _clean(e.get("cuatrimestre")) or _cuat_from_mat
             dur_val_raw = _clean(e.get("duracion_meses") or row.get("duracion meses") or row.get("Duración (meses)") or row.get("Duracion (meses)") or row.get("duracion_meses"))
             
             dur_val = safe_int_to_str(dur_val_raw)
@@ -211,7 +217,7 @@ def generate_dynamic_popup(row, programa: str, row_index: int) -> str:
             # Obtener la hoja del curso del estudiante: primero de sus materias_in,
             # luego del campo _sheet_name directo, y como fallback el filtro global.
             _student_sheet = ""
-            _mat_in = e.get("materias_in") if isinstance(e, dict) else []
+            _mat_in = _mat_in_for_cuat  # ya obtenido arriba
             if _mat_in and isinstance(_mat_in, list):
                 _student_sheet = str(_mat_in[0].get("sheet_name", "")).strip()
             if not _student_sheet:

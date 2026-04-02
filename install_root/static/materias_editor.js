@@ -291,7 +291,7 @@
         }
     }
 
-    function showSaveToast(ok, messages = []) {
+    function showSaveToast(ok, messages = [], programa = "") {
         // Reset the save button as early as possible
         if (window._saveBtnRef) {
             window._saveBtnRef.textContent = "Guardar";
@@ -311,7 +311,8 @@
         const TID = "global-save-toast";
         const OID = "global-save-overlay";
         const closeOnlyScript = `(function(){var t=document.getElementById('${TID}');var o=document.getElementById('${OID}');if(t)t.remove();if(o)o.remove();})()`;
-        const closeAndReloadScript = `(function(){var t=document.getElementById('${TID}');var o=document.getElementById('${OID}');if(t)t.remove();if(o)o.remove();try{var u=new URL(location.href);u.searchParams.set('student_saved','1');u.searchParams.set('clear_cache','1');location.href=u.toString();}catch(e){location.reload();}})()`;
+        const _sp = programa ? `u.searchParams.set('saved_program',${JSON.stringify(programa)});` : "";
+        const closeAndReloadScript = `(function(){var t=document.getElementById('${TID}');var o=document.getElementById('${OID}');if(t)t.remove();if(o)o.remove();try{var u=new URL(location.href);u.searchParams.set('student_saved','1');u.searchParams.set('clear_cache','1');${_sp}location.href=u.toString();}catch(e){location.reload();}})()`;
 
         const overlay = topDoc.createElement("div");
         overlay.id = OVERLAY_ID;
@@ -375,6 +376,6 @@
         if (typeof data === "string") {
             try { data = JSON.parse(data); } catch (_) { return; }
         }
-        if (data.type === "saveStatus") showSaveToast(data.ok, data.messages ?? []);
+        if (data.type === "saveStatus") showSaveToast(data.ok, data.messages ?? [], data.programa ?? "");
     });
 })();

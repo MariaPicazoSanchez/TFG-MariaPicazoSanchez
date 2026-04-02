@@ -38,6 +38,7 @@ def build_search_index(dfs: dict[str, pd.DataFrame]) -> None:
         "pais": {},
         "universidad": {},
         "email": {},
+        "responsable": {},
     }
 
     particles = STOPWORDS  # reuse module-level constant
@@ -90,6 +91,8 @@ def build_search_index(dfs: dict[str, pd.DataFrame]) -> None:
         "estudiante": "alumno",
         "full_name": "alumno",
         "email": "email",
+        "responsable": "responsable",
+        "responsable programa": "responsable",
     }
 
     # 1) datos anidados en 'estudiantes'
@@ -136,6 +139,10 @@ def build_search_index(dfs: dict[str, pd.DataFrame]) -> None:
                     if ciudad:
                         add(ciudad, "ciudad")
 
+                    responsable = str(e.get("responsable", "")).strip()
+                    if responsable:
+                        add(responsable, "responsable")
+
         # 2) columnas planas
         for col in df.columns:
             col_norm = str(col).strip().lower()
@@ -153,6 +160,7 @@ def build_search_index(dfs: dict[str, pd.DataFrame]) -> None:
         ("pais", "País"),
         ("universidad", "Universidad"),
         ("email", "Email"),
+        ("responsable", "Responsable"),
     ]
 
     options: list[tuple[str, str]] = [("", "")]
@@ -211,7 +219,7 @@ def search_in_student(student: dict, search_term: str) -> bool:
     if not isinstance(student, dict):
         return False
     
-    search_fields = ("estudiante", "email", "ciudad")
+    search_fields = ("estudiante", "email", "ciudad", "responsable")
     for field in search_fields:
         value = normalize_text(str(student.get(field, "")))
         if search_term in value:
@@ -242,6 +250,7 @@ def filter_dataframes_by_search(
             "universidad", "pais", "país", "ciudad", "destino",
             "nombre", "apellidos", "apellido", "apellido1", "apellido2",
             "estudiante", "email", "full_name",
+            "responsable", "responsable programa",
         ]
     
     needle = normalize_text(search_text.strip())

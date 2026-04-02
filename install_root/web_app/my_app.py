@@ -94,24 +94,48 @@ def _auto_refresh_on_excel_change() -> None:
 # ---------------------------------------------------------------------------
 
 def _check_api_health(timeout: int = 1) -> bool:
+    import time as _time
+    cached = st.session_state.get("_api_health_cache")
+    if cached and _time.time() - cached["ts"] < 30:
+        return cached["ok"]
     try:
         api_url = os.getenv("API_URL", "http://127.0.0.1:5000").rstrip("/")
         with urllib.request.urlopen(f"{api_url}/health", timeout=timeout) as r:
-            return r.status == 200
+            ok = r.status == 200
     except Exception:
-        return False
+        ok = False
+    st.session_state["_api_health_cache"] = {"ok": ok, "ts": _time.time()}
+    return ok
 
 
 def _handle_query_params() -> None:
-    clear_cache = get_query_param("clear_cache")
-    saved       = get_query_param("student_saved")
+    clear_cache   = get_query_param("clear_cache")
+    saved         = get_query_param("student_saved")
+    saved_program = get_query_param("saved_program")
+    force_reload  = get_query_param("force_reload")
 
-    if clear_cache == "1":
+    if force_reload == "1":
+        st.cache_data.clear()
+        st.session_state["data_version"] = st.session_state.get("data_version", 0) + 1
+        st.session_state.pop("_map_html_key", None)
+        st.session_state.pop("last_map_html", None)
+        st.query_params.clear()
+        st.rerun()
+
+    if clear_cache == "1" and not saved:
         st.cache_data.clear()
 
     if saved == "1":
         st.cache_data.clear()
         st.session_state["data_version"] = st.session_state.get("data_version", 0) + 1
+        # Actualizar snapshot de mtime para evitar doble reload del auto-refresh
+        if saved_program:
+            _cfg = st.session_state.get("config", {})
+            _excel_path = _cfg.get(saved_program, "")
+            if _excel_path and os.path.exists(_excel_path):
+                _snap = dict(st.session_state.get("_excel_mtimes_snapshot", {}))
+                _snap[saved_program] = os.path.getmtime(_excel_path)
+                st.session_state["_excel_mtimes_snapshot"] = _snap
         st.query_params.clear()
         st.success("✅ Alumno guardado correctamente.")
         st.rerun()
@@ -131,14 +155,10 @@ def _load_dataframes_with_cache(config, global_sheet: str):
         cfg_mtimes, programs_to_load,
     )
 
-    # load_all_dataframes devuelve (dfs, messages) desde Streamlit 1.35+
-    # para evitar llamar a st.* dentro de @st.cache_data
     if isinstance(result, tuple) and len(result) == 2:
         dfs, messages = result
     else:
-        dfs = result  # compatibilidad con versiones anteriores
-        messages = []
-
+        dfs, messages = result, []
     return dfs, cfg_mtimes, messages
 
 
@@ -169,7 +189,8 @@ def _render_map_view(dfs, base_map, materias):
     auto_zoom_bounds = calculate_auto_zoom_bounds(
         dfs, has_search=has_search, search_margin=0.4, filter_margin=0.05
     )
-    show_map(dfs, base_map, materias, get_active_programs(), only_no_la, auto_zoom_bounds)
+    with st.spinner("Cargando mapa…"):
+        show_map(dfs, base_map, materias, get_active_programs(), only_no_la, auto_zoom_bounds)
 
 
 def _render_view(dfs, base_map, materias, config):
@@ -251,14 +272,49 @@ def main():
     global_sheet = st.session_state.get("global_sheet", None)
     dfs, cfg_mtimes, load_messages = _load_dataframes_with_cache(config, global_sheet)
 
-    build_search_index(dfs)
+    # Reconstruir el índice de búsqueda solo cuando los datos cambian
+    _index_ver = st.session_state.get("data_version", 0) + sum(
+        st.session_state.get(f"_prog_ver_{p}", 0)
+        for p in (tuple(get_active_programs()) or [])
+    )
+    if st.session_state.get("_search_index_ver") != _index_ver:
+        build_search_index(dfs)
+        st.session_state["_search_index_ver"] = _index_ver
     if search_slot is not None:
         render_search_box(parent=search_slot)
 
     handle_open_pdf_query()
     handle_open_excel_query()
 
-    st.title("Visualización de Movilidad ESII")
+    _col_title, _col_btn = st.columns([14, 1])
+    with _col_title:
+        st.title("Visualización de Movilidad ESII")
+    with _col_btn:
+        st.markdown("""
+            <form action="" method="get">
+                <button name="force_reload" value="1" class="reload-btn">
+                    ⟳ Recargar
+                </button>
+            </form>
+
+            <style>
+            .reload-btn {
+                border:1px solid #d1d5db;
+                background:#f9fafb;
+                color:#111827;
+                padding:6px 12px;
+                border-radius:8px;
+                font-size:14px;
+                cursor:pointer;
+                transition:all 0.15s ease;
+            }
+
+            .reload-btn:hover {
+                background:#f3f4f6;
+                border-color:#9ca3af;
+            }
+            </style>
+            """, unsafe_allow_html=True)
 
     # Avisos de coordenadas faltantes, justo bajo el título
     for msg in load_messages:
