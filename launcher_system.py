@@ -100,6 +100,11 @@ APP_LOG_PATH = LOG_DIR / "app.log"
 API_LOG_PATH = LOG_DIR / "api.log"
 PIP_LOG_PATH = LOG_DIR / "pip_install.log"
 LOCK_NAME = "Global\\MovilidadESII_Launcher"
+RESTORE_EVENT_NAME = "Global\\MovilidadESII_Restore"
+
+# Callback que se rellena después de crear la ventana; el listener lo invoca
+# cuando la segunda instancia señaliza el evento de restauración.
+_restore_callback_holder: list = [None]
 
 NO_WINDOW = 0
 if os.name == "nt":
@@ -434,10 +439,48 @@ def single_instance_lock():
     ERROR_ALREADY_EXISTS = 183
     handle = ctypes.windll.kernel32.CreateMutexW(None, True, LOCK_NAME)
     if ctypes.windll.kernel32.GetLastError() == ERROR_ALREADY_EXISTS:
-        LOGGER.warning("Ya hay otra instancia en ejecución, saliendo.")
+        LOGGER.warning("Ya hay otra instancia en ejecución — señalizando restauración.")
+        # Señalizar a la instancia en ejecución que restaure su ventana
+        EVENT_MODIFY_STATE = 0x0002
+        ev = ctypes.windll.kernel32.OpenEventW(EVENT_MODIFY_STATE, False, RESTORE_EVENT_NAME)
+        if ev:
+            ctypes.windll.kernel32.SetEvent(ev)
+            ctypes.windll.kernel32.CloseHandle(ev)
         return None
     LOGGER.debug("Mutex de instancia adquirido.")
     return handle
+
+
+def _start_restore_listener() -> None:
+    """
+    Inicia un hilo de fondo que espera el evento de restauración de ventana.
+    Cuando la segunda instancia señaliza RESTORE_EVENT_NAME, este hilo invoca
+    _restore_callback_holder[0]() para sacar la ventana de la bandeja.
+    """
+    if os.name != "nt":
+        return
+
+    def _listen():
+        kernel32 = ctypes.windll.kernel32
+        INFINITE = 0xFFFFFFFF
+        ev = kernel32.CreateEventW(None, False, False, RESTORE_EVENT_NAME)
+        if not ev:
+            return
+        try:
+            while True:
+                result = kernel32.WaitForSingleObject(ev, INFINITE)
+                if result != 0:   # WAIT_FAILED o WAIT_ABANDONED
+                    break
+                cb = _restore_callback_holder[0]
+                if cb:
+                    try:
+                        cb()
+                    except Exception:
+                        pass
+        finally:
+            kernel32.CloseHandle(ev)
+
+    threading.Thread(target=_listen, daemon=True, name="restore-listener").start()
 
 
 def release_instance_lock(handle) -> None:
@@ -1106,6 +1149,16 @@ def start_processes(api_enabled: bool = True, api_disabled_reason: str | None = 
                         except Exception:
                             pass
 
+                    def _do_restore():
+                        """Restaurar ventana desde el listener de segunda instancia."""
+                        _tray_stop()
+                        try:
+                            _win.show()
+                        except Exception:
+                            pass
+
+                    _restore_callback_holder[0] = _do_restore
+
                     def _tray_quit(icon, item):
                         """Cerrar aplicación completamente desde la bandeja."""
                         _quit_flag[0] = True
@@ -1296,6 +1349,7 @@ def run_launcher() -> int:
             return 1
         return 0
 
+    _start_restore_listener()   # crea el evento antes de adquirir el mutex
     lock_handle = single_instance_lock()
     if lock_handle is None and os.name == "nt":
         return 0

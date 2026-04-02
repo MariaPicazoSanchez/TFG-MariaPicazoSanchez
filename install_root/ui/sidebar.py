@@ -131,8 +131,11 @@ $form.Close()
 def load_config():
     """Carga las rutas guardadas desde config.json, si existe."""
     if os.path.exists(CONFIG_FILE):
-        with open(CONFIG_FILE, "r", encoding="utf-8") as f:
-            config = json.load(f)
+        try:
+            with open(CONFIG_FILE, "r", encoding="utf-8") as f:
+                config = json.load(f)
+        except (json.JSONDecodeError, OSError):
+            return {}
         # REPARAR rutas mal formadas
         repaired = {}
         for key, value in config.items():
