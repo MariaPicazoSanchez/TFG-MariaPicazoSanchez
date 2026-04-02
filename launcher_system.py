@@ -1154,10 +1154,7 @@ def start_processes(api_enabled: bool = True, api_disabled_reason: str | None = 
                                     "No se pudo crear icono de bandeja: %s", _te
                                 )
                                 return  # Sin bandeja → permite el cierre normal
-                        try:
-                            _win.hide()
-                        except Exception:
-                            pass
+                        threading.Timer(0.05, lambda: _win.hide()).start()
                         return False  # Cancela el cierre de la ventana
 
                     _win.events.closing += _on_closing
