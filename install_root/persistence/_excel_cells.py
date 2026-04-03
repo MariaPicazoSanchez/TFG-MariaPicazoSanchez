@@ -15,7 +15,6 @@ Exporta:
   - _recalculate_coords      — geocodifica y escribe en DataFrame pandas
 """
 
-from __future__ import annotations
 
 import logging
 from typing import Any, Optional

@@ -8,7 +8,6 @@ Exporta:
   - _sheet_exists     — comprueba si una hoja existe en un xlsx
 """
 
-from __future__ import annotations
 
 import logging
 import re

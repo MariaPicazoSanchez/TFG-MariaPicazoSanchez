@@ -2,7 +2,6 @@
 Loader para SICUE OUT.
 """
 
-from __future__ import annotations
 
 import gc
 

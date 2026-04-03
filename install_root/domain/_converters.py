@@ -7,7 +7,6 @@ Exporta:
                   normalize_int, normalize_phone, compose_normalizers
 """
 
-from __future__ import annotations
 
 from typing import Any, Callable
 

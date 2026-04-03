@@ -7,7 +7,6 @@ Helpers para el formulario de nuevo estudiante:
   - Utilidades de texto y selección de fichero
 """
 
-from __future__ import annotations
 
 import logging
 import re

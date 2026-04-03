@@ -2,7 +2,6 @@
 Utilidad de renderizado de tablas de estadísticas.
 Módulo independiente para evitar importaciones circulares.
 """
-from __future__ import annotations
 
 import pandas as pd
 import streamlit as st

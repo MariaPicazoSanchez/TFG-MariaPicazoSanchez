@@ -8,7 +8,6 @@ Exporta:
              matches_pattern, is_one_of
 """
 
-from __future__ import annotations
 
 import re
 from dataclasses import dataclass

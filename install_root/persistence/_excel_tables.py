@@ -11,7 +11,6 @@ Exporta:
   - Constantes STUDENTS_HEADER_ALIASES, MATERIAS_HEADER_ALIASES, ...
 """
 
-from __future__ import annotations
 
 import logging
 import unicodedata

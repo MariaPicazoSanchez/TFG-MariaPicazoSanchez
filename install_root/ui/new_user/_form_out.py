@@ -2,7 +2,6 @@
 Formulario de nuevo estudiante para Erasmus OUT.
 """
 
-from __future__ import annotations
 
 import streamlit as st
 

@@ -278,13 +278,6 @@ def get_materias_in_por_estudiante(config) -> dict:
     return build_materias_in_por_estudiante(load_materias_in(config))
 
 
-def get_alumnos_in(config) -> pd.DataFrame:
-    df = load_materias_in(config)
-    if df.empty:
-        return df
-    return df[["Estudiante", "Origen", "UniversidadOrigen"]].drop_duplicates().reset_index(drop=True)
-
-
 # ─────────────────────────────────────────────────────────────────────────────
 # Catálogo de asignaturas ofertadas
 # ─────────────────────────────────────────────────────────────────────────────

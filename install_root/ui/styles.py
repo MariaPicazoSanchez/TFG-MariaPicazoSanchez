@@ -5,7 +5,6 @@ El contenido se cachea en memoria la primera vez que se accede,
 para no releer el disco en cada render del popup.
 """
 
-from __future__ import annotations
 
 from pathlib import Path
 

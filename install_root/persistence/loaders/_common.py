@@ -9,7 +9,6 @@ Helpers compartidos por todos los loaders de movilidad:
   - clustering de coordenadas (haversine_distance, cluster_coordinates)
 """
 
-from __future__ import annotations
 
 import gc
 import math

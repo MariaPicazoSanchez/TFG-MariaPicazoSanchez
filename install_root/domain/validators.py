@@ -9,7 +9,6 @@ este módulo los re-exporta para compatibilidad hacia atrás y añade:
   - Utilidades auxiliares (create_contextual_validator, get_converter, safe_get_nested)
 """
 
-from __future__ import annotations
 
 from typing import Any, Callable
 

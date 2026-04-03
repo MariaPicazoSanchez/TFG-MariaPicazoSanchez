@@ -3,7 +3,6 @@ Agregador principal: carga todos los DataFrames de movilidad aplicando
 el filtro de hoja y el lazy loading selectivo por programa.
 """
 
-from __future__ import annotations
 
 import os
 

@@ -2,7 +2,6 @@
 Loader para Erasmus OUT.
 """
 
-from __future__ import annotations
 
 import gc
 

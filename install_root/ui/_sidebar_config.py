@@ -12,7 +12,6 @@ Exporta:
   - _unique_sheets_from_config_or_files — unión de hojas de todos los Excels
 """
 
-from __future__ import annotations
 
 import json
 import os

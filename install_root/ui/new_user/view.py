@@ -4,7 +4,6 @@ Orquesta la selección de tipo/hoja, los sub-formularios por programa,
 la validación y el guardado en Excel.
 """
 
-from __future__ import annotations
 
 import logging
 import os

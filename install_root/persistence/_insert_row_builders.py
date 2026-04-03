@@ -6,7 +6,6 @@ Exporta:
   - build_existing_sheet_row — fila para cuando la hoja ya existe
 """
 
-from __future__ import annotations
 
 import pandas as pd
 from domain import COMMON_COLS, SPEC_COLS, SICUE_OUT_COLS

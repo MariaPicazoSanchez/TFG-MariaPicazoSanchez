@@ -29,18 +29,6 @@ def _get_materias_editor_js() -> str:
     return _MATERIAS_EDITOR_JS
 
 
-def add_points_to_map(m, df, nombre_capa, color):
-    """Añade puntos de un DataFrame al mapa."""
-    if {"latitud", "longitud"}.issubset(df.columns):
-        for _, row in df.iterrows():
-            nombre = row.get("nombre", "Sin nombre")
-            lat, lon = row["latitud"], row["longitud"]
-            m.add_marker(
-                location=[lat, lon],
-                popup=f"<b>{nombre}</b><br><i>{nombre_capa}</i>",
-                icon_color=color
-            )
-
 def group_rows_by_location(df, decimals=2):
     """
     Devuelve una lista de dicts con:

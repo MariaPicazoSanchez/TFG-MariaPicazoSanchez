@@ -2,12 +2,10 @@
 Inserción y actualización de estudiantes en Excel.
 
 Exporta:
-  - append_user_to_excel               — añade estudiante al Excel
-  - export_materias_in_excel           — exporta materias Erasmus IN
-  - handle_save_student_query          — handler Streamlit para guardar alumno
+  - append_user_to_excel          — añade estudiante al Excel
+  - handle_save_student_query     — handler Streamlit para guardar alumno
 """
 
-from __future__ import annotations
 
 import json
 import logging
@@ -236,44 +234,6 @@ def append_user_to_excel(
 # ─────────────────────────────────────────────────────────────────────────────
 # Exportación de materias
 # ─────────────────────────────────────────────────────────────────────────────
-
-def export_materias_in_excel(dfs: dict, config: dict) -> None:
-    """Crea / actualiza el Excel de materias Erasmus IN a partir del df de 'Erasmus IN'."""
-    from ui.popup_helpers import _normalize_estudiantes
-
-    erasmus_in_df = dfs.get("Erasmus IN")
-    if erasmus_in_df is None:
-        return
-
-    rows_out = []
-    for _, row in erasmus_in_df.iterrows():
-        pais   = row.get("pais") or ""
-        centro = row.get("universidad") or row.get("centro") or ""
-        for est in _normalize_estudiantes(row.get("estudiantes", [])):
-            nombre_est = est.get("estudiante", "")
-            for m in (est.get("materias_in") or []):
-                if not isinstance(m, dict):
-                    continue
-                asig = m.get("asignatura", "")
-                if not asig:
-                    continue
-                rows_out.append({
-                    "Asignatura": asig,
-                    "Estudiante": nombre_est,
-                    "Origen":    pais,
-                    "Centro":    centro,
-                    "Cuat":      m.get("cuat") or "",
-                    "Firmado":   m.get("firmado") or "x",
-                })
-
-    cols = ["Asignatura", "Estudiante", "Origen", "Centro", "Cuat", "Firmado"]
-    df_out = pd.DataFrame(rows_out, columns=cols) if rows_out else pd.DataFrame(columns=cols)
-
-    path_materias = config.get("Erasmus IN")
-    if not path_materias:
-        return
-    df_out.to_excel(path_materias, index=False)
-
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Handler Streamlit: guardar alumno desde query params
