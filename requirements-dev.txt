@@ -10,3 +10,6 @@ geopy==2.4.1
 
 # Testing
 pytest>=9.0
+
+# Linting
+ruff>=0.4

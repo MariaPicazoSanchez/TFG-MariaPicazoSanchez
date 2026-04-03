@@ -147,11 +147,29 @@ jobs:
       # RELEASE
       # =========================
 
+      - name: Extract release notes from CHANGELOG
+        id: changelog
+        shell: pwsh
+        run: |
+          $version = "${{ inputs.version }}" -replace '^v', ''
+          $content = Get-Content CHANGELOG.md -Raw
+          # Extrae el bloque entre ## [X.Y.Z] y el siguiente ##
+          if ($content -match "(?s)## \[$version\][^\n]*\n(.*?)(?=\n## \[)") {
+            $notes = $Matches[1].Trim()
+          } else {
+            $notes = "See CHANGELOG.md for details."
+          }
+          # Escribe en variable de entorno multilínea
+          "RELEASE_NOTES<<EOF" | Out-File $env:GITHUB_OUTPUT -Append
+          $notes | Out-File $env:GITHUB_OUTPUT -Append
+          "EOF" | Out-File $env:GITHUB_OUTPUT -Append
+
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ inputs.version }}
           name: MovilidadESII ${{ inputs.version }}
+          body: ${{ steps.changelog.outputs.RELEASE_NOTES }}
           files: |
             output/MovilidadESII_ConData_${{ inputs.version }}.zip
             output/MovilidadESII_SinData_${{ inputs.version }}.zip

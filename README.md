@@ -9,6 +9,7 @@
 [![Platform Windows](https://img.shields.io/badge/Platform-Windows-0078D6?logo=windows&logoColor=white)](https://www.microsoft.com/windows)
 [![Build](https://github.com/MariaPicazoSanchez/TFG-MariaPicazoSanchez/actions/workflows/build-installers.yml/badge.svg)](https://github.com/MariaPicazoSanchez/TFG-MariaPicazoSanchez/actions/workflows/build-installers.yml)
 [![Tests](https://github.com/MariaPicazoSanchez/TFG-MariaPicazoSanchez/actions/workflows/tests.yml/badge.svg)](https://github.com/MariaPicazoSanchez/TFG-MariaPicazoSanchez/actions/workflows/tests.yml)
+[![Lint](https://github.com/MariaPicazoSanchez/TFG-MariaPicazoSanchez/actions/workflows/lint.yml/badge.svg)](https://github.com/MariaPicazoSanchez/TFG-MariaPicazoSanchez/actions/workflows/lint.yml)
 [![GitHub release](https://img.shields.io/github/v/release/MariaPicazoSanchez/TFG-MariaPicazoSanchez?cacheSeconds=60)](https://github.com/MariaPicazoSanchez/TFG-MariaPicazoSanchez/releases/latest)
 [![License](https://img.shields.io/badge/License-CC%20BY--NC%204.0-lightgrey)](https://creativecommons.org/licenses/by-nc/4.0/)
 
@@ -304,11 +305,9 @@ python -m streamlit run web_app/my_app.py
 
 The test suite covers the core domain logic and data processing utilities. Tests run without launching the Streamlit or Flask processes — all UI dependencies are mocked automatically.
 
-```bash
-# Activate the venv first (once per terminal session)
-.venv\Scripts\activate
+With the venv active (see [§4](#4-development-setup)):
 
-# Run all tests
+```bash
 pytest -v
 ```
 

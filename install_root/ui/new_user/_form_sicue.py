@@ -7,7 +7,7 @@ import streamlit as st
 
 from persistence.data_access_mobility import get_universities_from_sicue_data
 
-from ._helpers import _FILTER_ALL, _FILTER_PDF_WORD, file_picker_button
+from ._helpers import _FILTER_ALL, file_picker_button
 
 
 def render_sicue_out_form(config: dict, asignaturas_catalog: list) -> dict:

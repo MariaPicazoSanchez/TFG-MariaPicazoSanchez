@@ -1,0 +1,9 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(.venv/Scripts/python.exe -m ruff check install_root/ --select F401,F811 --statistics)",
+      "Bash(.venv/Scripts/python.exe -m ruff check install_root/ --select F401,F811)",
+      "Bash(.venv/Scripts/python.exe -m ruff check install_root/ --select F401,F811 --fix)"
+    ]
+  }
+}

@@ -10,7 +10,6 @@ Helpers compartidos por todos los loaders de movilidad:
 """
 
 
-import gc
 import math
 import os
 import re

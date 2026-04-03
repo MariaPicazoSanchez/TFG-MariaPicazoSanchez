@@ -35,7 +35,7 @@ from utils.map_processing import (
     calculate_auto_zoom_bounds, check_dataframes_have_data, filter_out_no_la
 )
 from persistence import load_all_dataframes, get_materias_in_por_estudiante
-from constants import PROGRAM_ERASMUS_OUT, PROGRAM_ERASMUS_IN, PROGRAM_SICUE_OUT
+from constants import PROGRAM_ERASMUS_OUT
 from ui._sidebar_config import _list_sheets_in_file
 from ui.stats_helpers import build_export_xlsx
 

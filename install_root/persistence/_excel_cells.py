@@ -17,11 +17,10 @@ Exporta:
 
 
 import logging
-from typing import Any, Optional
+from typing import Any
 
 from ._excel_tables import (
     _find_col_in_ws_by_aliases,
-    _norm_header,
     _row_is_empty_ws,
 )
 

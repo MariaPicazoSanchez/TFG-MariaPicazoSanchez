@@ -16,7 +16,7 @@ import pandas as pd
 import streamlit as st
 from openpyxl import load_workbook
 
-from ._insert_helpers import _norm, _pick_col, _sheet_exists, first_sheet_name
+from ._insert_helpers import _pick_col, _sheet_exists, first_sheet_name
 from ._insert_row_builders import build_existing_sheet_row, build_new_sheet_row
 
 logger = logging.getLogger("movilidad_persistence")

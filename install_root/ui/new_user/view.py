@@ -62,7 +62,7 @@ def _clear_new_user_form_state() -> None:
 
 def render_new_user_form(available_types: list[str], config: dict) -> dict | None:
     from domain import ICON_BY_TIPO
-    from persistence import append_user_to_excel, first_sheet_name
+    from persistence import append_user_to_excel
 
     # Transferir valores de buffer (file picker) a claves de widget antes de renderizar
     for _buf_key in [k for k in st.session_state if k.startswith("_buf_nu_")]:

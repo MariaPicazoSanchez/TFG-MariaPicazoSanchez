@@ -2,7 +2,6 @@
 import html
 import json
 
-import pandas as pd
 
 from .popup_helpers import _clean
 from constants import PROGRAM_ERASMUS_IN

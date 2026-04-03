@@ -1,7 +1,7 @@
 
 import logging
 import os
-from typing import Any, Optional
+from typing import Optional
 
 from openpyxl import load_workbook
 
@@ -20,7 +20,6 @@ from ._excel_tables import (
 )
 from ._excel_cells import (
     FIELD_ALIASES,
-    _ensure_rows_for_append,
     _is_invalid_student_name_cell,
     _name_to_scalar,
     _normalize_firmado,
