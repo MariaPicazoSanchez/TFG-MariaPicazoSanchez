@@ -38,24 +38,9 @@ FORM_ACTION = f"{API_URL}/update_student"
 # ─────────────────────────────────────────────────────────────────────────────
 
 def _load_asignaturas_catalog(config: dict, sheet_name: str | None = None) -> list:
-    """Carga el catálogo de asignaturas con caché en session_state.
-
-    La clave incluye data_version para invalidar automáticamente tras
-    cualquier guardado (update_student_in_excel, actualizar_materias…).
-    """
-    ruta = (config.get("Erasmus IN") or "").strip()
-    data_version = st.session_state.get("data_version", 0)
-    cache_key = f"_asignaturas_catalog_{ruta}_{sheet_name or ''}_{data_version}"
-
-    if cache_key not in st.session_state:
-        try:
-            from persistence import get_asignaturas_catalog
-            st.session_state[cache_key] = get_asignaturas_catalog(config, sheet_name=sheet_name)
-        except Exception as exc:
-            logger.warning("No se pudo cargar catálogo de asignaturas: %s", exc)
-            st.session_state[cache_key] = []
-
-    return st.session_state.get(cache_key, [])
+    """Delega en la implementación canónica de new_user._helpers para evitar duplicación."""
+    from ui.new_user._helpers import load_asignaturas_catalog
+    return load_asignaturas_catalog(config, sheet_name=sheet_name)
 
 
 def _is_valid_student(e: dict) -> bool:

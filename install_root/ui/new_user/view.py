@@ -363,7 +363,10 @@ def render_new_user_form(available_types: list[str], config: dict) -> dict | Non
         st.toast(f"Error guardando en Excel: {err}", icon="❌")
         return None
 
-    st.cache_data.clear()
+    from ui._sidebar_config import _list_sheets_in_file
+    from ui.stats_helpers import build_export_xlsx
+    _list_sheets_in_file.clear()   # por si se creó una hoja nueva
+    build_export_xlsx.clear()      # el export incluye al nuevo alumno
     st.session_state["_user_saved"]  = True
     st.session_state["data_version"] = st.session_state.get("data_version", 0) + 1
     st.rerun()

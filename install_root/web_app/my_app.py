@@ -36,6 +36,8 @@ from utils.map_processing import (
 )
 from persistence import load_all_dataframes, get_materias_in_por_estudiante
 from constants import PROGRAM_ERASMUS_OUT, PROGRAM_ERASMUS_IN, PROGRAM_SICUE_OUT
+from ui._sidebar_config import _list_sheets_in_file
+from ui.stats_helpers import build_export_xlsx
 
 
 # ---------------------------------------------------------------------------
@@ -58,7 +60,7 @@ def _cached_materias(cfg_items: tuple, data_version: int, src_mtimes: tuple):
 # Fragment de auto-refresco: detecta cambios en disco cada 3s
 # ---------------------------------------------------------------------------
 
-@st.fragment(run_every=3)
+@st.fragment(run_every=10)
 def _auto_refresh_on_excel_change() -> None:
     """Cada 3s comprueba si algún Excel cambió en disco. Si cambió, recarga."""
     config = st.session_state.get("config", {})
@@ -96,7 +98,7 @@ def _auto_refresh_on_excel_change() -> None:
 def _check_api_health(timeout: int = 1) -> bool:
     import time as _time
     cached = st.session_state.get("_api_health_cache")
-    if cached and _time.time() - cached["ts"] < 30:
+    if cached and _time.time() - cached["ts"] < 120:
         return cached["ok"]
     try:
         api_url = os.getenv("API_URL", "http://127.0.0.1:5000").rstrip("/")
@@ -126,7 +128,11 @@ def _handle_query_params() -> None:
         st.cache_data.clear()
 
     if saved == "1":
-        st.cache_data.clear()
+        # Solo limpiamos las cachés que cambian al añadir un alumno.
+        # _cached_load y _cached_materias se invalidan automáticamente via data_version.
+        # Las cachés de universidades/países/coordenadas NO cambian al guardar un alumno.
+        _list_sheets_in_file.clear()   # por si se creó una hoja nueva
+        build_export_xlsx.clear()      # el export incluye al nuevo alumno
         st.session_state["data_version"] = st.session_state.get("data_version", 0) + 1
         # Actualizar snapshot de mtime para evitar doble reload del auto-refresh
         if saved_program:

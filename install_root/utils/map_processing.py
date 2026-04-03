@@ -104,13 +104,13 @@ def filter_out_no_la(dfs: dict[str, pd.DataFrame], program: str) -> dict[str, pd
     if "estudiantes" not in df.columns:
         return dfs
 
+    records = df.to_dict("records")
     filtered_rows = []
-    for _, row in df.iterrows():
-        filtered_students = _filter_students_without_la(row.get("estudiantes", []))
+    for rec in records:
+        filtered_students = _filter_students_without_la(rec.get("estudiantes", []))
         if filtered_students:
-            row_copy = row.copy()
-            row_copy["estudiantes"] = filtered_students
-            filtered_rows.append(row_copy)
+            rec["estudiantes"] = filtered_students
+            filtered_rows.append(rec)
 
     dfs[program] = pd.DataFrame(filtered_rows) if filtered_rows else pd.DataFrame()
     return dfs

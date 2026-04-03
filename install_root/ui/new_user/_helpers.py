@@ -81,12 +81,11 @@ def get_university_responsable_map(path: str) -> dict:
     try:
         df_coords = pd.read_excel(path, sheet_name="Coordenadas", header=None, dtype=str)
         if df_coords.shape[1] >= 4:
-            result = {}
-            for _, row in df_coords.iterrows():
-                uni  = str(row.iloc[1] if pd.notna(row.iloc[1]) else "").strip()
-                resp = str(row.iloc[3] if pd.notna(row.iloc[3]) else "").strip()
-                if uni and resp and resp.lower() not in ("nan", "none", ""):
-                    result[uni] = resp
+            unis  = df_coords.iloc[:, 1].fillna("").astype(str).str.strip()
+            resps = df_coords.iloc[:, 3].fillna("").astype(str).str.strip()
+            _bad  = {"nan", "none", ""}
+            mask  = unis.ne("") & resps.ne("") & ~resps.str.lower().isin(_bad)
+            result = dict(zip(unis[mask], resps[mask]))
             if result:
                 return result
         resp_map = _build_responsable_from_students(path)
@@ -133,13 +132,14 @@ def _build_responsable_from_students(path: str) -> dict:
             )
             if not c_uni or not c_resp:
                 continue
-            for _, row in df.iterrows():
-                uni  = str(row.get(c_uni,  "") or "").strip()
-                resp = str(row.get(c_resp, "") or "").strip()
-                if (uni and resp
-                        and uni.lower()  not in ("nan", "none", "")
-                        and resp.lower() not in ("nan", "none", "")):
-                    resp_map.setdefault(uni, resp)
+            unis  = df[c_uni].fillna("").astype(str).str.strip()
+            resps = df[c_resp].fillna("").astype(str).str.strip()
+            _bad  = {"nan", "none", ""}
+            mask  = (unis.ne("") & resps.ne("")
+                     & ~unis.str.lower().isin(_bad)
+                     & ~resps.str.lower().isin(_bad))
+            for uni, resp in zip(unis[mask].tolist(), resps[mask].tolist()):
+                resp_map.setdefault(uni, resp)
         except Exception:
             continue
     return resp_map

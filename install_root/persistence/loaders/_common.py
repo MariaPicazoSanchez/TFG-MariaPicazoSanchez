@@ -286,17 +286,14 @@ def filter_students_with_coords(
     Los avisos se acumulan en _messages para mostrarlos fuera de @st.cache_data.
     """
     mask_coords = df["latitud"].notna() & df["longitud"].notna()
-    if not mask_coords.all():
-        for _, row in df[~mask_coords].iterrows():
-            nombre = row.get("estudiante", "(sin nombre)")
-            nombre_str = str(nombre).strip().lower()
-            if pd.isna(nombre) or nombre_str in ("", "nan", "0"):
-                continue
-            if _messages is not None:
-                _messages.append(
-                    f"⚠️ El alumno **{nombre}** ({tipo}) no tiene coordenadas "
-                    "y no se mostrará en el mapa."
-                )
+    if not mask_coords.all() and _messages is not None:
+        sin_coords = df.loc[~mask_coords, "estudiante"] if "estudiante" in df.columns else pd.Series(dtype=object)
+        sin_coords_str = sin_coords.astype(str).str.strip().str.lower()
+        validos = sin_coords[~(sin_coords.isna() | sin_coords_str.isin({"", "nan", "0"}))]
+        _messages += [
+            f"⚠️ El alumno **{n}** ({tipo}) no tiene coordenadas y no se mostrará en el mapa."
+            for n in validos
+        ]
     return df[mask_coords].copy()
 
 
@@ -383,25 +380,36 @@ def _restore_location_info(grouped: pd.DataFrame, df: pd.DataFrame) -> pd.DataFr
     Rellena las columnas latitud/longitud/pais/ciudad/universidad del grouped
     usando los valores reales del df original (promedio / moda por cluster).
     """
-    for i, row in grouped.iterrows():
-        if not row["estudiantes"]:
-            continue
-        grupo_df = df[
-            (df["_lat_r"] == row["_lat_r"]) &
-            (df["_lon_r"] == row["_lon_r"])
-        ]
-        if grupo_df.empty:
-            continue
-        grouped.at[i, "latitud"]  = grupo_df["latitud"].mean()
-        grouped.at[i, "longitud"] = grupo_df["longitud"].mean()
-        for col in ("pais", "ciudad", "universidad"):
-            if col not in grupo_df.columns:
-                continue
-            if grupo_df[col].isna().all():
-                continue
-            mode = grupo_df[col].mode()
-            grouped.at[i, col] = str(mode[0] if not mode.empty else grupo_df[col].iloc[0])
-    return grouped
+    def _mode_str(s: pd.Series) -> str:
+        m = s.dropna().mode()
+        return str(m.iloc[0]) if not m.empty else ""
+
+    keys = ["_lat_r", "_lon_r"]
+
+    # Calcular media de coordenadas por cluster de una sola vez
+    coord_agg = (
+        df.groupby(keys, dropna=False)
+          .agg(latitud=("latitud", "mean"), longitud=("longitud", "mean"))
+          .reset_index()
+    )
+
+    # Calcular moda de columnas de texto por cluster de una sola vez
+    text_cols = [c for c in ("pais", "ciudad", "universidad") if c in df.columns]
+    if text_cols:
+        text_agg = (
+            df.groupby(keys, dropna=False)[text_cols]
+              .agg(_mode_str)
+              .reset_index()
+        )
+        location_agg = coord_agg.merge(text_agg, on=keys, how="left")
+    else:
+        location_agg = coord_agg
+
+    # Sustituir columnas de ubicación del grouped con los valores calculados
+    cols_to_drop = [c for c in ("latitud", "longitud", *text_cols) if c in grouped.columns]
+    return grouped.drop(columns=cols_to_drop, errors="ignore").merge(
+        location_agg, on=keys, how="left"
+    )
 
 
 EMPTY_DF_COLS = ["universidad", "pais", "ciudad", "latitud", "longitud", "estudiantes"]

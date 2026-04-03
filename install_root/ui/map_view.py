@@ -41,19 +41,17 @@ def group_rows_by_location(df, decimals=2):
     # Caso 1: df ya está agrupado (columna 'estudiantes' con listas de dicts)
     # En este caso, solo hay que convertir a lista de dicts
     if "estudiantes" in df.columns and df["estudiantes"].apply(lambda v: isinstance(v, (list, tuple))).all():
-        out = []
-        for _, r in df.iterrows():
-            if pd.isna(r.get("latitud")) or pd.isna(r.get("longitud")):
-                continue
-            ests = r.get("estudiantes") or []
-            out.append({
+        mask = df["latitud"].notna() & df["longitud"].notna()
+        return [
+            {
                 "universidad": r.get("universidad", ""),
                 "pais": r.get("pais", ""),
                 "latitud": float(r["latitud"]),
                 "longitud": float(r["longitud"]),
-                "estudiantes": list(ests) or []
-            })
-        return out
+                "estudiantes": list(r.get("estudiantes") or []),
+            }
+            for r in df[mask].to_dict("records")
+        ]
 
     # Caso 2: df viene "en bruto" (filas individuales de estudiantes)
     # Necesitamos agrupar por ubicación
@@ -215,18 +213,18 @@ def show_map(
         # Convertir df a lista de dicts agrupados
         # El df ya viene agrupado de load_erasmus_out con columna 'estudiantes' como lista
         if "estudiantes" in df.columns and df["estudiantes"].apply(lambda v: isinstance(v, (list, tuple))).all():
-            grouped = []
-            for _, row in df.iterrows():
-                if pd.isna(row.get("latitud")) or pd.isna(row.get("longitud")):
-                    continue
-                grouped.append({
-                    "universidad": row.get("universidad", ""),
-                    "pais": row.get("pais", ""),
-                    "ciudad": row.get("ciudad", ""),
-                    "latitud": float(row["latitud"]),
-                    "longitud": float(row["longitud"]),
-                    "estudiantes": list(row.get("estudiantes", [])) or []
-                })
+            mask = df["latitud"].notna() & df["longitud"].notna()
+            grouped = [
+                {
+                    "universidad": r.get("universidad", ""),
+                    "pais": r.get("pais", ""),
+                    "ciudad": r.get("ciudad", ""),
+                    "latitud": float(r["latitud"]),
+                    "longitud": float(r["longitud"]),
+                    "estudiantes": list(r.get("estudiantes") or []),
+                }
+                for r in df[mask].to_dict("records")
+            ]
         else:
             # Fallback si no viene agrupado (ej. datos custom)
             grouped = group_rows_by_location(df, decimals=1)
