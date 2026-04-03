@@ -44,9 +44,9 @@ from constants import PROGRAM_ERASMUS_OUT, PROGRAM_ERASMUS_IN, PROGRAM_SICUE_OUT
 
 @st.cache_data(show_spinner=False)
 def _cached_load(cfg_items: tuple, sheet: str, data_version: int,
-                 src_mtimes: tuple, programs: tuple | None = None):
+                 src_mtimes: tuple):
     cfg = dict(cfg_items)
-    return load_all_dataframes(cfg, sheet, programs_to_load=list(programs) if programs else None)
+    return load_all_dataframes(cfg, sheet, programs_to_load=None)
 
 
 @st.cache_data(show_spinner=False)
@@ -145,14 +145,13 @@ def _handle_query_params() -> None:
 
 
 def _load_dataframes_with_cache(config, global_sheet: str):
-    cfg_mtimes       = get_config_mtimes(config)
-    programs_to_load = tuple(get_active_programs()) or None
-    cfg_items        = tuple(sorted(config.items()))
+    cfg_mtimes = get_config_mtimes(config)
+    cfg_items  = tuple(sorted(config.items()))
 
     result = _cached_load(
         cfg_items, global_sheet,
         st.session_state.get("data_version", 0),
-        cfg_mtimes, programs_to_load,
+        cfg_mtimes,
     )
 
     if isinstance(result, tuple) and len(result) == 2:
@@ -178,6 +177,11 @@ def _render_map_view(dfs, base_map, materias):
         st.info("Cargando datos y mapa…")
         st.stop()
 
+    # Filtrar por programas seleccionados (en memoria, sin recargar desde disco)
+    active_programs = get_active_programs()
+    if active_programs:
+        dfs = {k: v for k, v in dfs.items() if k in active_programs}
+
     only_no_la  = st.session_state.get("only_erasmus_out_no_LA", False)
     if only_no_la:
         dfs = filter_out_no_la(dfs, PROGRAM_ERASMUS_OUT)
@@ -185,12 +189,28 @@ def _render_map_view(dfs, base_map, materias):
     search_text = st.session_state.get("search_text", "").strip()
     dfs = filter_dataframes_by_search(dfs, search_text)
 
+    # Clave que identifica unívocamente el mapa a renderizar.
+    # Si no ha cambiado nada, reutilizamos el HTML ya generado.
+    _render_key = (
+        st.session_state.get("data_version", 0),
+        st.session_state.get("global_sheet", ""),
+        tuple(sorted((k, v) for k, v in st.session_state.get("selected_programs", {}).items())),
+        only_no_la,
+        search_text,
+    )
+    cached_html = st.session_state.get("last_map_html")
+    if cached_html and st.session_state.get("_map_render_key") == _render_key:
+        import streamlit.components.v1 as _components
+        _components.html(cached_html, height=1080, scrolling=True)
+        return
+
     has_search       = bool(search_text and len(search_text) >= 2)
     auto_zoom_bounds = calculate_auto_zoom_bounds(
         dfs, has_search=has_search, search_margin=0.4, filter_margin=0.05
     )
     with st.spinner("Cargando mapa…"):
         show_map(dfs, base_map, materias, get_active_programs(), only_no_la, auto_zoom_bounds)
+    st.session_state["_map_render_key"] = _render_key
 
 
 def _render_view(dfs, base_map, materias, config):

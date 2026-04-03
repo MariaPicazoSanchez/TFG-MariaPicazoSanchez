@@ -43,6 +43,7 @@ CONFIG_FILE = os.getenv("APP_CONFIG_PATH", "config.json")
 
 USE_LOCAL_PICKER = True
 
+@st.cache_data(show_spinner=False)
 def _list_sheets_in_file(path: str) -> list[str]:
     if not path or not os.path.exists(path):
         return []

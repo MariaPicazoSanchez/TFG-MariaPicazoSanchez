@@ -152,6 +152,14 @@ def stats_by_city(df: pd.DataFrame) -> pd.DataFrame:
     return tab.sort_values("Nº de alumnos", ascending=False)
 
 
+def load_erasmus_in_raw(config: dict, course: str) -> pd.DataFrame:
+    """Carga Erasmus IN SIN deduplicar (una fila por asignatura). Para estadísticas de materias."""
+    path = (config or {}).get("Erasmus IN")
+    if not path:
+        return pd.DataFrame()
+    return _read_sheet_safe(path, course)
+
+
 def _config_fingerprint(config: dict) -> tuple[tuple[str, str], ...]:
     # Hash estable para cache
     items = []

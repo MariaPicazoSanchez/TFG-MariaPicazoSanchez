@@ -19,6 +19,7 @@ import unicodedata
 from typing import Iterable, Optional, Tuple
 
 import pandas as pd
+import streamlit as st
 
 from constants import EXCEL_EXTENSIONS
 
@@ -171,6 +172,7 @@ def _match_student_name(nombre_completo: str, exact: dict, by_last: dict) -> str
 # Consulta de universidades
 # ──────────────────────────────────────────────────────────────────────────────
 
+@st.cache_data(show_spinner=False)
 def get_universities_from_coords_sheet(path: str) -> list[str]:
     """
     Devuelve la lista de universidades desde la hoja 'Coordenadas' de un Excel.
@@ -192,6 +194,7 @@ def get_universities_from_coords_sheet(path: str) -> list[str]:
         return []
 
 
+@st.cache_data(show_spinner=False)
 def get_universities_from_sicue_data(path: str) -> tuple[list[str], dict, dict]:
     """
     Extrae universidades únicas del Excel de SICUE OUT leyendo todas las hojas

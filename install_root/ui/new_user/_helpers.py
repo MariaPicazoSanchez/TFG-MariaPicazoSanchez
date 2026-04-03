@@ -60,6 +60,7 @@ def file_picker_button(
 # Mapas universidad → país / responsable
 # ──────────────────────────────────────────────────────────────────────────────
 
+@st.cache_data(show_spinner=False)
 def get_university_country_map(path: str) -> dict:
     """Devuelve {universidad: país} leyendo la hoja 'Coordenadas' (col0=País, col1=Universidad)."""
     try:
@@ -70,6 +71,7 @@ def get_university_country_map(path: str) -> dict:
         return {}
 
 
+@st.cache_data(show_spinner=False)
 def get_university_responsable_map(path: str) -> dict:
     """
     Devuelve {universidad: responsable} desde la hoja 'Coordenadas' (col3).
