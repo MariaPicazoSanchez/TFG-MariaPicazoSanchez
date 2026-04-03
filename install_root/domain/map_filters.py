@@ -114,9 +114,6 @@ def render_filters_map(unique_sheets: list[str]) -> str:
     if options:
         if choice != st.session_state.get("global_sheet"):
             save_course(choice)
-            # Limpiar caché de catálogos de asignaturas al cambiar curso
-            for k in [k for k in st.session_state if k.startswith("_asignaturas_catalog_cache_v2_")]:
-                del st.session_state[k]
         st.session_state["global_sheet"] = choice
     else:
         st.session_state["global_sheet"] = None

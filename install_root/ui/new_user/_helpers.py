@@ -199,11 +199,15 @@ COUNTRY_OPTIONS: list[str] = get_country_options()
 # ──────────────────────────────────────────────────────────────────────────────
 
 def load_asignaturas_catalog(config: dict, sheet_name: str | None = None) -> list:
+    """Carga el catálogo de asignaturas con caché en session_state.
+
+    La clave incluye data_version para invalidar automáticamente tras
+    cualquier guardado (misma lógica que _load_asignaturas_catalog en popup_templates).
+    """
     ruta = (config.get("Erasmus IN") or "").strip()
-    cache_key = f"_asignaturas_catalog_cache_{ruta}_{sheet_name or ''}"
-    cached = st.session_state.get(cache_key)
-    if cached and isinstance(cached, list) and len(cached) > 0 and "matriculados" not in cached[0]:
-        del st.session_state[cache_key]
+    data_version = st.session_state.get("data_version", 0)
+    cache_key = f"_asignaturas_catalog_{ruta}_{sheet_name or ''}_{data_version}"
+
     if cache_key not in st.session_state:
         try:
             from persistence import get_asignaturas_catalog

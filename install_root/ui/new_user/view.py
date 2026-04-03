@@ -364,6 +364,7 @@ def render_new_user_form(available_types: list[str], config: dict) -> dict | Non
         st.toast(f"Error guardando en Excel: {err}", icon="❌")
         return None
 
+    st.cache_data.clear()
     st.session_state["_user_saved"]  = True
     st.session_state["data_version"] = st.session_state.get("data_version", 0) + 1
     st.rerun()
