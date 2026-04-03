@@ -8,34 +8,12 @@ import streamlit as st
 import xlrd
 
 from constants import PROGRAM_ERASMUS_OUT, PROGRAM_ERASMUS_IN, PROGRAM_SICUE_OUT, CSV_SHEET_MARKER
+from utils.path_helpers import repair_windows_path
 
 
 def _is_academic_year(name: str) -> bool:
     """Devuelve True si el nombre parece un curso académico (ej: 25-26, 2025/2026, 2016)."""
     return bool(re.search(r'\d{4}|\d{2}[-/]\d{2}', name))
-
-def repair_windows_path(path_str: str) -> str:
-    """
-    Repara rutas de Windows mal formadas.
-    Ejemplo: 'C:UsersmariaAppDataLocalMovilidadESII' -> 'C:\\Users\\maria\\AppData\\Local\\MovilidadESII'
-    """
-    if not path_str:
-        return ""
-    
-    # Si ya tiene barras invertidas, normalizarla
-    if "\\" in path_str:
-        return os.path.normpath(path_str)
-    
-    # Si tiene barras diagonales, reemplazarlas
-    if "/" in path_str:
-        return os.path.normpath(path_str.replace("/", "\\"))
-    
-    # Si NO tiene barras (ej: C:UsersmariaAppData...), insertar después de C:
-    # Patrón: C:Users... -> C:\Users...
-    if len(path_str) > 2 and path_str[1] == ":" and path_str[2] != "\\":
-        path_str = path_str[0:2] + "\\" + path_str[2:]
-    
-    return os.path.normpath(path_str)
 
 # Usa la variable de entorno APP_CONFIG_PATH si está disponible (instalación)
 # Si no, usa config.json en el directorio actual (desarrollo local)

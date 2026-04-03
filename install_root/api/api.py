@@ -32,30 +32,7 @@ if _root_dir not in sys.path:
     sys.path.insert(0, _root_dir)
 
 from security import get_api_token
-
-
-def repair_windows_path(path_str: str) -> str:
-    """
-    Repara rutas de Windows mal formadas.
-    Ejemplo: 'C:UsersmariaAppDataLocalMovilidadESII' -> 'C:\\Users\\maria\\AppData\\Local\\MovilidadESII'
-    """
-    if not path_str:
-        return ""
-
-    # Si ya tiene barras invertidas, normalizarla
-    if "\\" in path_str:
-        return os.path.normpath(path_str)
-
-    # Si tiene barras diagonales, reemplazarlas
-    if "/" in path_str:
-        return os.path.normpath(path_str.replace("/", "\\"))
-
-    # Si NO tiene barras (ej: C:UsersmariaAppData...), insertar después de C:
-    # Patrón: C:Users... -> C:\Users...
-    if len(path_str) > 2 and path_str[1] == ":" and path_str[2] != "\\":
-        path_str = path_str[0:2] + "\\" + path_str[2:]
-
-    return os.path.normpath(path_str)
+from utils.path_helpers import repair_windows_path
 
 
 API_TOKEN = get_api_token()
