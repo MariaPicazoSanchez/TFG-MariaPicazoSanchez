@@ -1,192 +1,203 @@
+from __future__ import annotations
+
 import html
 import json
+
+import pandas as pd
+
 from .popup_helpers import _clean
 from constants import PROGRAM_ERASMUS_IN
 
-def build_materias_blocks(e, programa: str, row_index_attr: str, idx_attr: str, asignaturas_catalog: list = None):
-    """
-    Devuelve:
-      - has_materias: bool
-      - materias_view_html: bloque de vista (detalles con lista de materias)
-      - materias_edit_block: bloque de edición con lista + botones editar/borrar + añadir
 
-    Solo actúa para Erasmus IN. Para otros programas -> (False, "", "").
+def build_materias_blocks(
+    e,
+    programa: str,
+    row_index_attr: str,
+    idx_attr: str,
+    asignaturas_catalog: list | None = None,
+) -> tuple[bool, str, str]:
     """
-
-    prog_upper = (programa or "").upper()
-    if prog_upper != PROGRAM_ERASMUS_IN.upper():
+    Devuelve (has_materias, materias_view_html, materias_edit_block).
+    Solo actúa para Erasmus IN; para otros programas devuelve (False, "", "").
+    """
+    if (programa or "").upper() != PROGRAM_ERASMUS_IN.upper():
         return False, "", ""
 
-    # ---- 1) Sacar materias_in del estudiante ----
+    items, es_investigacion = _parse_materias(e, asignaturas_catalog, row_index_attr, idx_attr)
+    has_materias = bool(items)
+
+    materias_view_html  = _build_view_block(items, es_investigacion)
+    materias_edit_block = _build_edit_block(
+        e, items, es_investigacion, asignaturas_catalog,
+        row_index_attr, idx_attr,
+    )
+
+    return has_materias, materias_view_html, materias_edit_block
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Parseo de materias
+# ─────────────────────────────────────────────────────────────────────────────
+
+def _safe_or(a, b):
+    """Como 'a or b' tolerando pd.NA."""
+    try:
+        return a or b
+    except TypeError:
+        return b
+
+
+def _parse_materias(
+    e,
+    asignaturas_catalog: list | None,
+    row_index_attr: str,
+    idx_attr: str,
+) -> tuple[list[dict], bool]:
+    """
+    Devuelve (items, es_investigacion).
+    Cada item contiene los datos de una materia y su HTML preconstruido.
+    """
     materias = e.get("materias_in") if isinstance(e, dict) else []
     if not isinstance(materias, list):
         materias = []
 
-    has_materias = len(materias) > 0
-
     es_investigacion = any(
-        m.get("asignatura", "").strip().lower() == "estancia investigaci\u00f3n"
+        m.get("asignatura", "").strip().lower() == "estancia investigación"
         for m in materias if isinstance(m, dict)
     )
 
-    pills = []   # para la vista
-    lines = []   # "Asignatura | Cuat | x"
-    materias_items = []  # filas <li> editables
-
-    import pandas as pd
+    items = []
     for j, m in enumerate(materias):
-      if not isinstance(m, dict):
-        continue
-
-      asig = _clean(m.get("asignatura"))
-      # Sanear dato corrupto: si asig es un JSON (todo el payload guardado como string)
-      # extraer la asignatura real del primer elemento
-      if asig and (asig.startswith("[") or asig.startswith("{")):
-        try:
-          _parsed = json.loads(asig)
-          if isinstance(_parsed, list) and _parsed and isinstance(_parsed[0], dict):
-            asig = _clean(_parsed[0].get("asignatura") or _parsed[0].get("nombre")) or asig
-          elif isinstance(_parsed, dict):
-            asig = _clean(_parsed.get("asignatura") or _parsed.get("nombre")) or asig
-        except Exception:
-          pass
-      if not asig:
-        continue
-
-      # Mostrar el valor tal cual esté, sin filtrar ni comprobar NA
-      cuat_val = m.get("cuat")
-      if cuat_val is None:
-        cuat_val = m.get("cuatrimestre")
-      cuat = _clean(cuat_val)
-
-      firmado_raw = str(m.get("firmado", "")).strip().lower()
-      firmado_flag = "x" if firmado_raw in ("x", "1", "s", "si", "sí", "true", "t") else ""
-
-      def _safe_or(a, b):
-          """Como 'a or b' pero tolerando pd.NA (que lanza TypeError en __bool__)."""
-          try:
-              return a or b
-          except TypeError:
-              return b
-      la_val = _clean(_safe_or(m.get("la"), m.get("link_la"))) or ""
-      origen_val = _clean(m.get("origen")) or ""
-      centro_val = _clean(_safe_or(m.get("centro"), m.get("universidadorigen"))) or ""
-
-      # Buscar info de matriculados en el catálogo
-      cat_info = next((a for a in (asignaturas_catalog or []) if a.get("asignatura") == asig), None)
-      matr = cat_info.get("matriculados") if cat_info else None
-      cupo = cat_info.get("cupo") if cat_info else None
-      if matr is not None and cupo is not None:
-          matr_suffix = f" <span style='font-weight:600;color:#777;'>" + f"({matr}/{cupo} matriculados)</span>"
-      elif matr is not None:
-          matr_suffix = f" <span style='font-weight:600;color:#777;'>({matr} matriculados)</span>"
-      else:
-          matr_suffix = " <span style='font-weight:600;color:#777;'>(sin datos)</span>"
-      pills.append(f"<li class='mitem'>{html.escape(asig)}{matr_suffix}</li>")
-      lines.append({
-          "asignatura": asig,
-          "cuat": cuat or "",
-          "firmado": firmado_flag,
-          "la": la_val,
-          "origen": origen_val,
-          "centro": centro_val,
-      })
-
-      mid = f"{row_index_attr}-{idx_attr}-mat-{j}"
-      mindex = len(materias_items)
-
-      # Serializar materia completa para recuperarla en el JS sin pérdidas
-      materia_json = json.dumps({
-          "nombre": asig, "asignatura": asig,
-          "cuat": cuat or "", "firmado": firmado_flag,
-          "la": la_val, "origen": origen_val, "centro": centro_val, "matriculados": matr, "cupo": cupo,
-      }, ensure_ascii=False)
-
-      # --- AQUI AÑADES LA CLASE SI ES NUEVA ---
-      clase = "materia-row"
-      if m.get("nueva"):
-        clase += " materia-nueva"
-
-      materias_items.append(f"""
-        <li class="{clase}"
-          data-mindex="{mindex}"
-          data-nombre="{html.escape(asig, quote=True)}"
-          data-materia="{html.escape(materia_json, quote=True)}">
-          <span class="materia-name">{html.escape(asig)}{matr_suffix}</span>
-          <span class="materia-actions">
-            <button type="button" class="icon-btn materia-edit" title="Editar" data-mid="{mid}">✏️</button>
-            <button type="button" class="icon-btn materia-delete" title="Eliminar" data-mid="{mid}">🗑️</button>
-          </span>
-        </li>
-      """)
-
-    materias_items_html = "\n".join(materias_items)
-
-    # ---- 2) Bloque de VISTA ----
-    if es_investigacion:
-        materias_view_html = "<div class='no-mat'>Alumno de estancia de investigaci\u00f3n</div>"
-    elif pills:
-        materias_view_html = (
-          "<details class='mat' role='group'>"
-          f"<summary>📚 Materias ({len(pills)})</summary>"
-          "<ul class='mlist'>" + "".join(pills) + "<li style='height:0.5rem;'></li></ul></details>"
-        )
-    else:
-        materias_view_html = "<div class='no-mat'>Sin asignaturas asignadas</div>"
-
-    # ---- 3) Texto raw para enviar en el form (JSON con todos los campos) ----
-    materias_text = json.dumps(lines, ensure_ascii=False)
-
-    # ---- 4) Cuatrimestre del alumno ----
-    student_cuat = _clean(
-        e.get("cuatrimestre") or e.get("cuat")
-        if isinstance(e, dict) else None
-    )
-    if student_cuat:
-        try:
-            student_cuat = str(int(float(student_cuat)))
-        except Exception:
-            pass
-
-    # Catálogo para el editor: filtrado por cuat si el alumno lo tiene,
-    # o todas con cuat indicado si no. Siempre incluye matriculados o "sin datos".
-    catalog_for_editor = []
-    for a in (asignaturas_catalog or []):
-        asig_name = a.get("asignatura", "")
-        if asig_name.strip().lower() == "estancia investigación":
+        if not isinstance(m, dict):
             continue
-        a_cuat = str(a.get("cuat") or "").replace(".0", "").strip()
-        matr_a = a.get("matriculados")
-        cupo_a = a.get("cupo")
-        if student_cuat and a_cuat and a_cuat != student_cuat:
+
+        asig = _clean(m.get("asignatura"))
+        # Sanear dato corrupto: si asig es un JSON guardado como string
+        if asig and (asig.startswith("[") or asig.startswith("{")):
+            try:
+                parsed = json.loads(asig)
+                if isinstance(parsed, list) and parsed and isinstance(parsed[0], dict):
+                    asig = _clean(parsed[0].get("asignatura") or parsed[0].get("nombre")) or asig
+                elif isinstance(parsed, dict):
+                    asig = _clean(parsed.get("asignatura") or parsed.get("nombre")) or asig
+            except Exception:
+                pass
+        if not asig:
             continue
-        label = asig_name
-        if not student_cuat and a_cuat:
-            label += f" · C{a_cuat}"
-        if matr_a is not None and cupo_a is not None:
-            label += f" ({matr_a}/{cupo_a} matriculados)"
-        elif matr_a is not None:
-            label += f" ({matr_a} matriculados)"
+
+        cuat_val = m.get("cuat") if m.get("cuat") is not None else m.get("cuatrimestre")
+        cuat     = _clean(cuat_val)
+
+        firmado_raw  = str(m.get("firmado", "")).strip().lower()
+        firmado_flag = "x" if firmado_raw in ("x", "1", "s", "si", "sí", "true", "t") else ""
+
+        la_val     = _clean(_safe_or(m.get("la"), m.get("link_la"))) or ""
+        origen_val = _clean(m.get("origen")) or ""
+        centro_val = _clean(_safe_or(m.get("centro"), m.get("universidadorigen"))) or ""
+
+        cat_info = next((a for a in (asignaturas_catalog or []) if a.get("asignatura") == asig), None)
+        matr     = cat_info.get("matriculados") if cat_info else None
+        cupo     = cat_info.get("cupo")         if cat_info else None
+
+        if matr is not None and cupo is not None:
+            matr_suffix = f" <span style='font-weight:600;color:#777;'>({matr}/{cupo} matriculados)</span>"
+        elif matr is not None:
+            matr_suffix = f" <span style='font-weight:600;color:#777;'>({matr} matriculados)</span>"
         else:
-            label += " (sin datos)"
-        catalog_for_editor.append({
-            "asignatura": asig_name,
-            "label": label,
-            "cuat": a_cuat,
-            "matriculados": matr_a,
-            "cupo": cupo_a,
+            matr_suffix = " <span style='font-weight:600;color:#777;'>(sin datos)</span>"
+
+        mid     = f"{row_index_attr}-{idx_attr}-mat-{j}"
+        clase   = "materia-row" + (" materia-nueva" if m.get("nueva") else "")
+        mat_json = json.dumps({
+            "nombre": asig, "asignatura": asig,
+            "cuat": cuat or "", "firmado": firmado_flag,
+            "la": la_val, "origen": origen_val, "centro": centro_val,
+            "matriculados": matr, "cupo": cupo,
+        }, ensure_ascii=False)
+
+        items.append({
+            "asig": asig, "cuat": cuat or "", "firmado": firmado_flag,
+            "la": la_val, "origen": origen_val, "centro": centro_val,
+            "matr": matr, "cupo": cupo,
+            "matr_suffix": matr_suffix,
+            "mid": mid, "clase": clase, "mat_json": mat_json,
+            "mindex": len(items),
         })
 
-    catalog_json = json.dumps(catalog_for_editor, ensure_ascii=False)
-    catalog_json_escaped = catalog_json.replace('"', '&quot;')
+    return items, es_investigacion
 
-    add_row_html = "" if es_investigacion else """
-          <li style="height:0.5rem;"></li>
-          <li class="materia-row add-row">
-            <button type="button" class="icon-btn materia-add"> Añadir asignatura</button>
-          </li>"""
 
-    editor_html = "" if es_investigacion else f"""
+# ─────────────────────────────────────────────────────────────────────────────
+# Bloque de vista (solo lectura)
+# ─────────────────────────────────────────────────────────────────────────────
+
+def _build_view_block(items: list[dict], es_investigacion: bool) -> str:
+    if es_investigacion:
+        return "<div class='no-mat'>Alumno de estancia de investigación</div>"
+    if not items:
+        return "<div class='no-mat'>Sin asignaturas asignadas</div>"
+
+    pills = "".join(
+        f"<li class='mitem'>{html.escape(it['asig'])}{it['matr_suffix']}</li>"
+        for it in items
+    )
+    return (
+        "<details class='mat' role='group'>"
+        f"<summary>📚 Materias ({len(items)})</summary>"
+        "<ul class='mlist'>" + pills + "<li style='height:0.5rem;'></li></ul>"
+        "</details>"
+    )
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Bloque de edición
+# ─────────────────────────────────────────────────────────────────────────────
+
+def _build_edit_block(
+    e,
+    items: list[dict],
+    es_investigacion: bool,
+    asignaturas_catalog: list | None,
+    row_index_attr: str,
+    idx_attr: str,
+) -> str:
+    materias_text = json.dumps(
+        [{"asignatura": it["asig"], "cuat": it["cuat"], "firmado": it["firmado"],
+          "la": it["la"], "origen": it["origen"], "centro": it["centro"]}
+         for it in items],
+        ensure_ascii=False,
+    )
+
+    if es_investigacion:
+        return f"""
+      <input type="hidden" name="is_investigacion" value="1">
+      <div class="field full">
+        <label>Tipo de estancia</label>
+        <div class="no-mat">Estancia de investigación</div>
+        <textarea name="materias_raw" style="display:none;">{html.escape(materias_text)}</textarea>
+      </div>
+    """
+
+    items_html = "\n".join(
+        f"""<li class="{it['clase']}"
+          data-mindex="{it['mindex']}"
+          data-nombre="{html.escape(it['asig'], quote=True)}"
+          data-materia="{html.escape(it['mat_json'], quote=True)}">
+          <span class="materia-name">{html.escape(it['asig'])}{it['matr_suffix']}</span>
+          <span class="materia-actions">
+            <button type="button" class="icon-btn materia-edit" title="Editar" data-mid="{it['mid']}">✏️</button>
+            <button type="button" class="icon-btn materia-delete" title="Eliminar" data-mid="{it['mid']}">🗑️</button>
+          </span>
+        </li>"""
+        for it in items
+    )
+
+    catalog_for_editor = _build_catalog_for_editor(e, asignaturas_catalog)
+    catalog_json_escaped = json.dumps(catalog_for_editor, ensure_ascii=False).replace('"', '&quot;')
+
+    student_cuat = _get_student_cuat(e)
+
+    editor_html = f"""
         <div class="materia-editor" style="display:none;">
           <div class="field">
             <label>Asignatura</label>
@@ -196,7 +207,6 @@ def build_materias_blocks(e, programa: str, row_index_attr: str, idx_attr: str, 
                    autocomplete="off">
             <datalist id="mat-catalog-{row_index_attr}-{idx_attr}"></datalist>
           </div>
-
           <div class="field acciones-materia" style="display:flex; justify-content:space-between; align-items:center; gap:1rem;">
             <div style="display:flex; flex-direction:row; gap:1rem; width:100%; justify-content:space-between; align-items:center;">
               <button type="button" class="materia-cancel" style="flex:1 1 0;">Cancelar</button>
@@ -205,30 +215,60 @@ def build_materias_blocks(e, programa: str, row_index_attr: str, idx_attr: str, 
           </div>
         </div>"""
 
-    # ---- 5) Bloque de EDICIÓN (lista + editor + textarea) ----
-    if es_investigacion:
-        materias_edit_block = f"""
-      <input type="hidden" name="is_investigacion" value="1">
-      <div class="field full">
-        <label>Tipo de estancia</label>
-        <div class="no-mat">Estancia de investigaci\u00f3n</div>
-        <textarea name="materias_raw" style="display:none;">{html.escape(materias_text)}</textarea>
-      </div>
-    """
-    else:
-        materias_edit_block = f"""
-      <div class="field full materias-block" data-catalog="{catalog_json_escaped}" data-student-cuat="{html.escape(student_cuat or '', quote=True)}">
-        <label>Asignaturas (materias_in)</label>
+    add_row_html = """
+          <li style="height:0.5rem;"></li>
+          <li class="materia-row add-row">
+            <button type="button" class="icon-btn materia-add"> Añadir asignatura</button>
+          </li>"""
 
+    return f"""
+      <div class="field full materias-block"
+           data-catalog="{catalog_json_escaped}"
+           data-student-cuat="{html.escape(student_cuat, quote=True)}">
+        <label>Asignaturas (materias_in)</label>
         <ul class="materias-list">
-          {materias_items_html}
+          {items_html}
           {add_row_html}
         </ul>
-
         {editor_html}
-        <!-- Representación "raw" en texto, para enviar en el form -->
         <textarea name="materias_raw" style="display:none;">{html.escape(materias_text)}</textarea>
       </div>
     """
 
-    return has_materias, materias_view_html, materias_edit_block
+
+def _get_student_cuat(e) -> str:
+    """Extrae el cuatrimestre del estudiante como string limpio."""
+    raw = _clean(e.get("cuatrimestre") or e.get("cuat") if isinstance(e, dict) else None)
+    if raw:
+        try:
+            return str(int(float(raw)))
+        except Exception:
+            pass
+    return raw or ""
+
+
+def _build_catalog_for_editor(e, asignaturas_catalog: list | None) -> list[dict]:
+    """Filtra el catálogo según el cuatrimestre del alumno."""
+    student_cuat = _get_student_cuat(e)
+    result = []
+    for a in (asignaturas_catalog or []):
+        asig_name = a.get("asignatura", "")
+        if asig_name.strip().lower() == "estancia investigación":
+            continue
+        a_cuat = str(a.get("cuat") or "").replace(".0", "").strip()
+        if student_cuat and a_cuat and a_cuat != student_cuat:
+            continue
+        matr = a.get("matriculados")
+        cupo = a.get("cupo")
+        label = asig_name
+        if not student_cuat and a_cuat:
+            label += f" · C{a_cuat}"
+        if matr is not None and cupo is not None:
+            label += f" ({matr}/{cupo} matriculados)"
+        elif matr is not None:
+            label += f" ({matr} matriculados)"
+        else:
+            label += " (sin datos)"
+        result.append({"asignatura": asig_name, "label": label, "cuat": a_cuat,
+                        "matriculados": matr, "cupo": cupo})
+    return result

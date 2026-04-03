@@ -131,7 +131,6 @@ def _view_link(label: str, url: Any, text: str = "Abrir", open_in_system: bool =
     return f"<b>{label_html}:</b> <a href='{safe_url}' target='_blank' rel='noopener noreferrer'>{text_html}</a><br>"
 
 def _is_empty(value: Any) -> bool:
-    import math
     if value is None:
         return True
     if isinstance(value, float) and math.isnan(value):
