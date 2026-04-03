@@ -8,6 +8,7 @@
 [![Flask 3.1](https://img.shields.io/badge/Flask-3.1-000000?logo=flask&logoColor=white)](https://flask.palletsprojects.com/)
 [![Platform Windows](https://img.shields.io/badge/Platform-Windows-0078D6?logo=windows&logoColor=white)](https://www.microsoft.com/windows)
 [![Build](https://github.com/MariaPicazoSanchez/TFG-MariaPicazoSanchez/actions/workflows/build-installers.yml/badge.svg)](https://github.com/MariaPicazoSanchez/TFG-MariaPicazoSanchez/actions/workflows/build-installers.yml)
+[![Tests](https://github.com/MariaPicazoSanchez/TFG-MariaPicazoSanchez/actions/workflows/tests.yml/badge.svg)](https://github.com/MariaPicazoSanchez/TFG-MariaPicazoSanchez/actions/workflows/tests.yml)
 [![GitHub release](https://img.shields.io/github/v/release/MariaPicazoSanchez/TFG-MariaPicazoSanchez?cacheSeconds=60)](https://github.com/MariaPicazoSanchez/TFG-MariaPicazoSanchez/releases/latest)
 [![License](https://img.shields.io/badge/License-CC%20BY--NC%204.0-lightgrey)](https://creativecommons.org/licenses/by-nc/4.0/)
 
@@ -34,12 +35,13 @@ Windows desktop application that exposes a local web interface (Streamlit) backe
 3. [Configuration](#3-configuration)
 4. [Development Setup](#4-development-setup)
 5. [Running the Application](#5-running-the-application)
-6. [REST API Reference](#6-rest-api-reference)
-7. [Security Model](#7-security-model)
-8. [Build & Distribution](#8-build--distribution)
-9. [Windows SmartScreen Warning](#9-windows-smartscreen-warning)
-10. [Licence](#10-licence)
-11. [Author](#11-author)
+6. [Testing](#6-testing)
+7. [REST API Reference](#7-rest-api-reference)
+8. [Security Model](#8-security-model)
+9. [Build & Distribution](#9-build--distribution)
+10. [Windows SmartScreen Warning](#10-windows-smartscreen-warning)
+11. [Licence](#11-licence)
+12. [Author](#12-author)
 
 ---
 
@@ -113,45 +115,65 @@ TFG-MariaPicazoSanchez/
 ├── config.json                  # Excel file paths per mobility programme
 ├── installer.iss                # Inno Setup script (demo build — bundles sample data, passes --demo)
 ├── installer_sindata.iss        # Inno Setup script (production build — no data bundled)
-├── MovilidadESII.spec           # PyInstaller spec file
+├── requirements-dev.txt         # Development dependencies (includes pytest)
+├── pytest.ini                   # pytest configuration
+├── tests/                       # Unit tests (pytest)
+│   ├── conftest.py              # Path setup and streamlit mocks
+│   ├── test_converters.py       # Tests for domain/_converters.py
+│   ├── test_validators.py       # Tests for domain/_validator_rules.py
+│   └── test_map_processing.py  # Tests for utils/map_processing.py
 └── install_root/
     ├── api/
-    │   └── api.py               # Flask microservice (see §6)
+    │   └── api.py               # Flask microservice (see §7)
     ├── web_app/
     │   └── my_app.py            # Streamlit entry point — view routing
     ├── constants.py             # Global constants (programme names, Excel columns, …)
     ├── requirements.txt         # Pinned Python dependencies
     ├── domain/
-    │   ├── models.py            # Dataclasses: Student, University, Mobility, …
+    │   ├── models.py            # Column definitions and programme constants
     │   ├── map_filters.py       # Filter logic for the map view
     │   ├── stats_filters.py     # Filter logic for the statistics view
-    │   ├── validators.py        # Form field validation
+    │   ├── validators.py        # DataValidator orchestrator and schemas
+    │   ├── _converters.py       # Type converters and normalizers
+    │   ├── _validator_rules.py  # Individual validator factories
     │   └── es_cities.py         # Static catalogue of Spanish cities
     ├── persistence/
-    │   ├── data_access_mobility.py  # Excel → DataFrame readers (xlrd + openpyxl)
     │   ├── data_insert.py           # New row insertion into Excel
     │   ├── excel_update.py          # In-place row update (openpyxl)
     │   ├── materias_in_loader.py    # Erasmus IN subject-sheet loader
-    │   └── sheets_helpers.py        # Sheet utilities: header detection, range helpers, …
+    │   ├── _excel_cells.py          # Cell-level helpers (geocoding, field aliases)
+    │   ├── _excel_tables.py         # Table/header detection utilities
+    │   ├── _insert_helpers.py       # Column lookup helpers
+    │   ├── _insert_row_builders.py  # Row dict builders per programme type
+    │   └── loaders/
+    │       ├── all_dataframes.py    # Loads all programmes into DataFrames
+    │       ├── erasmus_in.py        # Erasmus IN loader
+    │       ├── erasmus_out.py       # Erasmus OUT loader
+    │       ├── sicue_out.py         # SICUE OUT loader
+    │       └── _common.py           # Shared loader utilities
     ├── export/
-    │   ├── map_export.py        # Map PNG/SVG export
     │   └── stats_export.py      # Statistics export to .xlsx
     ├── ui/
     │   ├── map_view.py          # Interactive map view (Folium + streamlit-folium)
     │   ├── stats_view.py        # Statistics view (Altair / st.bar_chart)
     │   ├── sidebar.py           # Filter sidebar
-    │   ├── popup_helpers.py     # Map popup HTML generation
+    │   ├── _sidebar_config.py   # Config I/O and file-picker helpers
     │   ├── popup_materias.py    # Erasmus IN subject-editing popup
-    │   ├── popup_templates.py   # Jinja2 popup templates
+    │   ├── popup_templates.py   # Map popup HTML generation
     │   ├── search_helpers.py    # Sidebar autocomplete and search
     │   ├── stats_helpers.py     # Metric computation for the statistics view
     │   ├── stats_table.py       # Paginated results table
     │   ├── stats_details.py     # Per-row statistics detail panel
-    │   ├── new_user_view.py     # New student registration form
-    │   └── styles.py            # CSS injected into Streamlit
+    │   ├── styles.py            # CSS injected into Streamlit
+    │   └── new_user/
+    │       ├── view.py          # New student registration form (orchestrator)
+    │       ├── _form_in.py      # Erasmus IN sub-form
+    │       ├── _form_out.py     # Erasmus OUT sub-form
+    │       ├── _form_sicue.py   # SICUE OUT sub-form
+    │       └── _helpers.py      # Shared helpers (geocoding, catalogue, country map)
     ├── utils/
-    │   ├── app_config.py        # config.json reader and validator
-    │   ├── map_processing.py    # Internal geocoding and GeoJSON builder
+    │   ├── app_config.py        # config.json reader, session defaults
+    │   ├── map_processing.py    # Zoom bounds, DataFrame checks, LA filtering
     │   └── file_opener.py       # OS-level file opener
     ├── security/
     │   └── token_manager.py     # API token generation and persistence
@@ -199,6 +221,12 @@ python -m venv .venv
 .venv\Scripts\activate
 
 pip install -r install_root/requirements.txt
+```
+
+For development (includes pytest):
+
+```bash
+pip install -r requirements-dev.txt
 ```
 
 ### Key dependencies
@@ -272,13 +300,35 @@ python -m streamlit run web_app/my_app.py
 
 ---
 
-## 6. REST API Reference
+## 6. Testing
+
+The test suite covers the core domain logic and data processing utilities. Tests run without launching the Streamlit or Flask processes — all UI dependencies are mocked automatically.
+
+```bash
+# Activate the venv first (once per terminal session)
+.venv\Scripts\activate
+
+# Run all tests
+pytest -v
+```
+
+| Test file | Module under test | Tests |
+|:---|:---|:---:|
+| `tests/test_converters.py` | `domain/_converters.py` — type converters and normalizers | 44 |
+| `tests/test_validators.py` | `domain/_validator_rules.py` — individual validator factories | 49 |
+| `tests/test_map_processing.py` | `utils/map_processing.py` — zoom bounds, LA filtering | 35 |
+
+Tests also run automatically on every push and pull request to `main` via the **Tests** GitHub Actions workflow.
+
+---
+
+## 7. REST API Reference
 
 **Base URL:** `http://127.0.0.1:<API_PORT>`
 
 The port is dynamically allocated by the launcher. In manual mode it defaults to `5000` unless overridden by the `API_PORT` environment variable.
 
-Write endpoints require the `X-API-TOKEN` header (see [§7 Security Model](#7-security-model)). The token is also accepted as a `token` query parameter for form-based submissions.
+Write endpoints require the `X-API-TOKEN` header (see [§8 Security Model](#8-security-model)). The token is also accepted as a `token` query parameter for form-based submissions.
 
 ### Endpoints
 
@@ -316,7 +366,7 @@ Write endpoints require the `X-API-TOKEN` header (see [§7 Security Model](#7-se
 
 ---
 
-## 7. Security Model
+## 8. Security Model
 
 All write operations are protected by a per-installation bearer token:
 
@@ -326,7 +376,7 @@ All write operations are protected by a per-installation bearer token:
 
 ---
 
-## 8. Build & Distribution
+## 9. Build & Distribution
 
 Installers are produced by the **`Build EXE and Installers`** GitHub Actions workflow (`.github/workflows/`), triggered manually via `workflow_dispatch`. The workflow runs on `windows-latest` and produces two artifacts in `output/`.
 
@@ -380,7 +430,7 @@ Compare the output with the corresponding entry in `SHA256.txt`. If they match, 
 
 ---
 
-## 9. Windows SmartScreen Warning
+## 10. Windows SmartScreen Warning
 
 The installers are **not code-signed**, so Windows will display them as *Unknown Publisher*. This is expected behaviour for academic projects without a commercial code-signing certificate.
 
@@ -414,13 +464,13 @@ To permanently suppress the warning on any machine a commercial EV certificate f
 
 ---
 
-## 10. Licence
+## 11. Licence
 
 This project is released under the **Creative Commons Attribution-NonCommercial 4.0 International (CC BY-NC 4.0)** license. You are free to use, share, and adapt this work for non-commercial purposes with attribution. Commercial use requires explicit written permission from the author. See [`LICENSE`](LICENSE) for details.
 
 ---
 
-## 11. Author
+## 12. Author
 
 **María Picazo Sánchez**  
 Grado en Ingeniería Informática — Escuela Superior de Ingeniería Informática en el campus de Albacete (ESIIAB)  

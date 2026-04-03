@@ -21,6 +21,15 @@ __pycache__/
 .venv*/
 venv/
 
+# ─── Tests ───────────────────────────────────────────────────────────────────
+.pytest_cache/
+tests/__pycache__/
+
+# ─── Node (herramientas locales, no parte del proyecto) ──────────────────────
+node_modules/
+package-lock.json
+package.json
+
 # ─── IDE / editor ────────────────────────────────────────────────────────────
 .vscode/
 
