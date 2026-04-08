@@ -205,6 +205,15 @@ def _recalculate_coords_ws(ws, excel_row: int, norm_to_col_1based: dict[str, int
         logger.debug("[coords/ws] Programa '%s' detectado, se omite geocodificación.", programa)
         return
 
+    # Omitir si la hoja no tiene columnas de coordenadas: sin columnas destino no
+    # hay nada que escribir y la llamada al geocodificador sería un gasto inútil.
+    col_lat = _find_col_in_ws_by_aliases(norm_to_col_1based, ["latitud", "latitude"])
+    col_lon = _find_col_in_ws_by_aliases(norm_to_col_1based, ["longitud", "longitude"])
+    col_coo = _find_col_in_ws_by_aliases(norm_to_col_1based, ["coordenadas", "coords"])
+    if not col_lat and not col_lon and not col_coo:
+        logger.debug("[coords/ws] No hay columnas de coordenadas en la hoja; se omite geocodificación.")
+        return
+
     if _geolocator is None:
         logger.debug("[coords/ws] geopy no disponible; se omite geocodificación.")
         return
@@ -250,9 +259,6 @@ def _recalculate_coords_ws(ws, excel_row: int, norm_to_col_1based: dict[str, int
         return
 
     lat, lon = loc.latitude, loc.longitude
-    col_lat = _find_col_in_ws_by_aliases(norm_to_col_1based, ["latitud", "latitude"])
-    col_lon = _find_col_in_ws_by_aliases(norm_to_col_1based, ["longitud", "longitude"])
-    col_coo = _find_col_in_ws_by_aliases(norm_to_col_1based, ["coordenadas", "coords"])
 
     if col_lat:
         ws.cell(row=excel_row, column=col_lat).value = lat

@@ -90,19 +90,20 @@ def util_get_unique_names_from_column(
 # ─────────────────────────────────────────────────────────────────────────────
 
 def _search_student_in_ws(ws, table_info: TableInfo, email_target: str, cand_norm: str) -> Optional[int]:
-    """Devuelve la fila 1-based donde está el alumno en ws, o None."""
+    """Devuelve la fila 1-based donde está el alumno en ws, o None.
+
+    Busca primero por nombre (identificador único por alumno) y solo si no
+    encuentra por nombre, cae en la búsqueda por email. Esto evita que el
+    email del coordinador (compartido entre varios alumnos en Erasmus OUT)
+    devuelva el primer alumno de la lista en lugar del alumno correcto.
+    """
     email_col  = table_info.cols.get("email")
     nombre_col = table_info.cols.get("nombre")
     ap1_col    = table_info.cols.get("apellido1")
     ap2_col    = table_info.cols.get("apellido2")
     search_end = ws.max_row
 
-    if email_col and email_target:
-        for r in range(table_info.data_start, search_end + 1):
-            cell_email = _name_to_scalar(ws.cell(row=r, column=email_col).value)
-            if not _is_invalid_student_name_cell(cell_email) and str(cell_email).strip().lower() == email_target:
-                return r
-
+    # 1) Búsqueda por nombre (tiene prioridad porque es único por alumno)
     if nombre_col and cand_norm:
         for r in range(table_info.data_start, search_end + 1):
             cell_name = _name_to_scalar(ws.cell(row=r, column=nombre_col).value)
@@ -117,6 +118,14 @@ def _search_student_in_ws(ws, table_info: TableInfo, email_target: str, cand_nor
                 name_norm = normalize_str(cell_name)
             if name_norm == cand_norm:
                 return r
+
+    # 2) Fallback: búsqueda por email (solo si no se encontró por nombre)
+    if email_col and email_target:
+        for r in range(table_info.data_start, search_end + 1):
+            cell_email = _name_to_scalar(ws.cell(row=r, column=email_col).value)
+            if not _is_invalid_student_name_cell(cell_email) and str(cell_email).strip().lower() == email_target:
+                return r
+
     return None
 
 
