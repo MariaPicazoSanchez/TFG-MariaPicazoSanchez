@@ -237,6 +237,29 @@ def update_student_in_excel(
 
 
 # ─────────────────────────────────────────────────────────────────────────────
+# Helpers internos de materias
+# ─────────────────────────────────────────────────────────────────────────────
+
+def _cuat_to_cell_value(s: str):
+    """Convierte el valor del cuatrimestre al tipo nativo más apropiado.
+
+    '1' → 1 (int), '1.0' → 1 (int), '2.0' → 2 (int), '1.5' → 1.5 (float),
+    'A' → 'A' (str).
+
+    Evita que el cuatrimestre se escriba como texto '1.0' en lugar del número
+    entero 1, lo que cambia el formato de la celda en Excel y puede romper la
+    detección de columnas al recargar.
+    """
+    if not s:
+        return s
+    try:
+        f = float(str(s).replace(",", "."))
+        return int(f) if f == int(f) else f
+    except (ValueError, TypeError):
+        return str(s).strip()
+
+
+# ─────────────────────────────────────────────────────────────────────────────
 # Actualización de materias
 # ─────────────────────────────────────────────────────────────────────────────
 
@@ -259,7 +282,7 @@ def actualizar_excel_materias_para_estudiante(
         est.get("universidad_origen") or est.get("destino") or est.get("Centro")
         or est.get("centro") or est.get("universidad") or ""
     ).strip()
-    cuat_default    = str(est.get("cuat") or "").strip()
+    cuat_default    = _cuat_to_cell_value(str(est.get("cuat") or "").strip())
     firmado_default = _normalize_firmado(est.get("firmado", ""))
     la_default      = str(est.get("link_la") or "").strip()
 
@@ -371,7 +394,7 @@ def actualizar_excel_materias_para_estudiante(
             if c_est:
                 ws.cell(row=r, column=c_est).value = fila["estudiante"]
             if c_cuat and cuat_default:
-                ws.cell(row=r, column=c_cuat).value = cuat_default
+                ws.cell(row=r, column=c_cuat).value = cuat_default  # ya convertido a int/float por _cuat_to_cell_value
             if c_fir:
                 ws.cell(row=r, column=c_fir).value = firmado_default
             if c_la and la_default:
@@ -394,8 +417,14 @@ def actualizar_excel_materias_para_estudiante(
             num_sobrantes = len(sobrantes)
             first_sobrante = sobrantes[0]
 
+            # Limitar el escaneo al rango real de la tabla de materias.
+            # Usar ws.max_row como límite puede alcanzar otras tablas que
+            # estén en la misma hoja (p.ej. la tabla de alumnos), lo que
+            # provocaría que el compactado sobreescriba/desplace filas de
+            # datos de alumnos y corrompa coordenadas y cuatrimestre.
+            _compact_limit = max(table_info.data_end, sobrantes[-1])
             last_data_row = table_info.data_start - 1
-            for r in range(table_info.data_start, ws.max_row + 1):
+            for r in range(table_info.data_start, _compact_limit + 1):
                 if any(ws.cell(row=r, column=col).value not in (None, "") for col in cols_to_clear):
                     last_data_row = r
 
@@ -418,9 +447,13 @@ def actualizar_excel_materias_para_estudiante(
         # Añadir filas nuevas
         if len(nuevas) > len(rows_student):
             pendientes = nuevas[len(rows_student):]
+            # Margen de 200 filas más allá del fin detectado para acomodar
+            # materias que ya se añadieron en sesiones anteriores; pero sin
+            # alcanzar otras tablas de la misma hoja.
+            _insert_limit = table_info.data_end + 200
             last_row_with_asig = table_info.data_start - 1
             if c_asig:
-                for r in range(table_info.data_start, ws.max_row + 1):
+                for r in range(table_info.data_start, _insert_limit + 1):
                     v = ws.cell(row=r, column=c_asig).value
                     if v is not None and str(v).strip() != "":
                         last_row_with_asig = r
@@ -435,7 +468,7 @@ def actualizar_excel_materias_para_estudiante(
                 )
 
             write_at = insert_at
-            while write_at <= ws.max_row and not _mat_cols_empty(write_at):
+            while write_at <= _insert_limit and not _mat_cols_empty(write_at):
                 write_at += 1
 
             valor_uni_existente = None

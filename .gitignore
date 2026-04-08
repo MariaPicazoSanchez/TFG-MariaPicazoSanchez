@@ -29,6 +29,7 @@ tests/__pycache__/
 node_modules/
 package-lock.json
 package.json
+.ruff_cache/
 
 # ─── IDE / editor ────────────────────────────────────────────────────────────
 .vscode/

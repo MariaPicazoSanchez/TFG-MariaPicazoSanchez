@@ -183,6 +183,11 @@ def load_materias_in(config) -> pd.DataFrame:
             logger.debug("[DEBUG] Revisando hoja: %s", sheet_name)
             if df_raw is None or df_raw.empty:
                 continue
+            # Descartar hojas cuyas filas sean todas NaN (hojas en blanco con
+            # formato residual que pandas reporta como no-vacías).
+            if df_raw.dropna(how="all").empty:
+                logger.debug("[DEBUG] Hoja '%s' ignorada: todas las filas están vacías.", sheet_name)
+                continue
 
             i = 0
             n_rows = len(df_raw)

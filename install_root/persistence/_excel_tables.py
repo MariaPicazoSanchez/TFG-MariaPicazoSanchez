@@ -177,6 +177,16 @@ def _iter_all_tables_in_workbook(
                 r += 1
                 continue
             data_start, data_end = _scan_table_bounds(ws, r, aliases_map, required, extra_min_matches, extras_pool)
+            # Ignorar tablas sin filas de datos: cabecera sola no es una tabla
+            # válida (puede ser una hoja en blanco o de prueba con encabezados
+            # residuales).
+            if data_end < data_start:
+                logger.debug(
+                    "[detect] Hoja '%s' fila %d: cabecera sin datos, se omite.",
+                    ws.title, r,
+                )
+                r += 1
+                continue
             yield TableInfo(sheet_name=ws.title, header_row=r,
                             data_start=data_start, data_end=data_end, cols=cols)
             r = data_end + 1
@@ -209,6 +219,16 @@ def _find_table_in_workbook(
                 data_start, data_end = _scan_table_bounds(
                     ws, r, aliases_map, required, extra_min_matches, extras_pool
                 )
+                # Exigir al menos una fila de datos: las hojas en blanco o de
+                # prueba que solo tienen una fila de encabezados residuales se
+                # descartan aquí para no interferir con la tabla real.
+                if data_end < data_start:
+                    logger.debug(
+                        "[detect] Hoja '%s' fila %d: cabecera sin datos, se omite.",
+                        ws.title, r,
+                    )
+                    r += 1
+                    continue
                 info = TableInfo(sheet_name=ws.title, header_row=r,
                                  data_start=data_start, data_end=data_end, cols=cols)
                 logger.debug(
