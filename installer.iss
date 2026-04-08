@@ -17,6 +17,7 @@ OutputBaseFilename=MovilidadESII_Installer_ConData
 Compression=lzma
 SolidCompression=yes
 PrivilegesRequired=lowest
+PrivilegesRequiredOverridesAllowed=dialog
 ArchitecturesAllowed=x64
 ArchitecturesInstallIn64BitMode=x64
 SetupLogging=yes
@@ -49,7 +50,6 @@ Source: "install_root\data_demo\*.xlsx"; DestDir: "{app}\data"; Flags: ignorever
 ; wheelhouse + requirements a app/runtime/
 Source: "install_root\wheelhouse\*"; DestDir: "{app}\runtime\wheelhouse"; Flags: ignoreversion recursesubdirs createallsubdirs
 Source: "install_root\requirements.txt";   DestDir: "{app}\runtime"; Flags: ignoreversion
-
 
 [Icons]
 Name: "{userdesktop}\MovilidadESII"; \
@@ -184,32 +184,13 @@ begin
   ConfigContent := '{' + #13#10 +
     '    "SICUE OUT": "' + DataPath + '\\SICUE OUT.xlsx",' + #13#10 +
     '    "Erasmus IN": "' + DataPath + '\\ERASMUS IN.xlsx",' + #13#10 +
-    '    "Erasmus OUT": "' + DataPath + '\\ERASMUS OUT.xlsx"' + #13#10 +
+    '    "Erasmus OUT": "' + DataPath + '\\ERASMUS OUT.xlsx",' + #13#10 +
     '}';
 
   if SaveStringToFile(BaseConfigPath(), ConfigContent, False) then
     LogLine('config.json creado con rutas absolutas')
   else
     LogLine('No se pudo crear config.json');
-end;
-
-procedure TrustAndUnblock();
-var
-  RC: Integer;
-  PSCmd: string;
-begin
-  { 1. Excluir carpeta de instalación de Windows Defender (evita bloqueos en ejecución) }
-  PSCmd := '-NoProfile -Command "Add-MpPreference -ExclusionPath ''' +
-           AppDataBase() + ''' -ErrorAction SilentlyContinue"';
-  ExecLogged('powershell.exe', PSCmd, '', RC);
-  LogLine('Defender exclusion -> ' + IntToStr(RC));
-
-  { 2. Eliminar marca Zone.Identifier de todos los ficheros instalados }
-  PSCmd := '-NoProfile -Command "Get-ChildItem -Path ''' +
-           AppDataBase() + ''' -Recurse -File' +
-           ' | Unblock-File -ErrorAction SilentlyContinue"';
-  ExecLogged('powershell.exe', PSCmd, '', RC);
-  LogLine('Unblock-File -> ' + IntToStr(RC));
 end;
 
 procedure KillAppProcesses();
@@ -471,7 +452,6 @@ begin
     EnsureLogs();
     LogLine('POSTINSTALL start');
 
-    TrustAndUnblock();
     KillAppProcesses();
 
     EnsureBaseConfig();
