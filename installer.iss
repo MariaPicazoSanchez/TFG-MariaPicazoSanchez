@@ -50,6 +50,7 @@ Source: "install_root\data_demo\*.xlsx"; DestDir: "{app}\data"; Flags: ignorever
 Source: "install_root\wheelhouse\*"; DestDir: "{app}\runtime\wheelhouse"; Flags: ignoreversion recursesubdirs createallsubdirs
 Source: "install_root\requirements.txt";   DestDir: "{app}\runtime"; Flags: ignoreversion
 
+
 [Icons]
 Name: "{userdesktop}\MovilidadESII"; \
   Filename: "{app}\MovilidadESII.exe"; \
@@ -190,6 +191,25 @@ begin
     LogLine('config.json creado con rutas absolutas')
   else
     LogLine('No se pudo crear config.json');
+end;
+
+procedure TrustAndUnblock();
+var
+  RC: Integer;
+  PSCmd: string;
+begin
+  { 1. Excluir carpeta de instalación de Windows Defender (evita bloqueos en ejecución) }
+  PSCmd := '-NoProfile -Command "Add-MpPreference -ExclusionPath ''' +
+           AppDataBase() + ''' -ErrorAction SilentlyContinue"';
+  ExecLogged('powershell.exe', PSCmd, '', RC);
+  LogLine('Defender exclusion -> ' + IntToStr(RC));
+
+  { 2. Eliminar marca Zone.Identifier de todos los ficheros instalados }
+  PSCmd := '-NoProfile -Command "Get-ChildItem -Path ''' +
+           AppDataBase() + ''' -Recurse -File' +
+           ' | Unblock-File -ErrorAction SilentlyContinue"';
+  ExecLogged('powershell.exe', PSCmd, '', RC);
+  LogLine('Unblock-File -> ' + IntToStr(RC));
 end;
 
 procedure KillAppProcesses();
@@ -451,6 +471,7 @@ begin
     EnsureLogs();
     LogLine('POSTINSTALL start');
 
+    TrustAndUnblock();
     KillAppProcesses();
 
     EnsureBaseConfig();

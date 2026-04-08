@@ -88,19 +88,23 @@ def load_students_for_course(config: dict, course: str) -> pd.DataFrame:
         else:
             df_tipo["pais"] = SPAIN if tipo == PROGRAM_SICUE_OUT else ""
 
-        # Filtrar filas con país vacío
+        # Normalizar país vacío a "Desconocido" (no eliminar filas, para no perder alumnos del conteo)
         df_tipo["pais"] = df_tipo["pais"].fillna("").astype(str).str.strip()
-        df_tipo = df_tipo[df_tipo["pais"] != ""]
+        df_tipo["pais"] = df_tipo["pais"].replace("", "Desconocido")
 
         # Deduplicar por alumno (por si el Excel tiene una fila por asignatura)
-        student_candidates = ["estudiante", "email", "nombre", "dni", "nip"]
+        # Se usan TODAS las columnas identificadoras disponibles juntas para evitar
+        # falsos positivos (p.ej. email del coordinador repetido en todas las filas)
+        student_candidates = ["estudiante", "email", "nombre", "apellido1", "apellido2", "dni", "nip"]
         norm_cols = {_normalize_col_name(c): c for c in df_tipo.columns}
-        col_student = next(
-            (norm_cols[_normalize_col_name(c)] for c in student_candidates if _normalize_col_name(c) in norm_cols),
-            None,
-        )
-        if col_student:
-            df_tipo = df_tipo.drop_duplicates(subset=[col_student, "tipo_movilidad"])
+        dedup_cols = [
+            norm_cols[_normalize_col_name(c)]
+            for c in student_candidates
+            if _normalize_col_name(c) in norm_cols
+        ]
+        if dedup_cols:
+            subset = dedup_cols + ["tipo_movilidad"]
+            df_tipo = df_tipo.drop_duplicates(subset=subset)
 
         # Normalizar columna universidad
         col_uni = details._find_university_column(df_tipo)

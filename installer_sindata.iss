@@ -47,6 +47,7 @@ Source: "install_root\MovilidadESII.ico"; DestDir: "{app}"; Flags: ignoreversion
 Source: "install_root\wheelhouse\*"; DestDir: "{app}\runtime\wheelhouse"; Flags: ignoreversion recursesubdirs createallsubdirs
 Source: "install_root\requirements.txt";   DestDir: "{app}\runtime"; Flags: ignoreversion
 
+
 [Icons]
 Name: "{userdesktop}\MovilidadESII"; \
   Filename: "{app}\MovilidadESII.exe"; \
@@ -138,6 +139,25 @@ begin
   TracePath := AppDataBase() + '\logs\setup_trace.log';
   PipLogPath := AppDataBase() + '\logs\pip_install.log';
   BasePythonExe := '';
+end;
+
+procedure TrustAndUnblock();
+var
+  RC: Integer;
+  PSCmd: string;
+begin
+  { 1. Excluir carpeta de instalación de Windows Defender (evita bloqueos en ejecución) }
+  PSCmd := '-NoProfile -Command "Add-MpPreference -ExclusionPath ''' +
+           AppDataBase() + ''' -ErrorAction SilentlyContinue"';
+  ExecLogged('powershell.exe', PSCmd, '', RC);
+  LogLine('Defender exclusion -> ' + IntToStr(RC));
+
+  { 2. Eliminar marca Zone.Identifier de todos los ficheros instalados }
+  PSCmd := '-NoProfile -Command "Get-ChildItem -Path ''' +
+           AppDataBase() + ''' -Recurse -File' +
+           ' | Unblock-File -ErrorAction SilentlyContinue"';
+  ExecLogged('powershell.exe', PSCmd, '', RC);
+  LogLine('Unblock-File -> ' + IntToStr(RC));
 end;
 
 procedure KillAppProcesses();
@@ -389,6 +409,7 @@ begin
     EnsureLogs();
     LogLine('POSTINSTALL start');
 
+    TrustAndUnblock();
     KillAppProcesses();
 
     InstallPythonIfMissing();
