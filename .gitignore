@@ -43,5 +43,5 @@ install_root/_internal/
 install_root/wheelhouse/
 install_root/MovilidadESII.exe
 install_root/output/
-# install_root/data_demo/
-# install_root/thirdparty/
+install_root/data_demo/
+install_root/thirdparty/

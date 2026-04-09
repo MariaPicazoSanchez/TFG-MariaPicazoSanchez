@@ -501,7 +501,6 @@ def _build_student_card(
                     <button type="submit" class="btn save-btn" title="Guardar"
                       onclick="var b=this; window._saveBtnRef=b; window._saveBtnTimeout=setTimeout(function(){{b.disabled=true; b.textContent='\u23f3 Guardando...';}},0);">Guardar</button>
                   </div>
-                  <div class="recarga-toast">⚠️ Recarga la página para ver los cambios actualizados.</div>
                   <div class="hint">Los cambios se guardan en el Excel de {html.escape(programa)}.</div>
                 </div>
               </form>

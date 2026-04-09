@@ -62,11 +62,15 @@ def _es_numerico(s: str) -> bool:
 # ─────────────────────────────────────────────────────────────────────────────
 
 HEADER_ALIASES = {
-    "asignatura":        {"asignatura"},
-    "estudiante":        {"estudiante", "estudiantes", "alumno", "alumnos"},
-    "origen":            {"origen"},
-    "universidadorigen": {"universidadorigen", "universidaddeorigen", "univorigen", "univ.deorigen"},
-    "cuat":              {"cuat", "cuatrimestre", "cuatri"},
+    "asignatura":        {"asignatura", "asignaturas", "materia", "materias",
+                          "nombreasignatura", "nombreasignaturas"},
+    "estudiante":        {"estudiante", "estudiantes", "alumno", "alumnos",
+                          "nombre", "nombrealumno", "nombreestudiante",
+                          "nombreyapellidos", "apellidosynombre"},
+    "origen":            {"origen", "paisorigen", "pais"},
+    "universidadorigen": {"universidadorigen", "universidaddeorigen", "univorigen",
+                          "univ.deorigen", "centro", "centroorigen", "centroorigen"},
+    "cuat":              {"cuat", "cuatrimestre", "cuatri", "semestre", "periodo"},
     "firmado":           {"firmado", "firma"},
     "la":                {"la", "learningagreement", "acuerdoaprendizaje"},
 }
@@ -81,6 +85,9 @@ def _match_header_row(row_values) -> dict | None:
     """
     Intenta mapear una fila como cabecera de Materias IN.
     Devuelve {clave_canonica: indice_columna} o None.
+
+    Solo requiere 'asignatura' + 'estudiante'. Columnas extra (origen,
+    cuatrimestre, etc.) se usan si están presentes pero no son obligatorias.
     """
     found: dict[str, int] = {}
     normalized_cells = [_norm(v) for v in row_values]
@@ -93,10 +100,6 @@ def _match_header_row(row_values) -> dict | None:
                 found[canon_key] = idx
 
     if not REQUIRED_KEYS.issubset(found.keys()):
-        return None
-
-    extras = {"origen", "universidadorigen", "cuat", "firmado"}
-    if len(extras.intersection(found.keys())) < 2:
         return None
 
     return found
@@ -176,46 +179,86 @@ def load_materias_in(config) -> pd.DataFrame:
     try:
         xls = pd.read_excel(ruta, sheet_name=None, header=None, dtype=str)
         bloques: list[pd.DataFrame] = []
-
-        logger.debug("[DEBUG] Buscando tablas Materias IN en todas las hojas...")
+        hojas = list(xls.keys())
+        logger.warning("[MATERIAS-IN] Hojas encontradas en el Excel: %s", hojas)
 
         for sheet_name, df_raw in xls.items():
-            logger.debug("[DEBUG] Revisando hoja: %s", sheet_name)
             if df_raw is None or df_raw.empty:
                 continue
-            # Descartar hojas cuyas filas sean todas NaN (hojas en blanco con
-            # formato residual que pandas reporta como no-vacías).
             if df_raw.dropna(how="all").empty:
-                logger.debug("[DEBUG] Hoja '%s' ignorada: todas las filas están vacías.", sheet_name)
+                logger.debug("[MATERIAS-IN] Hoja '%s' vacía, ignorada.", sheet_name)
                 continue
+
+            logger.warning("[MATERIAS-IN] Buscando tabla en hoja '%s' (%d filas)...", sheet_name, len(df_raw))
 
             i = 0
             n_rows = len(df_raw)
+            last_header_map: dict | None = None  # último header válido de esta hoja
+
             while i < n_rows:
                 row_vals = df_raw.iloc[i].tolist()
-                logger.debug("[DEBUG] Fila %d hoja '%s': %s", i, sheet_name, row_vals)
-                header_map = _match_header_row(row_vals)
 
-                if header_map is None:
+                # Saltar filas vacías sin perder el header anterior
+                if _is_separator_or_empty_row(row_vals):
                     i += 1
                     continue
 
-                logger.debug("[DEBUG] Cabecera encontrada en hoja '%s', fila %d: %s", sheet_name, i, row_vals)
+                header_map = _match_header_row(row_vals)
 
-                rows_data, next_row = _extract_block_rows(df_raw, header_map, i + 1)
+                if header_map is not None:
+                    # Nueva cabecera explícita encontrada
+                    last_header_map = header_map
+                    logger.warning(
+                        "[MATERIAS-IN] ✓ Cabecera encontrada en hoja '%s', fila %d: mapa=%s",
+                        sheet_name, i, header_map,
+                    )
+                    rows_data, next_row = _extract_block_rows(df_raw, header_map, i + 1)
+                    header_row_for_log = i
+                    i = next_row + 1
+
+                elif last_header_map is not None:
+                    # Fila con datos pero sin nueva cabecera → continuar con el
+                    # último header conocido (grupos separados por filas vacías)
+                    logger.debug(
+                        "[MATERIAS-IN]   Continuando bloque desde fila %d con header previo",
+                        i,
+                    )
+                    rows_data, next_row = _extract_block_rows(df_raw, last_header_map, i)
+                    header_row_for_log = i
+                    i = next_row + 1
+
+                else:
+                    # Datos antes de cualquier cabecera: ignorar
+                    i += 1
+                    continue
+
                 if rows_data:
                     for r in rows_data:
                         r["_sheet_name"] = sheet_name
-                    if _block_is_valid(rows_data, sheet_name, i):
+                    if _block_is_valid(rows_data, sheet_name, header_row_for_log):
                         bloques.append(pd.DataFrame(rows_data))
-                        logger.debug("[DEBUG] Bloque extraído en hoja '%s': %d filas", sheet_name, len(rows_data))
+                        logger.warning(
+                            "[MATERIAS-IN] ✓ Bloque válido en hoja '%s': %d filas de datos",
+                            sheet_name, len(rows_data),
+                        )
+                    else:
+                        logger.warning(
+                            "[MATERIAS-IN] ✗ Bloque descartado (valores numéricos) "
+                            "en hoja '%s', fila %d",
+                            sheet_name, header_row_for_log,
+                        )
                 else:
-                    logger.debug("[DEBUG] Cabecera sin filas de datos en hoja '%s', fila %d", sheet_name, i)
-
-                i = next_row + 1
+                    logger.debug(
+                        "[MATERIAS-IN]   Sin filas de datos desde fila %d en hoja '%s'",
+                        header_row_for_log, sheet_name,
+                    )
 
         if not bloques:
-            logger.debug("[DEBUG] No se encontró ninguna tabla de Materias IN.")
+            logger.warning(
+                "[MATERIAS-IN] ✗ No se encontró ninguna tabla de Materias IN. "
+                "Comprueba que el Excel tenga columnas 'Estudiante' y 'Asignatura' "
+                "(o equivalentes) en la misma fila de cabecera."
+            )
             return pd.DataFrame()
 
         df = pd.concat(bloques, ignore_index=True)
@@ -243,17 +286,25 @@ def load_materias_in(config) -> pd.DataFrame:
 
         mask_num = df["Estudiante"].apply(_es_numerico)
         if mask_num.any():
-            logger.debug(
-                "[DEBUG] Descartando %d filas con Estudiante numérico: %s",
+            logger.warning(
+                "[MATERIAS-IN] Descartando %d filas con Estudiante numérico: %s",
                 mask_num.sum(), df.loc[mask_num, "Estudiante"].tolist()[:5],
             )
         df = df[~mask_num].reset_index(drop=True)
 
-        logger.debug("[DEBUG] Filas finales Materias IN: %d", len(df))
+        logger.warning(
+            "[MATERIAS-IN] ✓ Carga completada: %d filas | %d alumnos únicos",
+            len(df),
+            df["Estudiante"].nunique(),
+        )
+        logger.warning(
+            "[MATERIAS-IN]   Muestra de alumnos: %s",
+            df["Estudiante"].dropna().unique()[:5].tolist(),
+        )
         return df
 
     except Exception as e:
-        logger.warning("[DEBUG] Error leyendo materias: %s", e)
+        logger.warning("[MATERIAS-IN] ✗ Excepción leyendo materias: %s", e, exc_info=True)
         return pd.DataFrame()
 
 

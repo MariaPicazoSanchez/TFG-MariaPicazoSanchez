@@ -378,26 +378,46 @@ def _restore_location_info(grouped: pd.DataFrame, df: pd.DataFrame) -> pd.DataFr
     """
     Rellena las columnas latitud/longitud/pais/ciudad/universidad del grouped
     usando los valores reales del df original (promedio / moda por cluster).
+
+    Para 'universidad': si en un cluster coinciden varias universidades distintas
+    (mismas coordenadas), se muestran todas separadas por ' / '.
+    Para 'pais' y 'ciudad': moda (en un mismo punto geográfico suelen coincidir).
     """
     def _mode_str(s: pd.Series) -> str:
         m = s.dropna().mode()
         return str(m.iloc[0]) if not m.empty else ""
 
+    def _join_unique(s: pd.Series) -> str:
+        """Devuelve todos los valores únicos no vacíos del cluster, unidos por ' / '."""
+        vals = (
+            s.dropna()
+             .astype(str)
+             .str.strip()
+             .pipe(lambda x: x[~x.str.lower().isin({"", "nan", "none"})])
+        )
+        # dict.fromkeys conserva el orden de primera aparición
+        unique_vals = list(dict.fromkeys(vals))
+        return " / ".join(unique_vals) if unique_vals else ""
+
     keys = ["_lat_r", "_lon_r"]
 
-    # Calcular media de coordenadas por cluster de una sola vez
+    # Media de coordenadas por cluster
     coord_agg = (
         df.groupby(keys, dropna=False)
           .agg(latitud=("latitud", "mean"), longitud=("longitud", "mean"))
           .reset_index()
     )
 
-    # Calcular moda de columnas de texto por cluster de una sola vez
+    # Agregación de texto: universidad muestra todas las distintas, pais/ciudad usan moda
     text_cols = [c for c in ("pais", "ciudad", "universidad") if c in df.columns]
     if text_cols:
+        agg_fns = {
+            col: (_join_unique if col == "universidad" else _mode_str)
+            for col in text_cols
+        }
         text_agg = (
             df.groupby(keys, dropna=False)[text_cols]
-              .agg(_mode_str)
+              .agg(agg_fns)
               .reset_index()
         )
         location_agg = coord_agg.merge(text_agg, on=keys, how="left")
