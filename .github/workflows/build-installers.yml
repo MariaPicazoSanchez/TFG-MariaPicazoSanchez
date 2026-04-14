@@ -96,6 +96,19 @@ jobs:
           Remove-Item *.spec -ErrorAction Ignore
 
       # =========================
+      # RENOMBRAR EXE CON VERSIÓN
+      # =========================
+
+      - name: Renombrar instaladores con versión
+        shell: pwsh
+        run: |
+          $version = "${{ inputs.version }}"
+          Copy-Item "output\MovilidadESII_Installer_ConData.exe" `
+                    "output\MovilidadESII_ConData_${version}.exe" -Force
+          Copy-Item "output\MovilidadESII_Installer_SinData.exe" `
+                    "output\MovilidadESII_SinData_${version}.exe" -Force
+
+      # =========================
       # EMPAQUETAR EN ZIP
       # =========================
 
@@ -104,11 +117,11 @@ jobs:
         run: |
           $version = "${{ inputs.version }}"
           Compress-Archive `
-            -Path "output\MovilidadESII_Installer_ConData.exe" `
+            -Path "output\MovilidadESII_ConData_${version}.exe" `
             -DestinationPath "output\MovilidadESII_ConData_${version}.zip" `
             -Force
           Compress-Archive `
-            -Path "output\MovilidadESII_Installer_SinData.exe" `
+            -Path "output\MovilidadESII_SinData_${version}.exe" `
             -DestinationPath "output\MovilidadESII_SinData_${version}.zip" `
             -Force
 
@@ -121,9 +134,15 @@ jobs:
         run: |
           $version = "${{ inputs.version }}"
           $out = "output\SHA256.txt"
-          "MovilidadESII_ConData_${version}.zip" | Out-File $out -Encoding utf8
+          "MovilidadESII_ConData_${version}.exe" | Out-File $out -Encoding utf8
+          certutil -hashfile "output\MovilidadESII_ConData_${version}.exe" SHA256 >> $out
+          "" | Out-File $out -Append -Encoding utf8
+          "MovilidadESII_SinData_${version}.exe" | Out-File $out -Append -Encoding utf8
+          certutil -hashfile "output\MovilidadESII_SinData_${version}.exe" SHA256 >> $out
+          "" | Out-File $out -Append -Encoding utf8
+          "MovilidadESII_ConData_${version}.zip" | Out-File $out -Append -Encoding utf8
           certutil -hashfile "output\MovilidadESII_ConData_${version}.zip" SHA256 >> $out
-          "" >> $out
+          "" | Out-File $out -Append -Encoding utf8
           "MovilidadESII_SinData_${version}.zip" | Out-File $out -Append -Encoding utf8
           certutil -hashfile "output\MovilidadESII_SinData_${version}.zip" SHA256 >> $out
 
@@ -171,6 +190,8 @@ jobs:
           name: MovilidadESII ${{ inputs.version }}
           body: ${{ steps.changelog.outputs.RELEASE_NOTES }}
           files: |
+            output/MovilidadESII_ConData_${{ inputs.version }}.exe
+            output/MovilidadESII_SinData_${{ inputs.version }}.exe
             output/MovilidadESII_ConData_${{ inputs.version }}.zip
             output/MovilidadESII_SinData_${{ inputs.version }}.zip
             output/SHA256.txt
