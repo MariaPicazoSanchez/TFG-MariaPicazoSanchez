@@ -78,9 +78,43 @@ def load_students_for_course(config: dict, course: str) -> pd.DataFrame:
         if tipo == PROGRAM_ERASMUS_OUT:
             candidates = common_candidates + ["pais_out", "país_out", "country_out"]
         elif tipo == PROGRAM_ERASMUS_IN:
-            candidates = common_candidates + ["origen", "pais_in", "país_in", "country_in", "pais origen", "país origen"]
+            candidates = common_candidates + [
+                "origen", "pais_in", "país_in", "country_in",
+                "pais origen", "país origen",
+            ]
         else:
             candidates = common_candidates
+
+        # ── Erasmus IN: celdas fusionadas y múltiples filas por alumno ──────────
+        # El Excel de Erasmus IN tiene una fila por asignatura. Las celdas de
+        # alumno y país suelen estar fusionadas, por lo que pandas las lee como
+        # NaN en las filas 2..N de cada alumno.  Solución: forward-fill antes de
+        # cualquier otro procesamiento, y luego eliminar filas sin identidad real
+        # (separadores, cabeceras repetidas internas) que queden vacías.
+        if tipo == PROGRAM_ERASMUS_IN:
+            _id_ffill = [
+                "estudiante", "alumno", "alumna",
+                "nombre", "apellido1", "apellido2", "apellidos",
+                "email", "dni", "nie", "nif", "nip",
+            ]
+            _norm_map = {_normalize_col_name(c): c for c in df_tipo.columns}
+            _id_cols_ff = [
+                _norm_map[_normalize_col_name(c)]
+                for c in _id_ffill
+                if _normalize_col_name(c) in _norm_map
+            ]
+            # Incluir también la columna de país para rellenar celdas fusionadas
+            _country_col_ff = _find_country_column(df_tipo, candidates)
+            _cols_to_fill = _id_cols_ff + ([_country_col_ff] if _country_col_ff else [])
+            for _col in _cols_to_fill:
+                df_tipo[_col] = df_tipo[_col].ffill()
+            # Descartar filas donde todos los identificadores siguen vacíos
+            # (filas totalmente vacías antes del primer alumno o separadores)
+            if _id_cols_ff:
+                _valid = df_tipo[_id_cols_ff].apply(
+                    lambda s: s.fillna("").astype(str).str.strip().ne(""), axis=0
+                ).any(axis=1)
+                df_tipo = df_tipo[_valid].reset_index(drop=True)
 
         col_pais = _find_country_column(df_tipo, candidates)
         if col_pais:
@@ -95,7 +129,12 @@ def load_students_for_course(config: dict, course: str) -> pd.DataFrame:
         # Deduplicar por alumno (por si el Excel tiene una fila por asignatura)
         # Se usan TODAS las columnas identificadoras disponibles juntas para evitar
         # falsos positivos (p.ej. email del coordinador repetido en todas las filas)
-        student_candidates = ["estudiante", "email", "nombre", "apellido1", "apellido2", "dni", "nip"]
+        # Incluir aliases de Erasmus IN ("alumno", "apellidos", etc.)
+        student_candidates = [
+            "estudiante", "alumno", "alumna",
+            "email", "nombre", "apellido1", "apellido2", "apellidos",
+            "dni", "nie", "nif", "nip",
+        ]
         norm_cols = {_normalize_col_name(c): c for c in df_tipo.columns}
         dedup_cols = [
             norm_cols[_normalize_col_name(c)]

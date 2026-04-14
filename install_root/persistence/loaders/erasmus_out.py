@@ -59,13 +59,37 @@ def load_erasmus_out(
         df["estudiante"] = ""
 
     # Cargar coordenadas desde hoja "Coordenadas"
+    # Formato Erasmus OUT: col0=Universidad, col1=País, col2=Coordenadas[, col3=Responsable]
+    # Si la primera fila contiene etiquetas de cabecera, se detecta y se descarta.
     coords_dict: dict[str, str] = {}
     try:
         df_coords = pd.read_excel(path, sheet_name="Coordenadas", header=None, dtype=str)
         df_coords.columns = [f"col{i}" for i in range(df_coords.shape[1])]
-        for _, row in df_coords.iterrows():
-            uni = str(row.get("col1", "") or "").strip()
-            coords_raw = str(row.get("col2", "") or "").strip()
+
+        # Detectar cabecera: si la primera celda contiene "universidad" o "país"
+        _HEADER_WORDS = {"universidad", "universidade", "university", "país", "pais", "country"}
+        col_uni_idx = 0    # por defecto OUT: col0=Universidad
+        col_coord_idx = 2  # siempre col2=Coordenadas
+        start_row = 0
+
+        first_row = [str(df_coords.iloc[0].get(f"col{i}", "") or "").strip().lower()
+                     for i in range(min(df_coords.shape[1], 4))]
+        if any(v in _HEADER_WORDS for v in first_row):
+            # Detectar qué columna es "universidad"
+            for i, v in enumerate(first_row):
+                if v in {"universidad", "universidade", "university"}:
+                    col_uni_idx = i
+                    break
+            start_row = 1  # saltar fila de cabecera
+
+        col_uni_key   = f"col{col_uni_idx}"
+        col_coord_key = f"col{col_coord_idx}"
+
+        for idx, row in df_coords.iterrows():
+            if idx < start_row:
+                continue
+            uni        = str(row.get(col_uni_key,   "") or "").strip()
+            coords_raw = str(row.get(col_coord_key, "") or "").strip()
             if uni and coords_raw and coords_raw.lower() not in ("nan", "none", ""):
                 coords_dict[uni] = coords_raw
     except Exception:

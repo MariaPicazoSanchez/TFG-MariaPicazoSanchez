@@ -17,6 +17,7 @@ from __future__ import annotations
 
 import gc
 import logging
+import os
 from dataclasses import dataclass
 
 import pandas as pd
@@ -25,6 +26,7 @@ from ._common import (
     EMPTY_DF_COLS,
     _build_materias_index,
     _match_student_name,
+    _norm_colname,
     _norm_name,
     _parse_coords,
     _pick,
@@ -103,10 +105,54 @@ class ErasmusInLoader:
 
     # ── Fase 1: lectura bruta ─────────────────────────────────────────────────
 
+    # Columnas que identifican una hoja de datos de alumnos (al menos una debe estar presente)
+    _STUDENT_COL_HINTS = {
+        "nombre", "apellido1", "apellido2", "estudiante", "alumno",
+        "email", "cuatrimestre", "cuatri", "cuat",
+        "la", "universidad origen", "univ. origen", "universidadorigen",
+        "universidad de origen", "universidad", "centro origen", "centro",
+    }
+
     def _read_raw(self) -> pd.DataFrame:
-        df = _read_table(self.path, sheet_name=self.sheet_name)
+        # Si se especificó hoja concreta, usarla directamente
+        if self.sheet_name is not None:
+            df = _read_table(self.path, sheet_name=self.sheet_name)
+            df.columns = [str(c).strip() for c in df.columns]
+            logger.debug("[IN] Columnas leídas (hoja '%s'): %s", self.sheet_name, list(df.columns))
+            logger.debug("[IN] Total filas: %d", len(df))
+            return df
+
+        # Sin hoja especificada: buscar la primera hoja con cabeceras de alumnos
+        ext = os.path.splitext(self.path)[1].lower()
+        if ext in (".xlsx", ".xlsm", ".xltx", ".xltm", ".xls"):
+            try:
+                xl = pd.ExcelFile(self.path, engine="openpyxl")
+                sheet_names = xl.sheet_names
+            except Exception:
+                sheet_names = []
+
+            if sheet_names:
+                for sname in sheet_names:
+                    try:
+                        candidate = pd.read_excel(
+                            self.path, sheet_name=sname, nrows=3, engine="openpyxl"
+                        )
+                        candidate.columns = [str(c).strip() for c in candidate.columns]
+                        norm_cols = {_norm_colname(c) for c in candidate.columns}
+                        if norm_cols & self._STUDENT_COL_HINTS:
+                            logger.debug("[IN] Hoja de alumnos detectada: '%s'", sname)
+                            df = _read_table(self.path, sheet_name=sname)
+                            df.columns = [str(c).strip() for c in df.columns]
+                            logger.debug("[IN] Columnas leídas: %s", list(df.columns))
+                            logger.debug("[IN] Total filas: %d", len(df))
+                            return df
+                    except Exception:
+                        continue
+
+        # Fallback: primera hoja
+        df = _read_table(self.path, sheet_name=None)
         df.columns = [str(c).strip() for c in df.columns]
-        logger.debug("[IN] Columnas leídas: %s", list(df.columns))
+        logger.debug("[IN] Columnas leídas (fallback hoja 0): %s", list(df.columns))
         logger.debug("[IN] Total filas: %d", len(df))
         return df
 
@@ -162,12 +208,34 @@ class ErasmusInLoader:
                 self.path, sheet_name="Coordenadas", header=None, dtype=str
             )
             df_c.columns = [f"col{i}" for i in range(df_c.shape[1])]
-            for _, row in df_c.iterrows():
-                uni   = str(row.get("col1", "") or "").strip()   # columna B
-                coord = str(row.get("col2", "") or "").strip()   # columna C
+
+            # Detectar cabecera: Erasmus IN → col0=País, col1=Universidad, col2=Coordenadas.
+            # Si la primera fila contiene esas etiquetas, se detecta y se descarta.
+            _HEADER_WORDS = {"universidad", "universidade", "university", "país", "pais", "country"}
+            col_uni_idx   = 1   # por defecto IN: col1=Universidad
+            col_coord_idx = 2   # siempre col2=Coordenadas
+            start_row     = 0
+
+            first_row = [str(df_c.iloc[0].get(f"col{i}", "") or "").strip().lower()
+                         for i in range(min(df_c.shape[1], 4))]
+            if any(v in _HEADER_WORDS for v in first_row):
+                for i, v in enumerate(first_row):
+                    if v in {"universidad", "universidade", "university"}:
+                        col_uni_idx = i
+                        break
+                start_row = 1   # saltar fila de cabecera
+
+            col_uni_key   = f"col{col_uni_idx}"
+            col_coord_key = f"col{col_coord_idx}"
+
+            for idx, row in df_c.iterrows():
+                if idx < start_row:
+                    continue
+                uni   = str(row.get(col_uni_key,   "") or "").strip()
+                coord = str(row.get(col_coord_key, "") or "").strip()
                 if uni and coord and coord.lower() not in ("nan", "none", ""):
-                    exact[uni]              = coord
-                    normd[_norm_name(uni)]  = coord
+                    exact[uni]             = coord
+                    normd[_norm_name(uni)] = coord
             logger.debug("[IN] Coordenadas cargadas: %d universidades", len(exact))
         except Exception as exc:
             logger.debug("[IN] Hoja 'Coordenadas' no disponible: %s", exc)

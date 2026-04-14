@@ -520,15 +520,23 @@ def generate_dynamic_popup(row, programa: str, row_index: int) -> str:
     config = st.session_state.get("config", {})
 
     # Lookups (todos @st.cache_data → rápidos tras la primera llamada)
+    # Erasmus IN:  col0=País,        col1=Universidad  (defaults)
+    # Erasmus OUT: col0=Universidad, col1=País         → default_col_uni=0, default_col_pais=1
     universidades_in  = get_universities_from_coords_sheet(config.get(PROGRAM_ERASMUS_IN, ""))
-    universidades_out = get_universities_from_coords_sheet(config.get(PROGRAM_ERASMUS_OUT, ""))
+    universidades_out = get_universities_from_coords_sheet(
+        config.get(PROGRAM_ERASMUS_OUT, ""), default_col_uni=0, default_col_pais=1
+    )
     universidades_sicue, ciudad_map_sicue, _ = (
         get_universities_from_sicue_data(config.get(PROGRAM_SICUE_OUT, ""))
         if config.get(PROGRAM_SICUE_OUT) else ([], {}, {})
     )
-    pais_map_out = get_university_country_map(config.get(PROGRAM_ERASMUS_OUT, ""))
+    pais_map_out = get_university_country_map(
+        config.get(PROGRAM_ERASMUS_OUT, ""), default_col_uni=0, default_col_pais=1
+    )
     pais_map_in  = get_university_country_map(config.get(PROGRAM_ERASMUS_IN, ""))
-    resp_map_out = get_university_responsable_map(config.get(PROGRAM_ERASMUS_OUT, ""))
+    resp_map_out = get_university_responsable_map(
+        config.get(PROGRAM_ERASMUS_OUT, ""), default_col_uni=0, default_col_pais=1
+    )
     excel_path          = config.get(programa)
     materias_excel_path = config.get(f"{programa}_MATERIAS")
 
@@ -566,7 +574,8 @@ def generate_dynamic_popup(row, programa: str, row_index: int) -> str:
             for idx, e in enumerate(estudiantes)
         )
 
-    responsable_uni = resp_map_out.get(universidad_raw, "")
+    # El responsable solo se muestra en Erasmus OUT (en Erasmus IN no aplica)
+    responsable_uni = resp_map_out.get(universidad_raw, "") if programa == PROGRAM_ERASMUS_OUT else ""
     resp_chip_html  = (
         f'<span class="resp-chip">👤 {html.escape(responsable_uni)}</span>'
         if responsable_uni else ""
@@ -673,7 +682,9 @@ def get_autofill_script(config: dict) -> str:
         get_universities_from_sicue_data(config.get(PROGRAM_SICUE_OUT, ""))
         if config.get(PROGRAM_SICUE_OUT) else ([], {}, {})
     )
-    pais_map_out = get_university_country_map(config.get(PROGRAM_ERASMUS_OUT, ""))
+    pais_map_out = get_university_country_map(
+        config.get(PROGRAM_ERASMUS_OUT, ""), default_col_uni=0, default_col_pais=1
+    )
     pais_map_in  = get_university_country_map(config.get(PROGRAM_ERASMUS_IN, ""))
 
     return (

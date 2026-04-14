@@ -170,24 +170,86 @@ def _match_student_name(nombre_completo: str, exact: dict, by_last: dict) -> str
 # Consulta de universidades
 # ──────────────────────────────────────────────────────────────────────────────
 
+def _detect_coords_columns(
+    df: "pd.DataFrame",
+    default_col_pais: int = 0,
+    default_col_uni: int = 1,
+) -> tuple[int, int, bool]:
+    """
+    Detecta las columnas País y Universidad en la hoja de Coordenadas.
+
+    Si la primera fila contiene etiquetas de cabecera reconocibles ('universidad',
+    'país', etc.), las usa para determinar los índices de columna y devuelve
+    skip_first_row=True para que el llamador descarte esa fila de los datos.
+    En caso contrario, devuelve los valores por defecto sin saltar la primera fila.
+
+    Returns:
+        (col_pais, col_uni, skip_first_row)
+    """
+    _WORDS_UNI = {
+        "universidad", "universidade", "university",
+        "universidad destino", "universidad origen",
+    }
+    _WORDS_PAI = {
+        "país", "pais", "country",
+        "país/región", "pais/region", "país / región",
+    }
+
+    if len(df) == 0:
+        return default_col_pais, default_col_uni, False
+
+    first_row = [str(v).strip().lower() for v in df.iloc[0]]
+
+    col_uni_det: int | None = None
+    col_pai_det: int | None = None
+
+    for i, v in enumerate(first_row):
+        if v in _WORDS_UNI and col_uni_det is None:
+            col_uni_det = i
+        elif v in _WORDS_PAI and col_pai_det is None:
+            col_pai_det = i
+
+    is_header = (col_uni_det is not None) or (col_pai_det is not None)
+
+    if is_header:
+        return (
+            col_pai_det if col_pai_det is not None else default_col_pais,
+            col_uni_det if col_uni_det is not None else default_col_uni,
+            True,
+        )
+
+    return default_col_pais, default_col_uni, False
+
+
 @st.cache_data(show_spinner=False)
-def get_universities_from_coords_sheet(path: str) -> list[str]:
+def get_universities_from_coords_sheet(
+    path: str,
+    default_col_uni: int = 1,
+    default_col_pais: int = 0,
+) -> list[str]:
     """
     Devuelve la lista de universidades desde la hoja 'Coordenadas' de un Excel.
-    Formato: col0=País, col1=Universidad, col2=Coordenadas.
+
+    Formato por defecto (Erasmus IN): col0=País, col1=Universidad, col2=Coordenadas.
+    Formato Erasmus OUT:              col0=Universidad, col1=País, col2=Coordenada.
+
+    Si la primera fila contiene etiquetas de cabecera ('Universidad', 'País'…),
+    se detectan las columnas automáticamente y esa fila se descarta de los datos.
     """
+    _BAD = {"nan", "none", ""}
     try:
-        df_coords = pd.read_excel(
-            path, sheet_name="Coordenadas", header=None, dtype=str
-        )
+        df = pd.read_excel(path, sheet_name="Coordenadas", header=None, dtype=str)
+        _, col_uni, skip = _detect_coords_columns(df, default_col_pais, default_col_uni)
+        if skip:
+            df = df.iloc[1:].reset_index(drop=True)
         universidades = (
-            df_coords.iloc[:, 1]
+            df.iloc[:, col_uni]
             .dropna()
             .astype(str)
             .str.strip()
             .unique()
         )
-        return sorted(universidades)
+        return sorted(v for v in universidades if v.lower() not in _BAD)
     except Exception:
         return []
 

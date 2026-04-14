@@ -196,14 +196,19 @@ def _render_map_view(dfs, base_map, materias):
     dfs = filter_dataframes_by_search(dfs, search_text)
 
     # Clave que identifica unívocamente el mapa a renderizar.
-    # Si no ha cambiado nada, reutilizamos el HTML ya generado.
+    # MAP_CACHE_VERSION: incrementar manualmente para invalidar cachés de sesiones antiguas.
+    MAP_CACHE_VERSION = 2
     _render_key = (
+        MAP_CACHE_VERSION,
         st.session_state.get("data_version", 0),
         st.session_state.get("global_sheet", ""),
         tuple(sorted((k, v) for k, v in st.session_state.get("selected_programs", {}).items())),
         only_no_la,
         search_text,
     )
+
+    # Si el mapa ya está generado y nada ha cambiado, lo servimos desde caché
+    # para evitar regenerar el HTML de Folium en cada rerun de Streamlit.
     cached_html = st.session_state.get("last_map_html")
     if cached_html and st.session_state.get("_map_render_key") == _render_key:
         import streamlit.components.v1 as _components
@@ -214,6 +219,7 @@ def _render_map_view(dfs, base_map, materias):
     auto_zoom_bounds = calculate_auto_zoom_bounds(
         dfs, has_search=has_search, search_margin=0.4, filter_margin=0.05
     )
+
     with st.spinner("Cargando mapa…"):
         show_map(dfs, base_map, materias, get_active_programs(), only_no_la, auto_zoom_bounds)
     st.session_state["_map_render_key"] = _render_key

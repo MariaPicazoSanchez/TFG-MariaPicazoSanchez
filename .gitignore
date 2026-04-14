@@ -45,3 +45,4 @@ install_root/MovilidadESII.exe
 install_root/output/
 install_root/data_demo/
 install_root/thirdparty/
+*.xlsx

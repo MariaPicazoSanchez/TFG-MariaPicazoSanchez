@@ -22,9 +22,11 @@ def render_erasmus_out_form(config: dict, asignaturas_catalog: list) -> dict:
     Devuelve un dict con: nombre, apellidos, destino_origen, email, extra.
     """
     xlsx_path = config.get("Erasmus OUT", "")
-    universidades_out   = get_universities_from_coords_sheet(xlsx_path)
-    uni_country_map_out = get_university_country_map(xlsx_path)
-    resp_map_out        = get_university_responsable_map(xlsx_path)
+    # Formato Erasmus OUT sin cabecera: col0=Universidad, col1=País, col2=Coordenada.
+    # Si el Excel incluye fila de cabecera, se detecta automáticamente.
+    universidades_out   = get_universities_from_coords_sheet(xlsx_path, default_col_uni=0, default_col_pais=1)
+    uni_country_map_out = get_university_country_map(xlsx_path, default_col_uni=0, default_col_pais=1)
+    resp_map_out        = get_university_responsable_map(xlsx_path, default_col_uni=0, default_col_pais=1)
 
     nombre = apellidos = destino_origen = email = ""
     extra: dict = {}

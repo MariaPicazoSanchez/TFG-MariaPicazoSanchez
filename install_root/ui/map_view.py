@@ -195,21 +195,30 @@ def show_map(
         get_autofill_script(st.session_state.get("config", {}))
     ))
 
-    # Cargar mapa {universidad → responsable} por programa
+    # Cargar mapa {universidad → responsable} por programa.
+    # Erasmus OUT: col0=Universidad, col1=País → default_col_uni=0, default_col_pais=1
+    # Erasmus IN y SICUE: col0=País, col1=Universidad (defaults)
     _config = st.session_state.get("config", {})
     _resp_maps = {
-        prog: get_university_responsable_map(_config.get(prog, ""))
+        prog: get_university_responsable_map(
+            _config.get(prog, ""),
+            **({"default_col_uni": 0, "default_col_pais": 1} if prog == PROGRAM_ERASMUS_OUT else {}),
+        )
         for prog in (PROGRAM_ERASMUS_OUT, PROGRAM_ERASMUS_IN, PROGRAM_SICUE_OUT)
     }
 
     # 2) Pintar TODOS los programas presentes en dfs
+    # Contador global de marcadores para garantizar IDs únicos en el DOM
+    # aunque haya varios programas con marcadores en las mismas posiciones.
+    marker_index = 0
+
     for program, df in dfs.items():
         if df is None or df.empty:
             continue
 
         color    = PROGRAM_COLORS.get(program, "blue")
         resp_map = _resp_maps.get(program, {})
-        
+
         # Convertir df a lista de dicts agrupados
         # El df ya viene agrupado de load_erasmus_out con columna 'estudiantes' como lista
         if "estudiantes" in df.columns and df["estudiantes"].apply(lambda v: isinstance(v, (list, tuple))).all():
@@ -229,7 +238,7 @@ def show_map(
             # Fallback si no viene agrupado (ej. datos custom)
             grouped = group_rows_by_location(df, decimals=1)
 
-        for row_index, row in enumerate(grouped):
+        for row in grouped:
             lat, lon = row.get("latitud"), row.get("longitud")
             if pd.isna(lat) or pd.isna(lon):
                 continue
@@ -264,8 +273,21 @@ def show_map(
             # Pass only filtered students to popup
             row_for_popup = row.copy()
             row_for_popup["estudiantes"] = filtered_ests
-            content = generate_dynamic_popup(row_for_popup, program, row_index)
+            content = generate_dynamic_popup(row_for_popup, program, marker_index)
+            marker_index += 1
             n = max(1, len(filtered_ests))
+
+            # Folium embeds popup HTML inside a JS template literal: $(`...html...`)
+            # Inside a template literal, backslash sequences are processed by JS:
+            #   \U, \m, \D, \G, \T … (from Windows paths like C:\Users\...)
+            # are invalid JS escape sequences → SyntaxError.
+            # Also, raw backticks or '${' would terminate / break the literal.
+            content = (
+                content
+                .replace("\\", "&#92;")   # must be first: \  → &#92;
+                .replace("`",  "&#96;")   # ` → &#96;
+                .replace("${", "&#36;{")  # ${ → &#36;{
+            )
 
             popup = folium.Popup(content, max_width=460)
             marker_icon = PROGRAM_ICONS.get(program, "map-marker")

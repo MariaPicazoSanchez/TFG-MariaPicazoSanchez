@@ -56,32 +56,120 @@ def file_picker_button(
 
 
 # ──────────────────────────────────────────────────────────────────────────────
+# Detección de columnas en la hoja de Coordenadas
+# ──────────────────────────────────────────────────────────────────────────────
+
+def _detect_coords_columns(
+    df: "pd.DataFrame",
+    default_col_pais: int = 0,
+    default_col_uni: int = 1,
+) -> tuple[int, int, bool]:
+    """
+    Detecta las columnas País y Universidad en la hoja de Coordenadas.
+
+    Si la primera fila contiene etiquetas de cabecera reconocibles ('universidad',
+    'país', etc.), las usa para determinar los índices de columna y devuelve
+    skip_first_row=True. En caso contrario, devuelve los valores por defecto.
+
+    Returns:
+        (col_pais, col_uni, skip_first_row)
+    """
+    _WORDS_UNI = {
+        "universidad", "universidade", "university",
+        "universidad destino", "universidad origen",
+    }
+    _WORDS_PAI = {
+        "país", "pais", "country",
+        "país/región", "pais/region", "país / región",
+    }
+
+    if len(df) == 0:
+        return default_col_pais, default_col_uni, False
+
+    first_row = [str(v).strip().lower() for v in df.iloc[0]]
+
+    col_uni_det: int | None = None
+    col_pai_det: int | None = None
+
+    for i, v in enumerate(first_row):
+        if v in _WORDS_UNI and col_uni_det is None:
+            col_uni_det = i
+        elif v in _WORDS_PAI and col_pai_det is None:
+            col_pai_det = i
+
+    is_header = (col_uni_det is not None) or (col_pai_det is not None)
+
+    if is_header:
+        return (
+            col_pai_det if col_pai_det is not None else default_col_pais,
+            col_uni_det if col_uni_det is not None else default_col_uni,
+            True,
+        )
+
+    return default_col_pais, default_col_uni, False
+
+
+# ──────────────────────────────────────────────────────────────────────────────
 # Mapas universidad → país / responsable
 # ──────────────────────────────────────────────────────────────────────────────
 
 @st.cache_data(show_spinner=False)
-def get_university_country_map(path: str) -> dict:
-    """Devuelve {universidad: país} leyendo la hoja 'Coordenadas' (col0=País, col1=Universidad)."""
+def get_university_country_map(
+    path: str,
+    default_col_uni: int = 1,
+    default_col_pais: int = 0,
+) -> dict:
+    """
+    Devuelve {universidad: país} leyendo la hoja 'Coordenadas'.
+
+    Formato por defecto (Erasmus IN): col0=País, col1=Universidad.
+    Formato Erasmus OUT:              col0=Universidad, col1=País.
+
+    Si la primera fila contiene etiquetas de cabecera, se detectan las columnas
+    automáticamente y esa fila se descarta de los datos.
+    """
+    _BAD = {"nan", "none", ""}
     try:
         df = pd.read_excel(path, sheet_name="Coordenadas", header=None, dtype=str)
-        df = df.dropna(subset=[0, 1])
-        return {str(row[1]).strip(): str(row[0]).strip() for _, row in df.iterrows()}
+        col_pais, col_uni, skip = _detect_coords_columns(df, default_col_pais, default_col_uni)
+        if skip:
+            df = df.iloc[1:].reset_index(drop=True)
+        result = {}
+        for _, row in df.iterrows():
+            uni  = str(row.iloc[col_uni]).strip()
+            pais = str(row.iloc[col_pais]).strip()
+            if uni.lower() not in _BAD and pais.lower() not in _BAD:
+                result[uni] = pais
+        return result
     except Exception:
         return {}
 
 
 @st.cache_data(show_spinner=False)
-def get_university_responsable_map(path: str) -> dict:
+def get_university_responsable_map(
+    path: str,
+    default_col_uni: int = 1,
+    default_col_pais: int = 0,
+) -> dict:
     """
-    Devuelve {universidad: responsable} desde la hoja 'Coordenadas' (col3).
+    Devuelve {universidad: responsable} desde la hoja 'Coordenadas' (col índice 3).
     Si la columna no existe, escanea las hojas de alumnos y escribe el resultado en col3.
+
+    Formato por defecto (Erasmus IN): col0=País, col1=Universidad.
+    Formato Erasmus OUT:              col0=Universidad, col1=País.
+
+    Si la primera fila contiene etiquetas de cabecera, se detectan las columnas
+    automáticamente y esa fila se descarta de los datos.
     """
     if not path:
         return {}
     try:
         df_coords = pd.read_excel(path, sheet_name="Coordenadas", header=None, dtype=str)
+        col_pais, col_uni, skip = _detect_coords_columns(df_coords, default_col_pais, default_col_uni)
+        if skip:
+            df_coords = df_coords.iloc[1:].reset_index(drop=True)
         if df_coords.shape[1] >= 4:
-            unis  = df_coords.iloc[:, 1].fillna("").astype(str).str.strip()
+            unis  = df_coords.iloc[:, col_uni].fillna("").astype(str).str.strip()
             resps = df_coords.iloc[:, 3].fillna("").astype(str).str.strip()
             _bad  = {"nan", "none", ""}
             mask  = unis.ne("") & resps.ne("") & ~resps.str.lower().isin(_bad)
@@ -90,7 +178,8 @@ def get_university_responsable_map(path: str) -> dict:
                 return result
         resp_map = _build_responsable_from_students(path)
         if resp_map:
-            _write_responsable_to_coordenadas(path, resp_map)
+            # col_uni es índice 0-based; openpyxl usa 1-based → col_uni + 1
+            _write_responsable_to_coordenadas(path, resp_map, col_uni_openpyxl=col_uni + 1)
         return resp_map
     except Exception:
         return {}
@@ -145,8 +234,18 @@ def _build_responsable_from_students(path: str) -> dict:
     return resp_map
 
 
-def _write_responsable_to_coordenadas(path: str, resp_map: dict) -> None:
-    """Escribe el responsable en col D de la hoja 'Coordenadas'."""
+def _write_responsable_to_coordenadas(
+    path: str,
+    resp_map: dict,
+    col_uni_openpyxl: int = 2,
+) -> None:
+    """
+    Escribe el responsable en col D (columna 4, 1-based) de la hoja 'Coordenadas'.
+
+    col_uni_openpyxl: columna 1-based (openpyxl) donde está la universidad.
+        Erasmus IN  → 2  (col B, por defecto)
+        Erasmus OUT → 1  (col A)
+    """
     try:
         from openpyxl import load_workbook
         wb = load_workbook(path)
@@ -154,7 +253,7 @@ def _write_responsable_to_coordenadas(path: str, resp_map: dict) -> None:
             return
         ws = wb["Coordenadas"]
         for r_idx in range(1, ws.max_row + 1):
-            uni_val = str(ws.cell(row=r_idx, column=2).value or "").strip()
+            uni_val = str(ws.cell(row=r_idx, column=col_uni_openpyxl).value or "").strip()
             if uni_val and uni_val.lower() not in ("nan", "none", ""):
                 resp_val = resp_map.get(uni_val, "")
                 if resp_val:
