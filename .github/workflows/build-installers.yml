@@ -214,17 +214,28 @@ jobs:
           aws configure set aws_secret_access_key ${{ secrets.R2_API_TOKEN }}
           aws configure set default.region auto
 
-      - name: Upload to Cloudflare R2
+      - name: Upload to Cloudflare R2 (FIXED)
         shell: pwsh
         env:
-          AWS_ACCESS_KEY_ID: dummy
+          AWS_ACCESS_KEY_ID: "dummy"
           AWS_SECRET_ACCESS_KEY: ${{ secrets.R2_API_TOKEN }}
-          AWS_DEFAULT_REGION: auto
+          AWS_EC2_METADATA_DISABLED: "true"
         run: |
           $version = "${{ inputs.version }}"
           $endpoint = "https://${{ secrets.R2_ACCOUNT_ID }}.r2.cloudflarestorage.com"
 
-          aws s3 cp "output/MovilidadESII_ConData_$version.exe" s3://${{ secrets.R2_BUCKET }}/releases/$version/ --endpoint-url $endpoint
-          aws s3 cp "output/MovilidadESII_SinData_$version.exe" s3://${{ secrets.R2_BUCKET }}/releases/$version/ --endpoint-url $endpoint
-          aws s3 cp "output/MovilidadESII_ConData_$version.zip" s3://${{ secrets.R2_BUCKET }}/releases/$version/ --endpoint-url $endpoint
-          aws s3 cp "output/MovilidadESII_SinData_$version.zip" s3://${{ secrets.R2_BUCKET }}/releases/$version/
+          aws s3 cp "output/MovilidadESII_ConData_$version.exe" `
+            "s3://${{ secrets.R2_BUCKET }}/releases/$version/MovilidadESII_ConData_$version.exe" `
+            --endpoint-url $endpoint
+
+          aws s3 cp "output/MovilidadESII_SinData_$version.exe" `
+            "s3://${{ secrets.R2_BUCKET }}/releases/$version/MovilidadESII_SinData_$version.exe" `
+            --endpoint-url $endpoint
+
+          aws s3 cp "output/MovilidadESII_ConData_$version.zip" `
+            "s3://${{ secrets.R2_BUCKET }}/releases/$version/MovilidadESII_ConData_$version.zip" `
+            --endpoint-url $endpoint
+
+          aws s3 cp "output/MovilidadESII_SinData_$version.zip" `
+            "s3://${{ secrets.R2_BUCKET }}/releases/$version/MovilidadESII_SinData_$version.zip" `
+            --endpoint-url $endpoint
