@@ -197,3 +197,30 @@ jobs:
             output/SHA256.txt
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      # =========================
+      # PUBLICAR EN GITHUB PAGES
+      # =========================
+
+      - name: Publicar instaladores en GitHub Pages (docs/downloads)
+        shell: pwsh
+        run: |
+          $version = "${{ inputs.version }}"
+          New-Item -ItemType Directory -Force -Path "docs\downloads" | Out-Null
+          Copy-Item "output\MovilidadESII_ConData_${version}.exe" `
+                    "docs\downloads\MovilidadESII_ConData_latest.exe" -Force
+          Copy-Item "output\MovilidadESII_SinData_${version}.exe" `
+                    "docs\downloads\MovilidadESII_SinData_latest.exe" -Force
+
+      - name: Commit y push a docs/downloads
+        shell: pwsh
+        run: |
+          $version = "${{ inputs.version }}"
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add docs/downloads/MovilidadESII_ConData_latest.exe
+          git add docs/downloads/MovilidadESII_SinData_latest.exe
+          git commit -m "chore: actualizar instaladores latest a $version [skip ci]"
+          git push
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

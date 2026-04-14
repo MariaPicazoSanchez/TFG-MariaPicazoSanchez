@@ -646,16 +646,44 @@
               <li><strong>Con datos de demostración</strong> — <code>MovilidadESII_Installer_ConData.exe</code>: incluye datos de ejemplo para explorar la aplicación desde el primer momento.</li>
               <li><strong>Sin datos</strong> — <code>MovilidadESII_Installer_SinData.exe</code>: instalación limpia para uso en producción con los ficheros Excel reales de la institución.</li>
             </ul>
-            <p style="margin-bottom:0.75rem">
-              <a href="https://github.com/mariapicazosanchez/TFG-MariaPicazoSanchez/releases/latest"
-                 class="btn btn-primary"
-                 target="_blank"
-                 rel="noopener noreferrer">
-                Ir a la última release
+            <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:1rem;margin-bottom:1.25rem;">
+
+              <a href="downloads/MovilidadESII_SinData_latest.exe"
+                 style="display:flex;flex-direction:column;gap:.35rem;padding:1rem 1.25rem;
+                        background:#fff;border:2px solid var(--color-primary);
+                        border-radius:var(--radius-md);text-decoration:none;
+                        transition:box-shadow .15s ease,transform .15s ease;"
+                 onmouseover="this.style.boxShadow='0 4px 12px rgba(234,88,12,.2)';this.style.transform='translateY(-2px)'"
+                 onmouseout="this.style.boxShadow='none';this.style.transform='none'">
+                <span style="font-size:.7rem;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:var(--color-primary);">Producción</span>
+                <span style="font-size:1rem;font-weight:700;color:var(--color-text);">Sin datos</span>
+                <span style="font-size:.8rem;color:var(--color-text-muted);">Instalación limpia para uso real</span>
+                <span style="margin-top:.4rem;font-size:.85rem;font-weight:600;color:var(--color-primary);">Descargar .exe</span>
               </a>
+
+              <a href="downloads/MovilidadESII_ConData_latest.exe"
+                 style="display:flex;flex-direction:column;gap:.35rem;padding:1rem 1.25rem;
+                        background:#fff7ed;border:2px solid var(--color-border-strong);
+                        border-radius:var(--radius-md);text-decoration:none;
+                        transition:box-shadow .15s ease,transform .15s ease;"
+                 onmouseover="this.style.boxShadow='0 4px 12px rgba(0,0,0,.1)';this.style.transform='translateY(-2px)'"
+                 onmouseout="this.style.boxShadow='none';this.style.transform='none'">
+                <span style="font-size:.7rem;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:var(--color-text-muted);">Demo</span>
+                <span style="font-size:1rem;font-weight:700;color:var(--color-text);">Con datos de ejemplo</span>
+                <span style="font-size:.8rem;color:var(--color-text-muted);">Incluye datos para explorar la app</span>
+                <span style="margin-top:.4rem;font-size:.85rem;font-weight:600;color:var(--color-text-muted);">Descargar .exe</span>
+              </a>
+
+            </div>
+
+            <p style="font-size:.82rem;color:var(--color-text-light);margin-bottom:1rem;">
+              ¿Prefieres verificar el hash SHA256 o consultar el historial de cambios?
+              <a href="https://github.com/mariapicazosanchez/TFG-MariaPicazoSanchez/releases/latest"
+                 target="_blank" rel="noopener noreferrer">Ver release en GitHub</a>.
             </p>
+
             <ol class="install-steps">
-              <li>En la sección <strong>Assets</strong> de la release, descarga <code>MovilidadESII_Installer_ConData.exe</code> (con datos de demo) o <code>MovilidadESII_Installer_SinData.exe</code> (producción).</li>
+              <li>Descarga el instalador adecuado con los botones de arriba.</li>
               <li>Ejecuta el instalador y sigue los pasos del asistente.</li>
               <li>Abre <strong>Movilidad ESII</strong> desde el acceso directo del escritorio.</li>
             </ol>
