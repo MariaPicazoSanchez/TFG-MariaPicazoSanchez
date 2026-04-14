@@ -184,7 +184,7 @@ begin
   ConfigContent := '{' + #13#10 +
     '    "SICUE OUT": "' + DataPath + '\\SICUE OUT.xlsx",' + #13#10 +
     '    "Erasmus IN": "' + DataPath + '\\ERASMUS IN.xlsx",' + #13#10 +
-    '    "Erasmus OUT": "' + DataPath + '\\ERASMUS OUT.xlsx",' + #13#10 +
+    '    "Erasmus OUT": "' + DataPath + '\\ERASMUS OUT.xlsx"' + #13#10 +
     '}';
 
   if SaveStringToFile(BaseConfigPath(), ConfigContent, False) then

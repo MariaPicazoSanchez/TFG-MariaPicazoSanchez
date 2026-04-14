@@ -501,15 +501,16 @@ def ensure_data_demo() -> None:
 
 def write_demo_config() -> None:
     """Escribe config.json desde config.demo.json reemplazando rutas de data_demo."""
-    # Si config.json ya existe y es válido, no regenerar
+    # Si config.json ya existe y tiene rutas de programas de movilidad, no regenerar
     if CONFIG_PATH.exists():
         try:
             existing = json.loads(CONFIG_PATH.read_text(encoding="utf-8"))
-            if existing and "excel_path" in existing:
+            _MOBILITY_KEYS = ("SICUE OUT", "Erasmus IN", "Erasmus OUT")
+            if existing and any(k in existing for k in _MOBILITY_KEYS):
                 LOGGER.debug("config.json ya existe y es válido, omitiendo regeneración")
                 return
         except Exception:
-            pass  # Si falla la lectura, regenerar
+            pass  # Si falla la lectura (JSON inválido, etc.), regenerar
     
     demo_path = ROOT / "config.demo.json"
     if not demo_path.exists():
