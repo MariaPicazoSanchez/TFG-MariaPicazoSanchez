@@ -224,18 +224,22 @@ jobs:
           $version = "${{ inputs.version }}"
           $endpoint = "https://${{ secrets.R2_ACCOUNT_ID }}.r2.cloudflarestorage.com"
 
-          aws s3 cp "output/MovilidadESII_ConData_$version.exe" `
-            "s3://${{ secrets.R2_BUCKET }}/releases/$version/MovilidadESII_ConData_$version.exe" `
-            --endpoint-url $endpoint
+          aws s3 cp "output/MovilidadESII_ConData_${version}.exe" `
+            "s3://${{ secrets.R2_BUCKET }}/releases/$version/MovilidadESII_ConData_${version}.exe" `
+            --endpoint-url $endpoint `
+            --checksum-algorithm CRC32
 
-          aws s3 cp "output/MovilidadESII_SinData_$version.exe" `
-            "s3://${{ secrets.R2_BUCKET }}/releases/$version/MovilidadESII_SinData_$version.exe" `
-            --endpoint-url $endpoint
+          aws s3 cp "output/MovilidadESII_SinData_${version}.exe" `
+            "s3://${{ secrets.R2_BUCKET }}/releases/$version/MovilidadESII_SinData_${version}.exe" `
+            --endpoint-url $endpoint `
+            --checksum-algorithm CRC32
 
-          aws s3 cp "output/MovilidadESII_ConData_$version.zip" `
-            "s3://${{ secrets.R2_BUCKET }}/releases/$version/MovilidadESII_ConData_$version.zip" `
-            --endpoint-url $endpoint
+          aws s3 cp "output/MovilidadESII_ConData_${version}.zip" `
+            "s3://${{ secrets.R2_BUCKET }}/releases/$version/MovilidadESII_ConData_${version}.zip" `
+            --endpoint-url $endpoint `
+            --checksum-algorithm CRC32
 
-          aws s3 cp "output/MovilidadESII_SinData_$version.zip" `
-            "s3://${{ secrets.R2_BUCKET }}/releases/$version/MovilidadESII_SinData_$version.zip" `
-            --endpoint-url $endpoint
+          aws s3 cp "output/MovilidadESII_SinData_${version}.zip" `
+            "s3://${{ secrets.R2_BUCKET }}/releases/$version/MovilidadESII_SinData_${version}.zip" `
+            --endpoint-url $endpoint `
+            --checksum-algorithm CRC32
