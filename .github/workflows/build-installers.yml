@@ -217,7 +217,7 @@ jobs:
       - name: Upload to Cloudflare R2 (FIXED)
         shell: pwsh
         env:
-          AWS_ACCESS_KEY_ID: "dummy"
+          AWS_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
           AWS_SECRET_ACCESS_KEY: ${{ secrets.R2_API_TOKEN }}
           AWS_EC2_METADATA_DISABLED: "true"
         run: |
