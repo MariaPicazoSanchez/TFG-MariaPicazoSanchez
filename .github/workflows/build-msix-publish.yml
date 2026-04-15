@@ -291,7 +291,6 @@ jobs:
             Write-Host "Firmando $msix..."
             & $signtool sign `
               /fd SHA256 `
-              /p7ce DetachedSignedData `
               /f $pfxPath `
               /p $pfxPass `
               $msix
