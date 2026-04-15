@@ -10,6 +10,7 @@ on:
 
 permissions:
   contents: write
+  actions: read
 
 jobs:
   build:
@@ -198,39 +199,13 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      # =========================
-      # PUBLICAR INSTALADORES PARA CLOUDFLARE
-      # =========================
+  # =========================
+  # LLAMAR AL WORKFLOW DE MSIX + CLOUDFLARE
+  # =========================
 
-      - name: Install AWS CLI
-        shell: pwsh
-        run: |
-          choco install awscli -y
-
-      - name: Upload to Cloudflare R2
-        shell: pwsh
-        env:
-          AWS_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
-          AWS_SECRET_ACCESS_KEY: ${{ secrets.R2_API_TOKEN }}
-          AWS_EC2_METADATA_DISABLED: "true"
-        run: |
-          $version = "${{ inputs.version }}"
-          $endpoint = "https://${{ secrets.R2_ACCOUNT_ID }}.r2.cloudflarestorage.com"
-
-          # Versión con número
-          aws s3 cp "output/MovilidadESII_ConData_${version}.exe" `
-            "s3://${{ secrets.R2_BUCKET }}/MovilidadESII_ConData_${version}.exe" `
-            --endpoint-url $endpoint
-
-          aws s3 cp "output/MovilidadESII_SinData_${version}.exe" `
-            "s3://${{ secrets.R2_BUCKET }}/MovilidadESII_SinData_${version}.exe" `
-            --endpoint-url $endpoint
-
-          # Latest (URL permanente para la Microsoft Store)
-          aws s3 cp "output/MovilidadESII_ConData_${version}.exe" `
-            "s3://${{ secrets.R2_BUCKET }}/MovilidadESII_ConData_latest.exe" `
-            --endpoint-url $endpoint
-
-          aws s3 cp "output/MovilidadESII_SinData_${version}.exe" `
-            "s3://${{ secrets.R2_BUCKET }}/MovilidadESII_SinData_latest.exe" `
-            --endpoint-url $endpoint
+  package-and-publish:
+    needs: build
+    uses: ./.github/workflows/build-msix-publish.yml
+    with:
+      version: "${{ inputs.version }}"
+    secrets: inherit
