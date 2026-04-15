@@ -316,41 +316,52 @@ jobs:
           }
 
       # =========================
-      # SUBIR A CLOUDFLARE R2
+      # SUBIR MSIX COMO ARTIFACT
       # =========================
 
-      - name: Install AWS CLI
-        shell: pwsh
-        run: choco install awscli -y
+      - name: Upload MSIX artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: MSIX-${{ inputs.version }}
+          path: output_msix/
 
-      - name: Upload MSIX to Cloudflare R2
-        shell: pwsh
-        env:
-          AWS_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
-          AWS_SECRET_ACCESS_KEY: ${{ secrets.R2_API_TOKEN }}
-          AWS_EC2_METADATA_DISABLED: "true"
-        run: |
-          $version  = "${{ inputs.version }}"
-          $endpoint = "https://${{ secrets.R2_ACCOUNT_ID }}.r2.cloudflarestorage.com"
-          $bucket   = "${{ secrets.R2_BUCKET }}"
+      # =========================
+      # CLOUDFLARE R2 (comentado — descomentar si se necesita
+      # distribución alternativa fuera de la Microsoft Store)
+      # =========================
 
-          foreach ($variant in @("ConData", "SinData")) {
-            $msix = "output_msix\MovilidadESII_${variant}_${version}.msix"
+      # - name: Install AWS CLI
+      #   shell: pwsh
+      #   run: choco install awscli -y
 
-            # Versión con número
-            aws s3 cp $msix `
-              "s3://${bucket}/MovilidadESII_${variant}_${version}.msix" `
-              --endpoint-url $endpoint
-
-            # Latest (URL permanente)
-            aws s3 cp $msix `
-              "s3://${bucket}/MovilidadESII_${variant}_latest.msix" `
-              --endpoint-url $endpoint
-
-            Write-Host "Subido: MovilidadESII_${variant}_${version}.msix"
-          }
-
-          # Hash
-          aws s3 cp "output_msix\SHA256_MSIX.txt" `
-            "s3://${bucket}/SHA256_MSIX_${version}.txt" `
-            --endpoint-url $endpoint
+      # - name: Upload MSIX to Cloudflare R2
+      #   shell: pwsh
+      #   env:
+      #     AWS_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+      #     AWS_SECRET_ACCESS_KEY: ${{ secrets.R2_API_TOKEN }}
+      #     AWS_EC2_METADATA_DISABLED: "true"
+      #   run: |
+      #     $version  = "${{ inputs.version }}"
+      #     $endpoint = "https://${{ secrets.R2_ACCOUNT_ID }}.r2.cloudflarestorage.com"
+      #     $bucket   = "${{ secrets.R2_BUCKET }}"
+      #
+      #     foreach ($variant in @("ConData", "SinData")) {
+      #       $msix = "output_msix\MovilidadESII_${variant}_${version}.msix"
+      #
+      #       # Versión con número
+      #       aws s3 cp $msix `
+      #         "s3://${bucket}/MovilidadESII_${variant}_${version}.msix" `
+      #         --endpoint-url $endpoint
+      #
+      #       # Latest (URL permanente)
+      #       aws s3 cp $msix `
+      #         "s3://${bucket}/MovilidadESII_${variant}_latest.msix" `
+      #         --endpoint-url $endpoint
+      #
+      #       Write-Host "Subido: MovilidadESII_${variant}_${version}.msix"
+      #     }
+      #
+      #     # Hash
+      #     aws s3 cp "output_msix\SHA256_MSIX.txt" `
+      #       "s3://${bucket}/SHA256_MSIX_${version}.txt" `
+      #       --endpoint-url $endpoint

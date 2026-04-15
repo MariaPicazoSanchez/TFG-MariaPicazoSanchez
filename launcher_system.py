@@ -1220,10 +1220,58 @@ def start_processes(api_enabled: bool = True, api_disabled_reason: str | None = 
                 except Exception as _tray_err:
                     LOGGER.warning("Error configurando bandeja: %s", _tray_err)
 
+                # JS del botón hamburguesa inyectado directamente en el contexto
+                # principal de pywebview (sin iframe), así no necesita window.parent.
+                # La guardia __sidebarToggleReady evita doble inicialización.
+                _SIDEBAR_TOGGLE_JS = """
+(function() {
+    if (window.__sidebarToggleReady) return;
+    window.__sidebarToggleReady = true;
+    var BTN_ID = '__sidebar_expand_btn';
+
+    function getSidebarBtn() {
+        return document.querySelector('[data-testid="stSidebarCollapseButton"] button')
+            || document.querySelector('[data-testid="stSidebarCollapseButton"]');
+    }
+    function isSidebarCollapsed() {
+        var s = document.querySelector('[data-testid="stSidebar"]');
+        return s && s.getAttribute('aria-expanded') === 'false';
+    }
+    function createBtn() {
+        var btn = document.createElement('button');
+        btn.id = BTN_ID;
+        btn.title = 'Mostrar panel lateral';
+        btn.innerHTML = '&#9776;';
+        btn.style.cssText = 'position:fixed;top:8px;left:8px;z-index:99999;'
+            + 'background:#262730;color:#fff;border:none;border-radius:6px;'
+            + 'padding:6px 10px;font-size:18px;cursor:pointer;display:none;'
+            + 'line-height:1;box-shadow:0 2px 6px rgba(0,0,0,.4)';
+        btn.addEventListener('click', function() {
+            var nb = getSidebarBtn(); if (nb) nb.click();
+        });
+        document.body.appendChild(btn);
+        return btn;
+    }
+    function update() {
+        var btn = document.getElementById(BTN_ID) || createBtn();
+        btn.style.display = isSidebarCollapsed() ? 'block' : 'none';
+    }
+    function startObserver() {
+        var sidebar = document.querySelector('[data-testid="stSidebar"]');
+        if (!sidebar) { setTimeout(startObserver, 300); return; }
+        update();
+        new MutationObserver(update).observe(sidebar,
+            { attributes: true, attributeFilter: ['aria-expanded'] });
+    }
+    startObserver();
+})();
+"""
+
                 def _inject_zoom():
                     try:
                         js = _ZOOM_JS.replace("var _cur = 1.0;", "var _cur = " + str(_init_zoom) + ";")
                         _win.evaluate_js(js)
+                        _win.evaluate_js(_SIDEBAR_TOGGLE_JS)
                     except Exception:
                         pass
 

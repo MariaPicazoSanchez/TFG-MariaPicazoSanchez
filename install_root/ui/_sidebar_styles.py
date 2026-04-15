@@ -95,6 +95,10 @@ SIDEBAR_TOGGLE_JS: str = """
 (function() {
     var BTN_ID = '__sidebar_expand_btn';
 
+    // En navegador: este script corre dentro de un iframe (st.components.v1.html),
+    // por eso usa window.parent.document para acceder al DOM de Streamlit.
+    // En pywebview el botón se inyecta directamente desde el launcher (evaluate_js).
+
     function getSidebarBtn() {
         var doc = window.parent ? window.parent.document : document;
         return doc.querySelector('[data-testid="stSidebarCollapseButton"] button')

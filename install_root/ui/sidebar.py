@@ -129,7 +129,9 @@ def sidebar_controls() -> tuple[str | None, st.delta_generator.DeltaGenerator | 
     # CSS global de layout
     st.markdown(SIDEBAR_CSS, unsafe_allow_html=True)
 
-    # Botón flotante para expandir el sidebar cuando está colapsado
+    # Botón flotante para expandir el sidebar cuando está colapsado.
+    # En navegador corre dentro del iframe de st.components y usa window.parent.
+    # En pywebview se inyecta además desde el launcher via evaluate_js.
     st.components.v1.html(SIDEBAR_TOGGLE_JS, height=0)
 
     # Zoom layout fix (dentro del sidebar para acceder a window.parent)
