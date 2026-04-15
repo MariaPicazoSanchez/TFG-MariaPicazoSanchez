@@ -158,7 +158,14 @@ jobs:
             $xml.Add('  IgnorableNamespaces="uap rescap">')
             $xml.Add('')
             $xml.Add('  <Identity')
-            $xml.Add("    Name=""ESIIAB.MovilidadESII.$($v.Name)""")
+            # SinData usa el nombre reservado en Partner Center;
+            # ConData usa un nombre propio (no se sube a la Store).
+            $packageName = if ($v.Name -eq "SinData") {
+                "${{ secrets.MSSTORE_PACKAGE_NAME }}"
+            } else {
+                "ESIIAB.MovilidadESII.$($v.Name)"
+            }
+            $xml.Add("    Name=""$packageName""")
             $xml.Add("    Publisher=""$publisher""")
             $xml.Add("    Version=""$msixVersion""")
             $xml.Add('    ProcessorArchitecture="x64" />')
