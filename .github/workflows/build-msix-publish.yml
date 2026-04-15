@@ -165,7 +165,7 @@ jobs:
             $xml.Add('')
             $xml.Add('  <Properties>')
             $xml.Add("    <DisplayName>$displayName</DisplayName>")
-            $xml.Add('    <PublisherDisplayName>ESIIAB-UCLM</PublisherDisplayName>')
+            $xml.Add('    <PublisherDisplayName>${{ secrets.MSSTORE_PUBLISHER_DISPLAY_NAME }}</PublisherDisplayName>')
             $xml.Add('    <Logo>Assets\StoreLogo.png</Logo>')
             $xml.Add('  </Properties>')
             $xml.Add('')
