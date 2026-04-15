@@ -126,7 +126,7 @@ jobs:
           while ($parts.Count -lt 4) { $parts += '0' }
           $msixVersion = $parts[0..3] -join '.'
 
-          $publisher = "CN=ESIIAB-UCLM"
+          $publisher = "${{ secrets.MSSTORE_PUBLISHER_ID }}"
 
           $variants = @(
             @{ Name = "ConData"; Exe = "MovilidadESII_ConData_${{ inputs.version }}.exe" },
@@ -238,7 +238,7 @@ jobs:
         shell: pwsh
         run: |
           $certPath = "signing.pfx"
-          $publisher = "CN=ESIIAB-UCLM"
+          $publisher = "${{ secrets.MSSTORE_PUBLISHER_ID }}"
 
           $pfxB64 = "${{ secrets.MSIX_CERT_PFX }}"
           $pfxPass = "${{ secrets.MSIX_CERT_PASSWORD }}"
