@@ -250,6 +250,9 @@ pip install -r requirements-dev.txt
 | `geopy` | 2.4.1 | Geocoding — city/country coordinates |
 | `jinja2` | 3.1.6 | HTML templating for map popups |
 | `jsonschema` | 4.26.0 | JSON Schema validation |
+| `pywebview` | 5.0.5 | Native desktop window wrapping the Streamlit web UI |
+| `pystray` | 0.19.5 | System tray icon — minimise-to-tray and restore |
+| `psutil` | 7.2.2 | Process tree termination on shutdown |
 
 
 ### Offline wheelhouse
