@@ -325,18 +325,37 @@ def _python_works(exe: Path) -> bool:
         return False
 
 
+def _is_msix_install() -> bool:
+    """
+    Detecta si el launcher corre dentro de un paquete MSIX (WindowsApps).
+    En ese caso el Python embebido está junto al exe, no en AppData.
+    """
+    return "WindowsApps" in str(Path(sys.executable).resolve())
+
+
 def get_runtime_python() -> Path:
     """
-    Preferimos el Python embebido instalado por el installer.
-    Si no existe o está roto, usamos Python del sistema.
+    Resuelve el Python embebido a usar para lanzar Streamlit y la API.
+
+    Orden de búsqueda:
+      1. runtime/python/ relativo al exe  → instalación MSIX
+      2. %LOCALAPPDATA%/MovilidadESII/runtime/python/ → instalación Inno Setup
+      3. Python del sistema (fallback)
     """
-    # Python embebido instalado por el installer
+    # 1) MSIX: Python preinstalado junto al exe dentro del paquete
+    exe_dir = Path(sys.executable).resolve().parent
+    msix_py = exe_dir / "runtime" / "python" / "python.exe"
+    if _python_works(msix_py):
+        LOGGER.debug("Python runtime seleccionado (MSIX): %s", msix_py)
+        return msix_py.resolve()
+
+    # 2) Inno Setup: Python extraído por el installer en AppData
     embedded_py = APPDATA_DIR / "runtime" / "python" / "python.exe"
     if _python_works(embedded_py):
-        LOGGER.debug("Python runtime seleccionado (embebido): %s", embedded_py)
+        LOGGER.debug("Python runtime seleccionado (embebido AppData): %s", embedded_py)
         return embedded_py.resolve()
 
-    # fallback al Python del sistema
+    # 3) Fallback al Python del sistema
     py = get_system_python()
     LOGGER.debug("Python runtime seleccionado (system): %s", py)
     return py
@@ -548,13 +567,20 @@ def write_demo_config() -> None:
 
 
 def ensure_installation() -> tuple[bool, str | None]:
+    # En instalación MSIX las dependencias vienen preinstaladas dentro del paquete:
+    # no existe .installer_complete (ese marcador solo lo crea Inno Setup) y
+    # hacer el import-check ralentizaría el arranque innecesariamente.
+    if _is_msix_install():
+        LOGGER.debug("Instalación MSIX detectada — saltando verificación de dependencias.")
+        return True, None
+
     installer_marker = APPDATA_DIR / ".installer_complete"
-    
+
     # Si el instalador completó, confiar en que todo está OK (arranque rápido)
     if installer_marker.exists():
         LOGGER.debug("Instalación completa detectada, saltando verificación de dependencias.")
         return True, None
-    
+
     # Solo verificar si no hay marcador
     py = get_runtime_python()
     LOGGER.debug("Verificando dependencias con %s", py)
@@ -667,6 +693,13 @@ def wait_for_http(url: str, timeout: float = 20.0) -> bool:
 def start_processes(api_enabled: bool = True, api_disabled_reason: str | None = None) -> None:
     py = Path(sys.executable) if DEV_MODE else get_runtime_python()
 
+    # En MSIX el código de la app está en ROOT (dentro del paquete, sólo-lectura).
+    # Usamos ROOT como cwd para que los módulos relativos (web_app/, api/) se resuelvan
+    # correctamente, pero aseguramos que los logs y archivos temporales vayan a APPDATA_DIR.
+    # Nota: subprocess.Popen con cwd de sólo lectura es válido en Windows; el SO
+    # no escribe en ese directorio, sólo lo usa como directorio de trabajo del proceso.
+    proc_cwd = str(ROOT)
+
     api_port, app_port = pick_two_free_ports()
     api_url = f"http://127.0.0.1:{api_port}"
     env = os.environ.copy()
@@ -707,7 +740,7 @@ def start_processes(api_enabled: bool = True, api_disabled_reason: str | None = 
                 "--server.runOnSave=false",
                 "--browser.gatherUsageStats=false",
             ],
-            cwd=str(ROOT),
+            cwd=proc_cwd,
             env=env_app,
             stdout=app_log,
             stderr=app_log,
@@ -722,7 +755,7 @@ def start_processes(api_enabled: bool = True, api_disabled_reason: str | None = 
             LOGGER.info("Iniciando API en 127.0.0.1:%s", api_port)
             api_proc = subprocess.Popen(
                 [str(py), "api/api.py"],
-                cwd=str(ROOT),
+                cwd=proc_cwd,
                 env=env,
                 stdout=api_log,
                 stderr=api_log,

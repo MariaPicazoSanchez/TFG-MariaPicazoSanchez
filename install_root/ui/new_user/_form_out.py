@@ -89,14 +89,7 @@ def render_erasmus_out_form(config: dict, asignaturas_catalog: list) -> dict:
                 st.markdown("<br>", unsafe_allow_html=True)
                 file_picker_button("📁", "nu_tor", "nu_tor_browse", "Abrir explorador de archivos.")
 
-            plan_col1, plan_col2 = st.columns([8, 1.5])
-            with plan_col1:
-                extra["plan_out"] = st.text_input(
-                    "Propuesta alumno LA (ruta o enlace)", key="nu_plan_out"
-                )
-            with plan_col2:
-                st.markdown("<br>", unsafe_allow_html=True)
-                file_picker_button("📁", "nu_plan_out", "nu_plan_out_browse", "Abrir explorador de archivos.")
+            
 
         with col2:
             extra["curso"] = st.selectbox("Curso", options=["", "1", "2", "3", "4"], key="nu_curso")
@@ -116,6 +109,14 @@ def render_erasmus_out_form(config: dict, asignaturas_catalog: list) -> dict:
                     "📁", "nu_la_out_opt", "nu_la_out_opt_browse",
                     "Abrir explorador de archivos.", file_filter=_FILTER_ALL
                 )
+            plan_col1, plan_col2 = st.columns([8, 1.5])
+            with plan_col1:
+                extra["plan_out"] = st.text_input(
+                    "Propuesta alumno LA (ruta o enlace)", key="nu_plan_out"
+                )
+            with plan_col2:
+                st.markdown("<br>", unsafe_allow_html=True)
+                file_picker_button("📁", "nu_plan_out", "nu_plan_out_browse", "Abrir explorador de archivos.")
 
     return {
         "nombre": nombre,

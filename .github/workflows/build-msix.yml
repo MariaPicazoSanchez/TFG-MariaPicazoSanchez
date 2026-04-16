@@ -1,0 +1,413 @@
+name: Build MSIX (Microsoft Store)
+
+# Ejecutar manualmente indicando la versión.
+# Genera un paquete MSIX nativo (sin envolver ningún instalador EXE)
+# listo para subir al Partner Center de Microsoft Store.
+# Solo produce la variante SinData (versión limpia para distribución en Store).
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Versión de la release (ej: v1.0.0)"
+        required: true
+        default: "v1.0.0"
+
+permissions:
+  contents: read
+
+jobs:
+  build-msix:
+    runs-on: windows-latest
+
+    steps:
+
+      # =========================
+      # CHECKOUT
+      # =========================
+
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      # =========================
+      # PYTHON SETUP (para PyInstaller y wheelhouse)
+      # =========================
+
+      - name: Setup Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install build dependencies
+        shell: pwsh
+        run: |
+          python -m pip install --upgrade pip
+          pip install pyinstaller
+          pip install -r install_root/requirements.txt
+
+      # =========================
+      # BUILD WHEELHOUSE
+      # Genera las ruedas offline que luego se preinstalan
+      # en el Python embebido del paquete MSIX.
+      # =========================
+
+      - name: Build wheelhouse
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Path "install_root/wheelhouse" -Force | Out-Null
+          pip wheel -r install_root/requirements.txt -w install_root/wheelhouse
+
+      # =========================
+      # BUILD EXE CON PYINSTALLER
+      # Produce dist/MovilidadESII/ con el launcher y sus dependencias.
+      # =========================
+
+      - name: Build EXE with PyInstaller
+        shell: pwsh
+        run: |
+          python -m PyInstaller `
+            --onedir `
+            --noconsole `
+            --clean `
+            --noconfirm `
+            --icon=install_root/MovilidadESII.ico `
+            --name MovilidadESII `
+            launcher_system.py
+
+      # =========================
+      # PYTHON EMBEBIDO PRECONFIGURADO
+      # Descarga el zip oficial de Python embebido, habilita
+      # site-packages e instala todas las dependencias desde el
+      # wheelhouse sin conexión. El resultado se incluye en el MSIX
+      # para que la app arranque sin ninguna instalación en runtime.
+      # =========================
+
+      - name: Prepare embedded Python with packages pre-installed
+        shell: pwsh
+        run: |
+          $pyVersion = "3.12.6"
+          $pyZipName = "python-${pyVersion}-embed-amd64.zip"
+          $pyZipLocal = "install_root\thirdparty\$pyZipName"
+          $pyDir = "embedded_python"
+
+          # Usar el zip del repositorio si existe; si no, descargarlo.
+          if (Test-Path $pyZipLocal) {
+            Write-Host "Usando Python embebido del repositorio: $pyZipLocal"
+            $pyZipPath = $pyZipLocal
+          } else {
+            Write-Host "Descargando Python $pyVersion embebido desde python.org..."
+            $pyZipPath = "$env:TEMP\$pyZipName"
+            Invoke-WebRequest `
+              -Uri "https://www.python.org/ftp/python/${pyVersion}/${pyZipName}" `
+              -OutFile $pyZipPath
+          }
+
+          # Extraer
+          New-Item -ItemType Directory -Path $pyDir -Force | Out-Null
+          Expand-Archive -Path $pyZipPath -DestinationPath $pyDir -Force
+
+          # Habilitar site-packages descomentando 'import site' en el .pth
+          $pthFile = "$pyDir\python312._pth"
+          if (Test-Path $pthFile) {
+            "python312.zip`n.`nimport site" | Set-Content $pthFile -Encoding UTF8
+            Write-Host "site-packages habilitado en $pthFile"
+          }
+
+          # Instalar pip mediante get-pip.py
+          $getPipPath = "$env:TEMP\get-pip.py"
+          Invoke-WebRequest -Uri "https://bootstrap.pypa.io/get-pip.py" -OutFile $getPipPath
+          & "$pyDir\python.exe" $getPipPath
+          if ($LASTEXITCODE -ne 0) { throw "Falló la instalación de pip (exit $LASTEXITCODE)" }
+
+          # Pre-instalar pip/setuptools/wheel desde el wheelhouse (offline)
+          & "$pyDir\python.exe" -m pip install `
+            --no-index `
+            --find-links "install_root\wheelhouse" `
+            pip setuptools wheel
+          if ($LASTEXITCODE -ne 0) { throw "Falló la preinstalación de pip/setuptools/wheel" }
+
+          # Pre-instalar todas las dependencias de la app (offline)
+          & "$pyDir\python.exe" -m pip install `
+            --no-index `
+            --find-links "install_root\wheelhouse" `
+            -r install_root/requirements.txt
+          if ($LASTEXITCODE -ne 0) { throw "Falló la instalación de dependencias (exit $LASTEXITCODE)" }
+
+          Write-Host "Python embebido preconfigurado correctamente."
+          & "$pyDir\python.exe" -m pip list
+
+      # =========================
+      # GENERAR ASSETS PNG DESDE ICO
+      # =========================
+
+      - name: Generate MSIX PNG assets from ICO
+        shell: pwsh
+        run: |
+          Add-Type -AssemblyName System.Drawing
+
+          $icoPath   = "install_root\MovilidadESII.ico"
+          $assetsDir = "msix_assets"
+          New-Item -ItemType Directory -Path $assetsDir -Force | Out-Null
+
+          $icon      = New-Object System.Drawing.Icon($icoPath)
+          $srcBitmap = $icon.ToBitmap()
+
+          @{
+            "Square44x44Logo.png"   = [System.Drawing.Size]::new(44,  44)
+            "Square150x150Logo.png" = [System.Drawing.Size]::new(150, 150)
+            "StoreLogo.png"         = [System.Drawing.Size]::new(50,  50)
+          }.GetEnumerator() | ForEach-Object {
+            $dst = New-Object System.Drawing.Bitmap($srcBitmap, $_.Value)
+            $dst.Save("$assetsDir\$($_.Key)", [System.Drawing.Imaging.ImageFormat]::Png)
+            $dst.Dispose()
+            Write-Host "Generado: $assetsDir\$($_.Key)"
+          }
+
+          $srcBitmap.Dispose()
+          $icon.Dispose()
+
+      # =========================
+      # CONSTRUIR LAYOUT DEL MSIX
+      # Estructura final:
+      #   msix_layout/
+      #     AppxManifest.xml
+      #     Assets/              <- iconos PNG
+      #     MovilidadESII.exe    <- launcher (PyInstaller)
+      #     [deps PyInstaller]   <- DLLs y ficheros de dist/
+      #     app/                 <- código Python de la aplicación
+      #     runtime/python/      <- Python 3.12 embebido preconfigurado
+      # =========================
+
+      - name: Build MSIX layout
+        shell: pwsh
+        run: |
+          $layout = "msix_layout"
+          New-Item -ItemType Directory -Path "$layout\Assets"           -Force | Out-Null
+          New-Item -ItemType Directory -Path "$layout\app"              -Force | Out-Null
+          New-Item -ItemType Directory -Path "$layout\runtime\python"   -Force | Out-Null
+
+          # 1. EXE y dependencias de PyInstaller (raíz del paquete)
+          Write-Host "Copiando PyInstaller dist..."
+          Copy-Item "dist\MovilidadESII\*" "$layout\" -Recurse -Force
+
+          # 2. Código Python de la app (sin demo data, wheelhouse ni thirdparty)
+          Write-Host "Copiando código de la aplicación..."
+          $excluir = @("data_demo", "wheelhouse", "thirdparty", "__pycache__", "_internal", "requirements.txt")
+          Get-ChildItem "install_root" | Where-Object { $_.Name -notin $excluir } | ForEach-Object {
+            Copy-Item $_.FullName "$layout\app\" -Recurse -Force
+          }
+
+          # 3. Python embebido preconfigurado
+          Write-Host "Copiando Python embebido..."
+          Copy-Item "embedded_python\*" "$layout\runtime\python\" -Recurse -Force
+
+          # 4. Assets de icono
+          Copy-Item "msix_assets\*" "$layout\Assets\" -Force
+
+          Write-Host "Layout MSIX listo:"
+          Get-ChildItem $layout | Select-Object Name
+
+      # =========================
+      # GENERAR AppxManifest.xml
+      # El ejecutable apunta directamente a MovilidadESII.exe,
+      # no a ningún instalador intermedio.
+      # =========================
+
+      - name: Generate AppxManifest.xml
+        shell: pwsh
+        run: |
+          $version = "${{ inputs.version }}" -replace '^v', ''
+          $parts   = $version -split '\.'
+          while ($parts.Count -lt 4) { $parts += '0' }
+          $msixVersion     = $parts[0..3] -join '.'
+          $publisher       = "${{ secrets.MSSTORE_PUBLISHER_ID }}"
+          $packageName     = "${{ secrets.MSSTORE_PACKAGE_NAME }}"
+          $publisherDisplay = "${{ secrets.MSSTORE_PUBLISHER_DISPLAY_NAME }}"
+
+          [System.Collections.Generic.List[string]]$xml = @()
+          $xml.Add('<?xml version="1.0" encoding="utf-8"?>')
+          $xml.Add('<Package')
+          $xml.Add('  xmlns="http://schemas.microsoft.com/appx/manifest/foundation/windows10"')
+          $xml.Add('  xmlns:uap="http://schemas.microsoft.com/appx/manifest/uap/windows10"')
+          $xml.Add('  xmlns:rescap="http://schemas.microsoft.com/appx/manifest/foundation/windows10/restrictedcapabilities"')
+          $xml.Add('  IgnorableNamespaces="uap rescap">')
+          $xml.Add('')
+          $xml.Add('  <Identity')
+          $xml.Add("    Name=""$packageName""")
+          $xml.Add("    Publisher=""$publisher""")
+          $xml.Add("    Version=""$msixVersion""")
+          $xml.Add('    ProcessorArchitecture="x64" />')
+          $xml.Add('')
+          $xml.Add('  <Properties>')
+          $xml.Add('    <DisplayName>MovilidadESII</DisplayName>')
+          $xml.Add("    <PublisherDisplayName>$publisherDisplay</PublisherDisplayName>")
+          $xml.Add('    <Logo>Assets\StoreLogo.png</Logo>')
+          $xml.Add('  </Properties>')
+          $xml.Add('')
+          $xml.Add('  <Dependencies>')
+          $xml.Add('    <TargetDeviceFamily')
+          $xml.Add('      Name="Windows.Desktop"')
+          $xml.Add('      MinVersion="10.0.17763.0"')
+          $xml.Add('      MaxVersionTested="10.0.22621.0" />')
+          $xml.Add('  </Dependencies>')
+          $xml.Add('')
+          $xml.Add('  <Resources>')
+          $xml.Add('    <Resource Language="es-ES" />')
+          $xml.Add('  </Resources>')
+          $xml.Add('')
+          $xml.Add('  <Applications>')
+          $xml.Add('    <Application')
+          $xml.Add('      Id="MovilidadESII"')
+          $xml.Add('      Executable="MovilidadESII.exe"')
+          $xml.Add('      EntryPoint="Windows.FullTrustApplication">')
+          $xml.Add('      <uap:VisualElements')
+          $xml.Add('        DisplayName="MovilidadESII"')
+          $xml.Add('        Description="Herramienta de gestion de movilidad academica ESIIAB-UCLM"')
+          $xml.Add('        BackgroundColor="#F0A500"')
+          $xml.Add('        Square150x150Logo="Assets\Square150x150Logo.png"')
+          $xml.Add('        Square44x44Logo="Assets\Square44x44Logo.png">')
+          $xml.Add('        <uap:DefaultTile ShortName="MovilidadESII" />')
+          $xml.Add('      </uap:VisualElements>')
+          $xml.Add('    </Application>')
+          $xml.Add('  </Applications>')
+          $xml.Add('')
+          $xml.Add('  <Capabilities>')
+          $xml.Add('    <rescap:Capability Name="runFullTrust" />')
+          $xml.Add('  </Capabilities>')
+          $xml.Add('')
+          $xml.Add('</Package>')
+
+          ($xml -join [System.Environment]::NewLine) |
+            Set-Content "msix_layout\AppxManifest.xml" -Encoding UTF8
+          Write-Host "AppxManifest.xml generado (apunta a MovilidadESII.exe directamente)"
+
+      # =========================
+      # LOCALIZAR makeappx Y signtool DEL WINDOWS SDK
+      # =========================
+
+      - name: Locate makeappx.exe and signtool.exe
+        id: sdk
+        shell: pwsh
+        run: |
+          $kitsBin = "C:\Program Files (x86)\Windows Kits\10\bin"
+
+          $makeappx = Get-ChildItem -Path $kitsBin -Filter "makeappx.exe" -Recurse |
+            Where-Object { $_.FullName -match "x64" } |
+            Sort-Object FullName -Descending |
+            Select-Object -First 1 -ExpandProperty FullName
+
+          $signtool = Get-ChildItem -Path $kitsBin -Filter "signtool.exe" -Recurse |
+            Where-Object { $_.FullName -match "x64" } |
+            Sort-Object FullName -Descending |
+            Select-Object -First 1 -ExpandProperty FullName
+
+          if (-not $makeappx) { throw "makeappx.exe no encontrado en Windows SDK" }
+          if (-not $signtool)  { throw "signtool.exe no encontrado en Windows SDK" }
+
+          Write-Host "makeappx : $makeappx"
+          Write-Host "signtool : $signtool"
+
+          "makeappx=$makeappx" | Out-File $env:GITHUB_OUTPUT -Append
+          "signtool=$signtool"  | Out-File $env:GITHUB_OUTPUT -Append
+
+      # =========================
+      # EMPAQUETAR CON MAKEAPPX
+      # =========================
+
+      - name: Pack MSIX with makeappx
+        shell: pwsh
+        run: |
+          $makeappx = "${{ steps.sdk.outputs.makeappx }}"
+          $version  = "${{ inputs.version }}"
+
+          New-Item -ItemType Directory -Path "output_msix" -Force | Out-Null
+          $output = "output_msix\MovilidadESII_SinData_${version}.msix"
+
+          Write-Host "Empaquetando MSIX..."
+          & $makeappx pack /d "msix_layout" /p $output /nv
+          if ($LASTEXITCODE -ne 0) { throw "makeappx falló (exit $LASTEXITCODE)" }
+          Write-Host "MSIX generado: $output"
+
+      # =========================
+      # CERTIFICADO DE FIRMA (autofirmado)
+      # La Microsoft Store re-firma el paquete con su propio certificado
+      # al publicarlo, por lo que no se necesita un certificado EV de pago.
+      # Solo es necesario que el Subject coincida con el Publisher ID
+      # registrado en Partner Center (MSSTORE_PUBLISHER_ID).
+      # =========================
+
+      - name: Generate self-signed certificate
+        id: cert
+        shell: pwsh
+        run: |
+          $certPath  = "signing.pfx"
+          $pfxPass   = "MsixBuild${{ inputs.version }}"
+          $publisher = "${{ secrets.MSSTORE_PUBLISHER_ID }}"
+
+          Write-Host "Generando certificado autofirmado con Subject: $publisher"
+
+          $cert = New-SelfSignedCertificate `
+            -Subject $publisher `
+            -CertStoreLocation "Cert:\CurrentUser\My" `
+            -KeyExportPolicy Exportable `
+            -KeyUsage DigitalSignature `
+            -Type CodeSigningCert `
+            -NotAfter (Get-Date).AddYears(5)
+
+          $securePass = ConvertTo-SecureString $pfxPass -AsPlainText -Force
+
+          Export-PfxCertificate `
+            -Cert $cert `
+            -FilePath $certPath `
+            -Password $securePass | Out-Null
+
+          # Instalar en TrustedPeople para que signtool lo acepte localmente
+          Import-PfxCertificate `
+            -FilePath $certPath `
+            -CertStoreLocation "Cert:\LocalMachine\TrustedPeople" `
+            -Password $securePass | Out-Null
+
+          Write-Host "Certificado autofirmado generado: $certPath"
+
+          "pfx_path=$certPath" | Out-File $env:GITHUB_OUTPUT -Append
+          "pfx_pass=$pfxPass"  | Out-File $env:GITHUB_OUTPUT -Append
+
+      # =========================
+      # FIRMAR MSIX
+      # =========================
+
+      - name: Sign MSIX
+        shell: pwsh
+        run: |
+          $signtool = "${{ steps.sdk.outputs.signtool }}"
+          $pfxPath  = "${{ steps.cert.outputs.pfx_path }}"
+          $pfxPass  = "${{ steps.cert.outputs.pfx_pass }}"
+          $version  = "${{ inputs.version }}"
+          $msix     = "output_msix\MovilidadESII_SinData_${version}.msix"
+
+          & $signtool sign /fd SHA256 /f $pfxPath /p $pfxPass /t http://timestamp.digicert.com $msix
+          if ($LASTEXITCODE -ne 0) { throw "signtool falló (exit $LASTEXITCODE)" }
+          Write-Host "MSIX firmado correctamente: $msix"
+
+      # =========================
+      # SHA256
+      # =========================
+
+      - name: Generate SHA256 hash
+        shell: pwsh
+        run: |
+          $version = "${{ inputs.version }}"
+          $msix    = "output_msix\MovilidadESII_SinData_${version}.msix"
+          $out     = "output_msix\SHA256_MSIX.txt"
+          "MovilidadESII_SinData_${version}.msix" | Out-File $out -Encoding utf8
+          certutil -hashfile $msix SHA256 >> $out
+
+      # =========================
+      # SUBIR COMO ARTIFACT
+      # =========================
+
+      - name: Upload MSIX artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: MSIX-SinData-${{ inputs.version }}
+          path: output_msix/

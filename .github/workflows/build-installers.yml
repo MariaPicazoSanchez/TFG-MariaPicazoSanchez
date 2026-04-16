@@ -199,13 +199,3 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-  # =========================
-  # LLAMAR AL WORKFLOW DE MSIX + CLOUDFLARE
-  # =========================
-
-  package-and-publish:
-    needs: build
-    uses: ./.github/workflows/build-msix-publish.yml
-    with:
-      version: "${{ inputs.version }}"
-    secrets: inherit
