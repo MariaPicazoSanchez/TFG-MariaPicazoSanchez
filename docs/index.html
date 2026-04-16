@@ -24,14 +24,11 @@
       <span class="nav-logo">Movilidad ESII</span>
       <ul class="nav-links">
         <li><a href="#stack">Stack</a></li>
-        <li><a href="#problema">Problema</a></li>
-        <li><a href="#solucion">Solución</a></li>
         <li><a href="#demostracion">Demo</a></li>
         <li><a href="#arquitectura">Arquitectura</a></li>
         <li><a href="#funcionalidades">Funcionalidades</a></li>
-        <li><a href="#decisiones">Decisiones</a></li>
-        <li><a href="#retos">Retos</a></li>
         <li><a href="#instalacion">Instalación</a></li>
+        <li><a href="#store">Store</a></li>
         <li><a href="#smartscreen">SmartScreen</a></li>
       </ul>
     </nav>
@@ -55,7 +52,7 @@
           de la movilidad académica en la Escuela Superior de Ingeniería Informática en el campus de Albacete (ESIIAB).
         </p>
 
-        <p class="hero-tagline">Instalador Windows autocontenido &middot; sin conexión a internet &middot; código abierto</p>
+        <p class="hero-tagline">Instalador Windows autocontenido &middot; sin conexión a internet &middot; Microsoft Store &middot; código abierto</p>
 
         <!-- CTA -->
         <div class="hero-actions">
@@ -118,8 +115,8 @@
 
           <div class="stack-item">
             <div class="stack-category">Empaquetado</div>
-            <div class="stack-tech">PyInstaller · Inno Setup</div>
-            <p class="stack-desc">Distribución como instalador Windows sin requerir Python en el equipo de destino.</p>
+            <div class="stack-tech">PyInstaller · Inno Setup · MSIX</div>
+            <p class="stack-desc">Distribución como instalador Windows (.exe) y paquete nativo MSIX para la Microsoft Store, sin requerir Python en el equipo de destino.</p>
           </div>
 
         </div>
@@ -630,21 +627,49 @@
 
         <div class="install-tabs">
 
+          <!-- Opción 1: Microsoft Store -->
+          <div class="install-option install-option--store" style="width: 100%; min-width: 0; grid-column: 1 / -1;">
+            <h3 class="install-option-title">
+              <span class="install-badge install-badge--store">Microsoft Store</span>
+              Instalar desde la Microsoft Store
+            </h3>
+            <p>
+              La forma más sencilla: la aplicación se descarga, actualiza y desinstala de forma limpia
+              a través de la Microsoft Store. No aparece el aviso de SmartScreen ni se necesita desbloquear
+              ningún archivo manualmente.
+            </p>
+            <div class="store-cta-row">
+              <a href="https://apps.microsoft.com/store/detail/movilidadesii"
+                 class="store-badge-link"
+                 target="_blank"
+                 rel="noopener noreferrer"
+                 aria-label="Obtener en la Microsoft Store">
+                <img src="https://get.microsoft.com/images/es-es%20dark.svg"
+                     alt="Obtener en Microsoft Store"
+                     class="store-badge-img"
+                     width="200" height="60"
+                     onerror="this.parentElement.innerHTML='<span class=\'store-badge-fallback\'>Ver en Microsoft Store →</span>'" />
+              </a>
+              <p class="store-status-note">
+                <span class="store-status-dot"></span>
+                Envío en proceso de certificación por Microsoft.
+                El enlace estará activo en cuanto se complete la publicación.
+              </p>
+            </div>
+          </div>
 
-          <!-- Opción 1: Instalador Windows -->
+          <!-- Opción 2: Instalador Windows -->
           <div class="install-option" style="width: 100%; min-width: 0;">
             <h3 class="install-option-title">
-              <span class="install-badge install-badge--recommended">Recomendado</span>
               Instalador Windows (.exe)
             </h3>
             <p>
-              Descarga el instalador generado con Inno Setup mediante el workflow de GitHub Actions.
-              No requiere Python instalado: incluye todas las dependencias empaquetadas.
-              Hay dos variantes disponibles:
+              Descargable directamente desde GitHub Releases. No requiere Python instalado:
+              incluye todas las dependencias empaquetadas. Dos variantes disponibles:
             </p>
             <ul class="install-steps" style="margin-bottom:0.75rem">
-              <li><strong>Con datos de demostración</strong> — <code>MovilidadESII_Installer_ConData.exe</code>: incluye datos de ejemplo para explorar la aplicación desde el primer momento.</li>
-              <li><strong>Sin datos</strong> — <code>MovilidadESII_Installer_SinData.exe</code>: instalación limpia para uso en producción con los ficheros Excel reales de la institución.</li>
+              <li><strong>Con datos de demostración</strong> — incluye datos de ejemplo para explorar la aplicación desde el primer momento.</li>
+              <li><strong>Sin datos</strong> — instalación limpia para uso en producción con los ficheros Excel reales de la institución.</li>
             </ul>
             <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:1rem;margin-bottom:1.25rem;">
 
@@ -691,9 +716,13 @@
               La release también incluye un archivo <code>SHA256.txt</code> con los hashes de verificación
               de ambos instaladores. Puedes usarlo para comprobar que el archivo descargado no ha sido alterado.
             </p>
+            <p class="install-sha-note" style="margin-top:.5rem;">
+              ⚠ Los instaladores .exe muestran el aviso de SmartScreen de Windows.
+              <a href="#smartscreen">Cómo resolverlo →</a>
+            </p>
           </div>
 
-          <!-- Opción 2: Desde código fuente -->
+          <!-- Opción 3: Desde código fuente -->
           <div class="install-option" style="width: 100%; min-width: 0;">
             <h3 class="install-option-title">Desde código fuente</h3>
             <p>
@@ -782,9 +811,89 @@
     </section>
 
     <!-- ============================================================
+         MICROSOFT STORE
+    ============================================================ -->
+    <section class="section" id="store">
+      <div class="container">
+
+        <div class="section-header">
+          <span class="section-tag">Distribución</span>
+          <h2 class="section-title">Microsoft Store</h2>
+        </div>
+
+        <p class="section-intro">
+          La aplicación está siendo enviada a la Microsoft Store como paquete <strong>MSIX nativo</strong>,
+          construido directamente desde el código fuente sin envolver ningún instalador externo.
+        </p>
+
+        <!-- Ventajas Store vs EXE -->
+        <div class="decisions-grid" style="margin-bottom: var(--space-2xl);">
+
+          <div class="decision-card">
+            <h3 class="decision-title">🏪 Instalación desde la Store</h3>
+            <ul style="list-style:none;display:flex;flex-direction:column;gap:.5rem;font-size:.9rem;color:var(--color-text-muted);">
+              <li style="display:flex;gap:.5rem;align-items:flex-start;"><span style="color:#16a34a;font-weight:700;flex-shrink:0;">✔</span> Sin aviso de SmartScreen — Microsoft re-firma el paquete</li>
+              <li style="display:flex;gap:.5rem;align-items:flex-start;"><span style="color:#16a34a;font-weight:700;flex-shrink:0;">✔</span> Actualizaciones automáticas desde la Store</li>
+              <li style="display:flex;gap:.5rem;align-items:flex-start;"><span style="color:#16a34a;font-weight:700;flex-shrink:0;">✔</span> Desinstalación limpia sin residuos</li>
+              <li style="display:flex;gap:.5rem;align-items:flex-start;"><span style="color:#16a34a;font-weight:700;flex-shrink:0;">✔</span> Python embebido preinstalado dentro del paquete</li>
+              <li style="display:flex;gap:.5rem;align-items:flex-start;"><span style="color:#d97706;font-weight:700;flex-shrink:0;">–</span> Solo variante sin datos (instalación limpia)</li>
+            </ul>
+          </div>
+
+          <div class="decision-card">
+            <h3 class="decision-title">📦 Instalador .exe (GitHub Releases)</h3>
+            <ul style="list-style:none;display:flex;flex-direction:column;gap:.5rem;font-size:.9rem;color:var(--color-text-muted);">
+              <li style="display:flex;gap:.5rem;align-items:flex-start;"><span style="color:#16a34a;font-weight:700;flex-shrink:0;">✔</span> Disponible inmediatamente sin proceso de certificación</li>
+              <li style="display:flex;gap:.5rem;align-items:flex-start;"><span style="color:#16a34a;font-weight:700;flex-shrink:0;">✔</span> Variante con datos de demostración incluida</li>
+              <li style="display:flex;gap:.5rem;align-items:flex-start;"><span style="color:#16a34a;font-weight:700;flex-shrink:0;">✔</span> Hash SHA256 verificable</li>
+              <li style="display:flex;gap:.5rem;align-items:flex-start;"><span style="color:#dc2626;font-weight:700;flex-shrink:0;">✘</span> Muestra aviso SmartScreen (publicador autofirmado)</li>
+              <li style="display:flex;gap:.5rem;align-items:flex-start;"><span style="color:#dc2626;font-weight:700;flex-shrink:0;">✘</span> Sin actualizaciones automáticas</li>
+            </ul>
+          </div>
+
+        </div>
+
+        <!-- Estado de certificación -->
+        <div class="smartscreen-callout" style="border-color:#3b82f6;border-left-color:#3b82f6;background-color:#eff6ff;">
+          <span class="smartscreen-callout-icon" style="color:#1d4ed8;" aria-hidden="true">&#9432;</span>
+          <div>
+            <strong style="color:#1e3a8a;">Estado de la certificación</strong>
+            <p style="color:#1e40af;">
+              El envío está en proceso de certificación en Microsoft Partner Center.
+              La aplicación ha superado los controles de empaquetado (política 10.2.5) y
+              de nombres en el menú Inicio (10.1.1.11). La política
+              de tiempo de arranque (10.1.2.10) se ha resuelto en el código del lanzador.
+              Queda pendiente la aprobación de la capacidad restringida <code style="background:rgba(59,130,246,.15);color:#1d4ed8;">runFullTrust</code>,
+              necesaria para que la aplicación pueda arrancar subprocesos Python en tiempo de ejecución.
+            </p>
+            <div style="margin-top:.75rem;display:flex;flex-direction:column;gap:.35rem;">
+              <div style="display:flex;gap:.75rem;align-items:center;font-size:.875rem;">
+                <span style="color:#16a34a;font-weight:700;">✔</span>
+                <span style="color:#1e40af;">10.2.5 — Paquete MSIX nativo (sin instalador envuelto)</span>
+              </div>
+              <div style="display:flex;gap:.75rem;align-items:center;font-size:.875rem;">
+                <span style="color:#16a34a;font-weight:700;">✔</span>
+                <span style="color:#1e40af;">10.1.2.10 — Tiempo de arranque (lanzador optimizado)</span>
+              </div>
+              <div style="display:flex;gap:.75rem;align-items:center;font-size:.875rem;">
+                <span style="color:#16a34a;font-weight:700;">✔</span>
+                <span style="color:#1e40af;">10.1.1.11 — Nombres únicos en el menú Inicio</span>
+              </div>
+              <div style="display:flex;gap:.75rem;align-items:center;font-size:.875rem;">
+                <span style="color:#d97706;font-weight:700;">⏳</span>
+                <span style="color:#1e40af;">runFullTrust — Pendiente de aprobación de capacidad restringida</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================================================
          SMARTSCREEN DE WINDOWS
     ============================================================ -->
-    <section class="section" id="smartscreen">
+    <section class="section section-alt" id="smartscreen">
       <div class="container">
 
         <div class="section-header">
@@ -793,9 +902,10 @@
         </div>
 
         <p class="section-intro">
-          Los instaladores <strong>no están firmados digitalmente</strong>, por lo que Windows
-          los mostrará como de publicador desconocido. Esto es habitual en proyectos académicos
-          sin certificado de firma de código.
+          Este aviso <strong>solo afecta a los instaladores .exe</strong> descargados desde GitHub Releases.
+          La versión de la <a href="#store">Microsoft Store</a> está re-firmada por Microsoft y no muestra ningún aviso.
+          Los instaladores .exe están firmados con un certificado autofirmado (no emitido por una CA comercial),
+          por lo que Windows los mostrará como de publicador desconocido. Esto es habitual en proyectos académicos.
           <strong>La aplicación es completamente segura</strong>; el código fuente y el pipeline
           de construcción son públicamente auditables en este repositorio.
         </p>
@@ -875,10 +985,12 @@
         </div>
 
         <p class="smartscreen-note">
-          <strong>Nota:</strong> para eliminar el aviso de publicador desconocido sería
-          necesario un certificado de firma de código comercial emitido por una CA reconocida
-          (DigiCert, Sectigo&hellip;). Para una distribución académica de alcance limitado,
-          el desbloqueo manual desde Propiedades es suficiente.
+          <strong>Nota:</strong> para eliminar el aviso en los instaladores .exe sería
+          necesario un certificado EV emitido por una CA reconocida (DigiCert, Sectigo&hellip;).
+          Para una distribución académica de alcance limitado, el desbloqueo manual es suficiente.
+          Si prefieres evitarlo por completo, instala desde la
+          <a href="#store">Microsoft Store</a> cuando esté disponible — Microsoft re-firma el paquete MSIX
+          durante la certificación, eliminando el aviso sin coste adicional.
         </p>
 
       </div>

@@ -41,8 +41,9 @@ Windows desktop application that exposes a local web interface (Streamlit) backe
 8. [Security Model](#8-security-model)
 9. [Build & Distribution](#9-build--distribution)
 10. [Windows SmartScreen Warning](#10-windows-smartscreen-warning)
-11. [Licence](#11-licence)
-12. [Author](#12-author)
+11. [Microsoft Store (MSIX)](#11-microsoft-store-msix)
+12. [Licence](#12-licence)
+13. [Author](#13-author)
 
 ---
 
@@ -377,75 +378,136 @@ All write operations are protected by a per-installation bearer token:
 
 ## 9. Build & Distribution
 
-Installers are produced by the **`Build EXE and Installers`** GitHub Actions workflow (`.github/workflows/`), triggered manually via `workflow_dispatch`. The workflow runs on `windows-latest` and produces two artifacts in `output/`.
+The project has **two independent distribution channels**, each with its own GitHub Actions workflow:
 
-### Pipeline overview
+| Channel | Workflow | Output |
+|:---|:---|:---|
+| **GitHub Releases** (EXE installers) | `build-installers.yml` | `.exe` + `.zip` via Inno Setup |
+| **Microsoft Store** (MSIX) | `build-msix.yml` | `.msix` native package (clean build, no demo data) |
+
+Both workflows are triggered manually via `workflow_dispatch`.
+
+---
+
+### Channel A — GitHub Releases (Inno Setup EXE installers)
+
+Workflow: `.github/workflows/build-installers.yml`  
+Trigger: **Actions → Build EXE and Installers → Run workflow** — input the version tag (e.g. `v1.2.0`).
 
 | Stage | Tool | Output |
 |:---|:---|:---|
-| Checkout repository | `actions/checkout@v4` | — |
-| Setup Python | `actions/setup-python@v5` (Python 3.12) | — |
-| Install dependencies | `pip install pyinstaller -r install_root/requirements.txt` | — |
-| Build wheelhouse | `pip wheel -r install_root/requirements.txt -w install_root/wheelhouse` | `install_root/wheelhouse/` |
+| Checkout + Python 3.12 | `actions/checkout`, `actions/setup-python` | — |
+| Install dependencies + build wheelhouse | `pip install`, `pip wheel` | `install_root/wheelhouse/` |
 | Install Inno Setup | `choco install innosetup` | — |
-| Build EXE | `python -m PyInstaller --onedir --noconsole --clean --noconfirm --icon=install_root/MovilidadESII.ico --name MovilidadESII launcher_system.py` | `dist/MovilidadESII/` |
+| Build EXE (PyInstaller) | `python -m PyInstaller --onedir --noconsole` | `dist/MovilidadESII/` |
 | Build installer — demo | `ISCC.exe installer.iss` | `output/MovilidadESII_Installer_ConData.exe` |
 | Build installer — production | `ISCC.exe installer_sindata.iss` | `output/MovilidadESII_Installer_SinData.exe` |
-| Clean `dist/` + `build/` + `*.spec` | `Remove-Item -Recurse -Force` | — |
-| Decode certificate | Recover `.pfx` from `CERTIFICATE_PFX` secret (Base64) | — |
-| Sign installers | `signtool.exe` — Authenticode-signs both `.exe` artefacts with `CERTIFICATE_PASSWORD` | Signed `.exe` files |
-| Generate SHA256 hashes | `certutil -hashfile` — computes SHA256 for both installers | `output/SHA256.txt` |
-| Clean certificate | Delete decoded `.pfx` from runner | — |
-| Upload artifact — demo | `actions/upload-artifact@v4` | GitHub Actions artifact `installer-demo` |
-| Upload artifact — production | `actions/upload-artifact@v4` | GitHub Actions artifact `installer-clean` |
+| Rename + zip + SHA256 | `Compress-Archive`, `certutil -hashfile` | Versioned `.exe`, `.zip`, `SHA256.txt` |
+| Create GitHub Release | `softprops/action-gh-release@v2` | Published release with all artefacts |
 
-### Triggering a build
-
-Go to **Actions → Build EXE and Installers → Run workflow** in the GitHub UI. Once complete, the installers are published automatically as a new GitHub Release and are available from the [Releases page](https://github.com/MariaPicazoSanchez/TFG-MariaPicazoSanchez/releases/latest).
+Once complete the installers are available from the [Releases page](https://github.com/MariaPicazoSanchez/TFG-MariaPicazoSanchez/releases/latest).
 
 | File | Description |
 |:---|:---|
-| `MovilidadESII_Installer_ConData.exe` | Includes sample data for demonstration |
-| `MovilidadESII_Installer_SinData.exe` | Production build — no data bundled |
-| `SHA256.txt` | SHA256 checksums for both installers |
+| `MovilidadESII_ConData_<version>.exe` | Includes sample data for demonstration |
+| `MovilidadESII_SinData_<version>.exe` | Production build — no data bundled |
+| `SHA256.txt` | SHA256 checksums for both installers and ZIP archives |
 
-### Verifying the download
-
-Each release includes a `SHA256.txt` file with the checksums for both installers.
-To verify the integrity of a downloaded file, run the following command in PowerShell or Command Prompt:
+#### Verifying the download
 
 ```powershell
-certutil -hashfile MovilidadESII_Installer_ConData.exe SHA256
+certutil -hashfile MovilidadESII_SinData_v1.2.0.exe SHA256
 ```
 
-Compare the output with the corresponding entry in `SHA256.txt`. If they match, the file is intact and has not been modified.
+Compare the output with the corresponding entry in `SHA256.txt`.
 
-### What the installer does
+#### What the EXE installer does
 
 - Copies `dist/MovilidadESII/` to `%LOCALAPPDATA%\MovilidadESII\`.
+- Extracts a pre-configured embedded Python runtime to `%LOCALAPPDATA%\MovilidadESII\runtime\python\`.
 - Creates a desktop shortcut and a Start Menu entry.
-- Writes `config.json` to `%LOCALAPPDATA%\MovilidadESII\` with the correct data paths.
+- Writes `config.json` to `%LOCALAPPDATA%\MovilidadESII\`.
 - Does not require Python to be installed on the target machine.
+- Creates `.installer_complete` marker on success so the launcher skips dependency checks at startup.
+
+> **SmartScreen warning:** EXE installers distributed outside the Store are not signed with a commercial CA certificate, so Windows will show an *Unknown Publisher* warning. See [§10](#10-windows-smartscreen-warning) for the unblock procedure. Installing from the Microsoft Store avoids this entirely.
+
+---
+
+### Channel B — Microsoft Store (native MSIX)
+
+Workflow: `.github/workflows/build-msix.yml`  
+Trigger: **Actions → Build MSIX (Microsoft Store) → Run workflow** — input the version tag.
+
+This workflow builds a **native MSIX package** entirely from source — it does not wrap the EXE installer. The MSIX is signed locally with a self-signed certificate only for packaging purposes; Microsoft re-signs it with its own certificate when the submission is approved, so no EV certificate is required.
+
+| Stage | Tool | Output |
+|:---|:---|:---|
+| Checkout + Python 3.12 | `actions/checkout`, `actions/setup-python` | — |
+| Install dependencies + build wheelhouse | `pip install`, `pip wheel` | `install_root/wheelhouse/` |
+| Build EXE (PyInstaller) | `python -m PyInstaller --onedir --noconsole` | `dist/MovilidadESII/` |
+| Prepare embedded Python | Download embed ZIP → enable site-packages → pre-install all packages offline | `embedded_python/` |
+| Generate PNG assets from ICO | `System.Drawing` (PowerShell) | `msix_assets/*.png` |
+| Build MSIX layout | Copy exe + app code + runtime into `msix_layout/` | `msix_layout/` |
+| Generate `AppxManifest.xml` | PowerShell string generation | `msix_layout/AppxManifest.xml` |
+| Pack MSIX | `makeappx pack` (Windows SDK) | `output_msix/MovilidadESII_SinData_<version>.msix` |
+| Self-sign | `New-SelfSignedCertificate` + `signtool sign` | Locally signed MSIX |
+| Upload artifact | `actions/upload-artifact@v4` | `MSIX-SinData-<version>` |
+
+#### MSIX layout
+
+```text
+msix_layout/
+├── AppxManifest.xml
+├── Assets/
+│   ├── Square44x44Logo.png
+│   ├── Square150x150Logo.png
+│   └── StoreLogo.png
+├── MovilidadESII.exe        ← launcher (PyInstaller)
+├── _internal/               ← PyInstaller dependencies
+├── app/                     ← Python source (web_app/, api/, domain/, …)
+└── runtime/
+    └── python/              ← Python 3.12 embedded, fully pre-configured
+```
+
+#### Required repository secrets
+
+| Secret | Description |
+|:---|:---|
+| `MSSTORE_PUBLISHER_ID` | Publisher identity from Partner Center — e.g. `CN=XXXX` |
+| `MSSTORE_PACKAGE_NAME` | Package name registered in Partner Center — e.g. `MaraPicazoSnchez.MovilidadESII` |
+| `MSSTORE_PUBLISHER_DISPLAY_NAME` | Display name shown in the Store listing |
+
+Set these under **Settings → Secrets and variables → Actions → Repository secrets**.
+
+#### Submitting to Partner Center
+
+1. Run the workflow and download the `MSIX-SinData-<version>` artifact.
+2. In [Partner Center](https://partner.microsoft.com/), open the app submission → **Packages** → upload the `.msix` file.
+3. If the `runFullTrust` restricted capability warning appears, go to **App management → Product policies → Declare restricted capability** and provide a justification (e.g. *"Desktop app built with PyInstaller; requires Full Trust to spawn Python subprocesses for Streamlit and Flask"*). Microsoft typically approves this for native desktop tools.
+4. If a version conflict appears (*two packages with the same full name*), increment the version (e.g. from `v1.1.0` to `v1.2.0`) and rebuild — the new package will have a different `PackageFullName` and can coexist.
 
 ---
 
 ## 10. Windows SmartScreen Warning
 
-The installers are **not code-signed**, so Windows will display them as *Unknown Publisher*. This is expected behaviour for academic projects without a commercial code-signing certificate.
+This applies **only to EXE installers downloaded from GitHub Releases**. Installers obtained through the **Microsoft Store are signed by Microsoft** and will never trigger SmartScreen.
+
+The EXE installers distributed via GitHub Releases are signed with a self-signed certificate (not issued by a commercial CA), so Windows will display them as *Unknown Publisher*. This is expected behaviour for academic projects without a commercial code-signing certificate.
 
 > **The application is safe to run.** Source code and build pipeline are fully auditable in this repository.
 
 ### Why SmartScreen warns
 
-- **No code signature.** Without an Authenticode certificate recognised by Windows, the installer appears as *Unknown Publisher*.
-- **No accumulated reputation.** SmartScreen also scores how many users have downloaded and run a given binary. A newly published file starts with zero reputation.
+- **No commercial CA signature.** Without an Authenticode certificate from a recognised authority, the installer appears as *Unknown Publisher*.
+- **No accumulated reputation.** SmartScreen also scores how many users have run a given binary. A newly published file starts with zero reputation.
 
 ### Resolving the warning
 
 1. Download the `.exe` file. **Do not run it yet.**
 2. Open the folder where the file was saved.
 3. Right-click the file → **Properties**.
-4. In the **General** tab, scroll to the very bottom. If Windows flagged the file as downloaded from the internet you will see:
+4. In the **General** tab, scroll to the bottom. If Windows flagged the file as downloaded from the internet you will see:
 
    ```
    ⚠ This file came from another computer and might be
@@ -459,17 +521,45 @@ The installers are **not code-signed**, so Windows will display them as *Unknown
 
 > If the *Unblock* checkbox is absent, the file was already unblocked or downloaded in a way that did not trigger the internet zone mark. No action needed.
 
-To permanently suppress the warning on any machine a commercial EV certificate from a recognised CA (DigiCert, Sectigo, etc.) would be required. For an academic distribution of limited scope, the manual unblock is sufficient.
+To suppress the warning permanently for EXE installers, a commercial EV (Extended Validation) certificate from a recognised CA (DigiCert, Sectigo, etc.) would be required. For the Microsoft Store distribution channel this is unnecessary — Microsoft re-signs the MSIX during the certification process.
 
 ---
 
-## 11. Licence
+## 11. Microsoft Store (MSIX)
+
+The application is being submitted to the **Microsoft Store** as a native MSIX package (see [§9 — Channel B](#channel-b--microsoft-store-native-msix)).
+
+### Advantages over the EXE installer
+
+| | EXE (GitHub Releases) | MSIX (Microsoft Store) |
+|:---|:---:|:---:|
+| No SmartScreen warning | ✗ | ✔ |
+| Automatic updates | ✗ | ✔ |
+| Clean uninstall | ✗ | ✔ |
+| Embedded Python runtime | ✔ | ✔ |
+| Demo data variant | ✔ | ✗ |
+
+### Certification status
+
+The submission is in progress. Microsoft certification checks the following policies; all three have been addressed in the current build:
+
+| Policy | Requirement | Resolution |
+|:---|:---|:---|
+| 10.2.5 | No installer-in-MSIX — only native packages allowed | Workflow builds from source; no Inno Setup EXE is wrapped |
+| 10.1.2.10 | App must not load indefinitely after launch | Launcher detects MSIX install and skips dependency checks at startup |
+| 10.1.1.11 | Start Menu shortcut names must be unique | `AppxManifest.xml` sets `ShortName="MovilidadESII"` on the tile |
+
+The `runFullTrust` restricted capability is required because the launcher spawns Python subprocesses (Streamlit and Flask) and must be declared and approved in Partner Center before the submission can be certified.
+
+---
+
+## 12. Licence
 
 This project is released under the **Creative Commons Attribution-NonCommercial 4.0 International (CC BY-NC 4.0)** license. You are free to use, share, and adapt this work for non-commercial purposes with attribution. Commercial use requires explicit written permission from the author. See [`LICENSE`](LICENSE) for details.
 
 ---
 
-## 12. Author
+## 13. Author
 
 **María Picazo Sánchez**  
 Grado en Ingeniería Informática — Escuela Superior de Ingeniería Informática en el campus de Albacete (ESIIAB)  
