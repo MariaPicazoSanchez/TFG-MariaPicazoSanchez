@@ -9,6 +9,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.1.1] - 2026-04-17
+
+### Added
+- **Microsoft Store distribution channel**: dedicated `build-msix.yml` GitHub Actions workflow that builds the MSIX package directly from the PyInstaller tree with `makeappx` and `signtool`, independent of the Inno Setup `.exe` pipeline.
+- Store tile assets (`Square44x44Logo.png`, `Square150x150Logo.png`, `Square310x310Logo.png`, `StoreLogo.png`) in `install_root/assets_png/`.
+- New `_restrict_to_main_table` helper in `erasmus_in.py` that detects separators (`Unnamed:`, `Contador…`) to bound the main students table when the Excel sheet contains several tables side-by-side.
+
+### Changed
+- **Application accepted in Microsoft Partner Center and published in the Microsoft Store.** Users installing from the Store receive a package signed by Microsoft with no SmartScreen warnings.
+- Launcher detects MSIX execution context and skips the dependency check (`import streamlit`) that would otherwise exceed the certifier's startup time limit.
+- `token_manager.py` adapted to the MSIX sandbox so the API token can be written/read when running as an installed Store app.
+- README and Pages site (`docs/index.html`, `docs/privacy.html`, `docs/styles.css`) updated with Store distribution info.
+- Erasmus IN country alias order: `Origen` is now preferred over `País` so the main table's country column wins when both exist.
+
+### Fixed
+- **Erasmus IN students mixed across universities** when the source Excel contained several tables in the same sheet (e.g. a main "subjects × student" table plus an auxiliary per-student summary). Columns from the auxiliary table (`nombre`, `Coordenadas`, `País`, `Ciudad`, `LA`) were misaligned with the main rows and placed students in wrong locations; column detection is now restricted to the main table.
+- Bug in `_make_records_fn` (`erasmus_in.py`): inconsistent use of a loop-local variable as dictionary key caused student records spread across multiple rows (one per subject) not to be merged, leading to data being mixed between students.
+- Ghost `cols.ciudad` detection when `_pick` fell back to `contains` matching and mistook the country column (`Origen`) for `Ciudad Origen`.
+- Erasmus IN / OUT map filters now handle rows without a signed Learning Agreement correctly.
+- Search field is cleared properly when switching views.
+- Sidebar hide/show button state fixed.
+
 ## [1.1.0] - 2026-04-04
 
 ### Added
@@ -61,6 +83,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Embedded Python 3.12 runtime bundled in installer for zero-dependency deployment.
 - SHA256 checksums published alongside each GitHub Release.
 
-[Unreleased]: https://github.com/MariaPicazoSanchez/TFG-MariaPicazoSanchez/compare/v1.1.0...HEAD
+[Unreleased]: https://github.com/MariaPicazoSanchez/TFG-MariaPicazoSanchez/compare/v1.1.1...HEAD
+[1.1.1]: https://github.com/MariaPicazoSanchez/TFG-MariaPicazoSanchez/compare/v1.1.0...v1.1.1
 [1.1.0]: https://github.com/MariaPicazoSanchez/TFG-MariaPicazoSanchez/compare/v1.0.0...v1.1.0
 [1.0.0]: https://github.com/MariaPicazoSanchez/TFG-MariaPicazoSanchez/releases/tag/v1.0.0
