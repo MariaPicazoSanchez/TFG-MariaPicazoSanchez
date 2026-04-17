@@ -182,6 +182,9 @@ jobs:
         shell: pwsh
         run: |
           $layout = "msix_layout"
+          if (Test-Path $layout) {
+            Remove-Item $layout -Recurse -Force
+          }
           New-Item -ItemType Directory -Path "$layout\Assets"           -Force | Out-Null
           New-Item -ItemType Directory -Path "$layout\app"              -Force | Out-Null
           New-Item -ItemType Directory -Path "$layout\runtime\python"   -Force | Out-Null
@@ -265,9 +268,7 @@ jobs:
           $xml.Add('        Description="Herramienta de gestion de movilidad academica ESIIAB-UCLM"')
           $xml.Add('        BackgroundColor="#F0A500"')
           $xml.Add('        Square150x150Logo="Assets\Square150x150Logo.png"')
-          $xml.Add('        Square44x44Logo="Assets\Square44x44Logo.png">')
-          $xml.Add('        <uap:DefaultTile ShortName="MovilidadESII" />')
-          $xml.Add('      </uap:VisualElements>')
+          $xml.Add('        Square44x44Logo="Assets\Square44x44Logo.png" />')
           $xml.Add('    </Application>')
           $xml.Add('  </Applications>')
           $xml.Add('')
@@ -280,6 +281,27 @@ jobs:
           ($xml -join [System.Environment]::NewLine) |
             Set-Content "msix_layout\AppxManifest.xml" -Encoding UTF8
           Write-Host "AppxManifest.xml generado (apunta a MovilidadESII.exe directamente)"
+
+      - name: Validate AppxManifest.xml before pack
+        shell: pwsh
+        run: |
+          $manifestPath = "msix_layout\AppxManifest.xml"
+          if (-not (Test-Path $manifestPath)) { throw "No existe $manifestPath" }
+
+          $raw = Get-Content $manifestPath -Raw
+          if ($raw -match 'WideLogo\s*=') {
+            throw "AppxManifest.xml contiene atributo no valido: WideLogo"
+          }
+
+          try {
+            [xml]$xmlDoc = $raw
+            Write-Host "AppxManifest.xml valido como XML."
+          } catch {
+            throw "AppxManifest.xml no es XML valido: $($_.Exception.Message)"
+          }
+
+          Write-Host "Contenido final de AppxManifest.xml:"
+          Get-Content $manifestPath
 
       # =========================
       # LOCALIZAR makeappx Y signtool DEL WINDOWS SDK
