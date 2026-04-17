@@ -92,7 +92,7 @@ def _extract_student_fields(e: dict, row: dict) -> dict:
             or e.get("Universidad Origen") or row.get("Universidad Origen")
             or e.get("universidad_origen") or row.get("universidad_origen")
             or e.get("universidadorigen") or row.get("universidadorigen")
-            or e.get("universidad") or row.get("universidad")
+          or e.get("universidad")
         ),
         "responsable_val": _clean(e.get("responsable") or row.get("responsable") or row.get("Responsable") or row.get("responsable programa")),
         "pais_val":        _clean(e.get("pais") or row.get("pais") or row.get("País")),
@@ -429,6 +429,27 @@ def _build_student_card(
     prog_attr      = html.escape(programa,        quote=True)
 
     d      = _extract_student_fields(e, row)
+
+    if (programa or "").upper() == "ERASMUS IN":
+      # Evitar arrastre desde datos agregados del marcador: en Erasmus IN
+      # la universidad/pais deben salir del propio alumno.
+      origen_key = _clean(
+        e.get("origen")
+        or e.get("universidad de origen")
+        or e.get("Universidad Origen")
+        or e.get("universidad_origen")
+        or e.get("universidadorigen")
+        or e.get("universidad")
+      )
+
+      if origen_key:
+        d["origen_val"] = origen_key
+
+      if origen_key:
+        # Para Erasmus IN el país debe salir de la universidad de origen
+        # en la hoja de Coordenadas, no del valor agregado del marcador.
+        d["pais_val"] = _clean(pais_map_in.get(origen_key) or d.get("pais_val"))
+
     nombre = html.escape(d["nombre_raw"])
 
     # Hoja del catálogo de asignaturas

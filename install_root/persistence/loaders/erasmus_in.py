@@ -93,9 +93,16 @@ class ErasmusInLoader:
         """Ejecuta el pipeline completo y devuelve el DataFrame agrupado."""
         df_raw = self._read_raw()
         cols   = self._detect_columns(df_raw)
-        coords_exact, coords_norm = self._load_coords_dict()
+        coords_exact, coords_norm, country_exact, country_norm = self._load_coords_dict()
 
-        df      = self._build_students_df(df_raw, cols, coords_exact, coords_norm)
+        df      = self._build_students_df(
+            df_raw,
+            cols,
+            coords_exact,
+            coords_norm,
+            country_exact,
+            country_norm,
+        )
         grouped = self._cluster_and_group(df, cols)
 
         if grouped is None:
@@ -159,50 +166,124 @@ class ErasmusInLoader:
     # ── Fase 2: detección de columnas ─────────────────────────────────────────
 
     def _detect_columns(self, df: pd.DataFrame) -> _ColMap:
-        """Devuelve un _ColMap con el nombre real de cada columna en el Excel."""
-        la  = _pick(df, "LA")
-        lat = _pick(df, "Latitud", "latitud")
-        lon = _pick(df, "Longitud", "longitud")
+        """Devuelve un _ColMap con el nombre real de cada columna en el Excel.
+
+        Algunos Excels contienen varias tablas en la misma hoja (por ejemplo,
+        una tabla principal de asignaturas × alumno y otra auxiliar con un
+        resumen por alumno). Si se detectan sus columnas mezcladas, los datos
+        acaban desalineados: un alumno aparece con coordenadas o universidad
+        de otro. Para evitarlo se detecta el "ancla" de la tabla principal
+        (Estudiante + Universidad Origen) y se restringe la búsqueda del
+        resto de columnas al rango [0, fin de la tabla principal).
+        """
+        df_main = self._restrict_to_main_table(df)
+
+        la  = _pick(df_main, "LA")
+        lat = _pick(df_main, "Latitud", "latitud")
+        lon = _pick(df_main, "Longitud", "longitud")
 
         cols = _ColMap(
-            nombre      = _pick(df, "Nombre", "nombre"),
-            ap1         = _pick(df, "Apellido1", "apellido1"),
-            ap2         = _pick(df, "Apellido2", "apellido2"),
-            estudiante  = _pick(df, "Estudiante", "estudiante", "Alumno", "alumno"),
-            email       = _pick(df, "Email", "email"),
-            cuatri      = _pick(df, "Cuatrimestre", "Cuatri", "Cuat"),
+            nombre      = _pick(df_main, "Nombre", "nombre"),
+            ap1         = _pick(df_main, "Apellido1", "apellido1"),
+            ap2         = _pick(df_main, "Apellido2", "apellido2"),
+            estudiante  = _pick(df_main, "Estudiante", "estudiante", "Alumno", "alumno"),
+            email       = _pick(df_main, "Email", "email"),
+            cuatri      = _pick(df_main, "Cuatrimestre", "Cuatri", "Cuat"),
             la          = la,
             uni         = _pick(
-                df,
+                df_main,
                 "Universidad Origen", "Univ. Origen", "UniversidadOrigen",
                 "Universidad de Origen", "Universidad",
                 "Centro Origen", "Centro de Origen", "Centro",
             ),
-            ciudad      = _pick(df, "Ciudad", "Ciudad Origen", "Ciudad origen",
+            ciudad      = _pick(df_main, "Ciudad", "Ciudad Origen", "Ciudad origen",
                                 "City", "city", "ciudad"),
-            pais        = _pick(df, "País", "Pais", "Origen"),
-            coords      = _pick(df, "Coordenadas", "coords"),
+            pais        = _pick(df_main, "Origen", "País", "Pais"),
+            coords      = _pick(df_main, "Coordenadas", "coords"),
             # "LA" nunca es latitud/longitud aunque su nombre coincida
             lat         = None if lat == la else lat,
             lon         = None if lon == la else lon,
         )
+
+        # Si existen ambas "Estudiante" y "nombre" como columnas separadas,
+        # "Estudiante" ya lleva el nombre completo — las partes "nombre/ap1/ap2"
+        # suelen pertenecer a otra tabla auxiliar y estarían desalineadas.
+        if cols.estudiante and cols.nombre and cols.nombre != cols.estudiante:
+            cols.nombre = None
+            cols.ap1 = None
+            cols.ap2 = None
+
+        # _pick puede caer en el fallback "contains" y confundir ciudad con
+        # la columna de país (por ej. alias "Ciudad Origen" → "Origen").
+        # Si ciudad y pais apuntan a la misma columna, no hay columna real
+        # de ciudad en la tabla principal.
+        if cols.ciudad and cols.ciudad == cols.pais:
+            cols.ciudad = None
+
         logger.debug("[IN] Columnas detectadas: %s", cols)
         return cols
 
+    def _restrict_to_main_table(self, df: pd.DataFrame) -> pd.DataFrame:
+        """
+        Devuelve el subconjunto de columnas que componen la tabla principal
+        de alumnos. Si detecta una columna separadora (Unnamed, Contador,
+        etc.) después del ancla (Estudiante/Universidad), corta ahí.
+        Si no hay separadores, devuelve el df completo sin cambios.
+        """
+        est = _pick(df, "Estudiante", "estudiante", "Alumno", "alumno")
+        uni = _pick(
+            df,
+            "Universidad Origen", "Univ. Origen", "UniversidadOrigen",
+            "Universidad de Origen", "Universidad",
+            "Centro Origen", "Centro de Origen", "Centro",
+        )
+        anchors = [c for c in (est, uni) if c is not None and c in df.columns]
+        if not anchors:
+            return df
+
+        max_anchor_pos = max(df.columns.get_loc(c) for c in anchors)
+
+        # Buscar la primera columna "separadora" después del ancla: columnas
+        # sin nombre real (Unnamed) o columnas contenedoras de metainfo
+        # ("Contador ...") indican el final de la tabla principal.
+        end_idx = len(df.columns)
+        for i in range(max_anchor_pos + 1, len(df.columns)):
+            col = str(df.columns[i]).strip()
+            col_low = col.lower()
+            if (col.startswith("Unnamed")
+                    or col_low.startswith("contador")
+                    or col_low.startswith("n alumnos")
+                    or col == "" or col_low == "nan"):
+                end_idx = i
+                break
+
+        if end_idx < len(df.columns):
+            logger.debug(
+                "[IN] Tabla principal detectada: columnas [0, %d) — se ignora el resto",
+                end_idx,
+            )
+            return df.iloc[:, :end_idx]
+        return df
+
     # ── Fase 3: diccionario de coordenadas ────────────────────────────────────
 
-    def _load_coords_dict(self) -> tuple[dict[str, str], dict[str, str]]:
+    def _load_coords_dict(
+        self,
+    ) -> tuple[dict[str, str], dict[str, str], dict[str, str], dict[str, str]]:
         """
         Lee la hoja 'Coordenadas':
           col A → país (ignorado aquí)
           col B → nombre de la universidad  (clave del diccionario)
           col C → coordenadas "lat, lon"    (valor)
 
-        Devuelve dos dicts: uno con clave exacta y otro con clave normalizada
-        (sin acentos, minúsculas) para tolerar diferencias de escritura.
+                Devuelve cuatro dicts:
+                    - coords exactas y normalizadas (universidad -> "lat,lon")
+                    - países exactos y normalizados (universidad -> país)
         """
         exact: dict[str, str] = {}
         normd: dict[str, str] = {}
+        country_exact: dict[str, str] = {}
+        country_norm: dict[str, str] = {}
         try:
             df_c = pd.read_excel(
                 self.path, sheet_name="Coordenadas", header=None, dtype=str
@@ -211,7 +292,12 @@ class ErasmusInLoader:
 
             # Detectar cabecera: Erasmus IN → col0=País, col1=Universidad, col2=Coordenadas.
             # Si la primera fila contiene esas etiquetas, se detecta y se descarta.
-            _HEADER_WORDS = {"universidad", "universidade", "university", "país", "pais", "country"}
+            _HEADER_WORDS = {
+                "universidad", "universidade", "university",
+                "país", "pais", "country",
+                "coordenadas", "coordenada", "coords", "coordinates",
+            }
+            col_pais_idx  = 0   # por defecto IN: col0=País
             col_uni_idx   = 1   # por defecto IN: col1=Universidad
             col_coord_idx = 2   # siempre col2=Coordenadas
             start_row     = 0
@@ -220,26 +306,34 @@ class ErasmusInLoader:
                          for i in range(min(df_c.shape[1], 4))]
             if any(v in _HEADER_WORDS for v in first_row):
                 for i, v in enumerate(first_row):
+                    if v in {"país", "pais", "country"}:
+                        col_pais_idx = i
                     if v in {"universidad", "universidade", "university"}:
                         col_uni_idx = i
-                        break
+                    if v in {"coordenadas", "coordenada", "coords", "coordinates"}:
+                        col_coord_idx = i
                 start_row = 1   # saltar fila de cabecera
 
+            col_pais_key  = f"col{col_pais_idx}"
             col_uni_key   = f"col{col_uni_idx}"
             col_coord_key = f"col{col_coord_idx}"
 
             for idx, row in df_c.iterrows():
                 if idx < start_row:
                     continue
+                pais  = str(row.get(col_pais_key,  "") or "").strip()
                 uni   = str(row.get(col_uni_key,   "") or "").strip()
                 coord = str(row.get(col_coord_key, "") or "").strip()
                 if uni and coord and coord.lower() not in ("nan", "none", ""):
                     exact[uni]             = coord
                     normd[_norm_name(uni)] = coord
+                if uni and pais and pais.lower() not in ("nan", "none", ""):
+                    country_exact[uni]             = pais
+                    country_norm[_norm_name(uni)] = pais
             logger.debug("[IN] Coordenadas cargadas: %d universidades", len(exact))
         except Exception as exc:
             logger.debug("[IN] Hoja 'Coordenadas' no disponible: %s", exc)
-        return exact, normd
+        return exact, normd, country_exact, country_norm
 
     # ── Fase 4: construcción del DataFrame de alumnos ─────────────────────────
 
@@ -249,6 +343,8 @@ class ErasmusInLoader:
         cols: _ColMap,
         coords_exact: dict[str, str],
         coords_norm:  dict[str, str],
+        country_exact: dict[str, str],
+        country_norm: dict[str, str],
     ) -> pd.DataFrame:
         df = df.copy()
         df["estudiante"]   = self._build_nombre(df, cols)
@@ -256,6 +352,24 @@ class ErasmusInLoader:
         df["longitud"]     = self._resolve_coords(df, cols, coords_exact, coords_norm)
         df["universidad"]  = df[cols.uni].astype(str).str.strip()  if cols.uni    else None
         df["pais"]         = df[cols.pais].astype(str).str.strip() if cols.pais   else None
+
+        # Erasmus IN: país correcto por alumno según su universidad en la hoja
+        # "Coordenadas" (fuente de verdad), evitando arrastres por agrupación.
+        if cols.uni and (country_exact or country_norm):
+            def _lookup_country(name: str) -> str:
+                return country_exact.get(name) or country_norm.get(_norm_name(name)) or ""
+
+            uni_series = df[cols.uni].astype(str).str.strip()
+            mapped_country = uni_series.map(_lookup_country).astype(str).str.strip()
+            mapped_ok = ~mapped_country.str.lower().isin({"", "nan", "none", "0"})
+
+            if "pais" not in df.columns or df["pais"] is None:
+                df["pais"] = mapped_country.where(mapped_ok, "")
+            else:
+                df["pais"] = df["pais"].astype(str).str.strip()
+                # Si existe país mapeado por universidad, tiene prioridad.
+                df.loc[mapped_ok, "pais"] = mapped_country[mapped_ok]
+
         df["ciudad"]       = df[cols.ciudad]                        if cols.ciudad else None
         df["link_LA"]      = df[cols.la]                            if cols.la     else None
         df["cuatrimestre"] = df[cols.cuatri]                        if cols.cuatri else None
@@ -306,7 +420,7 @@ class ErasmusInLoader:
             lon = (pd.to_numeric(df[cols.lon], errors="coerce")
                    if cols.lon else pd.Series(dtype=float, index=df.index))
 
-        # Paso 2 — rellenar por nombre de universidad
+        # Paso 2 — resolver por nombre de universidad
         if (exact or normd) and cols.uni:
             def _lookup(name: str) -> str | None:
                 return exact.get(name) or normd.get(_norm_name(name))
@@ -315,8 +429,10 @@ class ErasmusInLoader:
             lu_pairs = lu_raw.map(_parse_coords)
             lu_lat   = pd.Series([p[0] for p in lu_pairs], index=df.index, dtype=float)
             lu_lon   = pd.Series([p[1] for p in lu_pairs], index=df.index, dtype=float)
-            lat      = lat.fillna(lu_lat)
-            lon      = lon.fillna(lu_lon)
+            # Erasmus IN: priorizar coordenadas de la hoja "Coordenadas" por
+            # universidad. Si no hay match, usar coordenadas directas de la fila.
+            lat      = lu_lat.fillna(lat)
+            lon      = lu_lon.fillna(lon)
 
         return lat, lon
 
@@ -330,10 +446,23 @@ class ErasmusInLoader:
         Devuelve un DataFrame con una fila por cluster y columna 'estudiantes'
         (lista de dicts), o None si no hay alumnos con coordenadas válidas.
         """
-        df = cluster_coordinates(df, max_distance_m=500)
-        df["_lat_r"] = df["latitud"].round(2)
-        df["_lon_r"] = df["longitud"].round(2)
+        # Erasmus IN: no unir puntos por proximidad. Si se usan umbrales altos
+        # (ej. 500m) o redondeos bajos, alumnos de universidades distintas pueden
+        # acabar en el mismo marcador con coordenada promedio.
+        df = cluster_coordinates(df, max_distance_m=0)
+        # Mantener precisión alta para agrupar solo coordenadas prácticamente
+        # idénticas (evita mezclar ubicaciones cercanas pero distintas).
+        df["_lat_r"] = df["latitud"].round(6)
+        df["_lon_r"] = df["longitud"].round(6)
         df = filter_students_with_coords(df, "Erasmus IN", self.messages)
+
+        # En algunos Excels hay filas auxiliares o repetidas con estudiante vacío
+        # (por ejemplo, por celdas fusionadas). Si no se filtran aquí, pueden
+        # contaminar la etiqueta de universidad del cluster aunque no aparezcan
+        # como alumnos en el popup.
+        if "estudiante" in df.columns:
+            est = df["estudiante"].astype(str).str.strip().str.lower()
+            df = df[~est.isin({"", "nan", "none", "0"})].copy()
 
         if df.empty:
             self.messages.append(
@@ -365,6 +494,15 @@ class ErasmusInLoader:
         en una lista de dicts de alumno, deduplicando por nombre y rellenando
         campos vacíos si el mismo alumno aparece en varias filas.
         """
+        def _student_key(raw):
+            email = str(raw.get("email") or "").strip().lower()
+            if email and email not in {"nan", "none"}:
+                return email
+            nombre = _norm_name(str(raw.get("estudiante") or ""))
+            uni = _norm_name(str(raw.get(cols.uni) or ""))
+            pais = _norm_name(str(raw.get(cols.pais) or ""))
+            return f"{nombre}|{uni}|{pais}"
+        
         def _is_empty(v) -> bool:
             return v is None or str(v).strip().lower() in ("", "nan", "none")
 
@@ -387,28 +525,43 @@ class ErasmusInLoader:
                     rec: dict = {}
                     for col in valid_cols:
                         if col in raw:
-                            key = ("email"
-                                   if col == cols.email and cols.email != "email"
-                                   else col)
-                            rec[key] = raw[col]
+                            field_key = ("email"
+                                        if col == cols.email and cols.email != "email"
+                                        else col)
+                            rec[field_key] = raw[col]
                     if cols.ciudad and cols.ciudad in raw:
                         rec["ciudad"] = raw[cols.ciudad]
                     if cols.uni and cols.uni in raw:
                         rec["universidad de origen"] = raw[cols.uni]
+                    if cols.pais and cols.pais in raw:
+                        rec["pais"] = raw[cols.pais]
                     seen[nombre] = rec
                     records.append(rec)
                 else:
                     # El mismo alumno puede tener varias filas (una por asignatura).
-                    # Rellenamos campos que estuvieran vacíos en la primera fila.
+                    # Rellenamos campos que estuvieran vacíos en la primera fila,
+                    # incluidos los de ubicación para evitar mezclar universidades.
                     rec = seen[nombre]
                     for col in valid_cols:
                         if col not in raw:
                             continue
-                        key = ("email"
-                               if col == cols.email and cols.email != "email"
-                               else col)
-                        if _is_empty(rec.get(key)) and not _is_empty(raw[col]):
-                            rec[key] = raw[col]
+                        field_key = ("email"
+                                    if col == cols.email and cols.email != "email"
+                                    else col)
+                        if _is_empty(rec.get(field_key)) and not _is_empty(raw[col]):
+                            rec[field_key] = raw[col]
+
+                    if cols.ciudad and cols.ciudad in raw:
+                        if _is_empty(rec.get("ciudad")) and not _is_empty(raw[cols.ciudad]):
+                            rec["ciudad"] = raw[cols.ciudad]
+
+                    if cols.uni and cols.uni in raw:
+                        if _is_empty(rec.get("universidad de origen")) and not _is_empty(raw[cols.uni]):
+                            rec["universidad de origen"] = raw[cols.uni]
+
+                    if cols.pais and cols.pais in raw:
+                        if _is_empty(rec.get("pais")) and not _is_empty(raw[cols.pais]):
+                            rec["pais"] = raw[cols.pais]
 
             return records
 
