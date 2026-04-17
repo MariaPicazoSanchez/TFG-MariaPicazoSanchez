@@ -1,4 +1,5 @@
 import logging
+import html
 from pathlib import Path
 
 import folium
@@ -16,6 +17,41 @@ logger = logging.getLogger("movilidad_ui")
 
 # Caché en memoria del JS de materias: se lee del disco una sola vez por proceso.
 _MATERIAS_EDITOR_JS: str | None = None
+
+
+def _sanitize_popup_content_for_folium_template_literal(content: str) -> str:
+    """Make popup HTML safe for Folium's JS template literal embedding.
+
+    Folium inserts popup HTML inside a JavaScript template literal that lives
+    inside a <script> tag. Certain sequences can break parsing at HTML or JS
+    level and blank the whole map.
+    """
+    if not content:
+        return ""
+
+    sanitized = (
+        content
+        .replace("\\", "&#92;")         # JS escape introducer
+        .replace("`", "&#96;")          # closes template literal
+        .replace("${", "&#36;{")       # template interpolation
+        .replace("</script", "<&#47;script")  # closes outer <script> tag
+        .replace("</SCRIPT", "<&#47;SCRIPT")
+        .replace("\u2028", "&#8232;")    # JS line separator
+        .replace("\u2029", "&#8233;")    # JS paragraph separator
+    )
+
+    # Replace non-printable control chars and invalid Unicode surrogates
+    # that can invalidate JS source in embedded engines.
+    out_chars = []
+    for ch in sanitized:
+        code = ord(ch)
+        if 0xD800 <= code <= 0xDFFF:
+            out_chars.append(f"&#{code};")
+        elif code < 32 and ch not in ("\n", "\r", "\t"):
+            out_chars.append(f"&#{code};")
+        else:
+            out_chars.append(ch)
+    return "".join(out_chars)
 
 def _get_materias_editor_js() -> str:
     global _MATERIAS_EDITOR_JS
@@ -277,17 +313,9 @@ def show_map(
             marker_index += 1
             n = max(1, len(filtered_ests))
 
-            # Folium embeds popup HTML inside a JS template literal: $(`...html...`)
-            # Inside a template literal, backslash sequences are processed by JS:
-            #   \U, \m, \D, \G, \T … (from Windows paths like C:\Users\...)
-            # are invalid JS escape sequences → SyntaxError.
-            # Also, raw backticks or '${' would terminate / break the literal.
-            content = (
-                content
-                .replace("\\", "&#92;")   # must be first: \  → &#92;
-                .replace("`",  "&#96;")   # ` → &#96;
-                .replace("${", "&#36;{")  # ${ → &#36;{
-            )
+            # Folium embeds popup HTML inside a JS template literal.
+            # Sanitize dangerous sequences so malformed data cannot break map JS.
+            content = _sanitize_popup_content_for_folium_template_literal(content)
 
             popup = folium.Popup(content, max_width=460)
             marker_icon = PROGRAM_ICONS.get(program, "map-marker")
@@ -304,20 +332,26 @@ def show_map(
             )
 
             # Tooltip HTML: universidad + responsable + nº alumnos
-            uni_name  = row.get("universidad", "")
-            resp_val  = resp_map.get(uni_name.strip(), "")
+            uni_name_raw = str(row.get("universidad", "") or "")
+            resp_val_raw = str(resp_map.get(uni_name_raw.strip(), "") or "")
+            uni_name = html.escape(uni_name_raw)
+            resp_val = html.escape(resp_val_raw)
             resp_line = (
-                f"<div style='color:#6b7280;font-size:11px;margin-top:2px;'>👤 {resp_val}</div>"
+                f"<div style='color:#6b7280;font-size:11px;margin-top:2px;'>Resp.: {resp_val}</div>"
                 if resp_val else ""
             )
             n_label = f"{n} alumno{'s' if n != 1 else ''}"
-            tooltip = folium.Tooltip(
+            tooltip_html = (
                 f"<div style='font-family:sans-serif;padding:2px 4px;'>"
                 f"<div style='font-weight:700;font-size:13px;'>{uni_name}</div>"
                 f"{resp_line}"
                 f"<div style='color:#2563eb;font-size:11px;font-weight:600;margin-top:3px;'>"
                 f"({n_label})</div>"
                 f"</div>"
+            )
+            tooltip_html = _sanitize_popup_content_for_folium_template_literal(tooltip_html)
+            tooltip = folium.Tooltip(
+                tooltip_html
             )
 
             folium.Marker(

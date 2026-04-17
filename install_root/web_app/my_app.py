@@ -183,12 +183,18 @@ def _render_map_view(dfs, base_map, materias):
         st.info("Cargando datos y mapa…")
         st.stop()
 
+    only_no_la  = st.session_state.get("only_erasmus_out_no_LA", False)
+
     # Filtrar por programas seleccionados (en memoria, sin recargar desde disco)
     active_programs = get_active_programs()
     if active_programs:
-        dfs = {k: v for k, v in dfs.items() if k in active_programs}
+        selected = set(active_programs)
+        if only_no_la:
+            # OUT sin LA debe poder combinarse con otros filtros
+            # aunque Erasmus OUT no estuviera marcado explícitamente.
+            selected.add(PROGRAM_ERASMUS_OUT)
+        dfs = {k: v for k, v in dfs.items() if k in selected}
 
-    only_no_la  = st.session_state.get("only_erasmus_out_no_LA", False)
     if only_no_la:
         dfs = filter_out_no_la(dfs, PROGRAM_ERASMUS_OUT)
 
@@ -197,7 +203,8 @@ def _render_map_view(dfs, base_map, materias):
 
     # Clave que identifica unívocamente el mapa a renderizar.
     # MAP_CACHE_VERSION: incrementar manualmente para invalidar cachés de sesiones antiguas.
-    MAP_CACHE_VERSION = 2
+    # Bump when map HTML generation changes, so old cached srcdoc is not reused.
+    MAP_CACHE_VERSION = 7
     _render_key = (
         MAP_CACHE_VERSION,
         st.session_state.get("data_version", 0),

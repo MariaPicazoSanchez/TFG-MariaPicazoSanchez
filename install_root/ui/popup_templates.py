@@ -577,7 +577,7 @@ def generate_dynamic_popup(row, programa: str, row_index: int) -> str:
     # El responsable solo se muestra en Erasmus OUT (en Erasmus IN no aplica)
     responsable_uni = resp_map_out.get(universidad_raw, "") if programa == PROGRAM_ERASMUS_OUT else ""
     resp_chip_html  = (
-        f'<span class="resp-chip">👤 {html.escape(responsable_uni)}</span>'
+      f'<span class="resp-chip">Resp.: {html.escape(responsable_uni)}</span>'
         if responsable_uni else ""
     )
 

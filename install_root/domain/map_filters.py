@@ -161,8 +161,12 @@ def render_filters_map(unique_sheets: list[str]) -> str:
             key="btn_erasmus_out_no_la",
             type="primary" if is_only_no_la else "secondary",
         ):
-            # SOLO togglear el flag; NO tocar selected_programs
-            st.session_state["only_erasmus_out_no_LA"] = not is_only_no_la
+            new_state = not is_only_no_la
+            st.session_state["only_erasmus_out_no_LA"] = new_state
+            # Si activamos OUT sin LA, forzamos incluir Erasmus OUT en la selección
+            # para que el filtro sea combinable con otros programas.
+            if new_state:
+                st.session_state["selected_programs"][PROGRAM_ERASMUS_OUT] = True
             st.rerun()
 
     # --- SICUE ---

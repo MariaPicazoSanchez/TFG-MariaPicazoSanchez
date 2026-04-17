@@ -7,6 +7,7 @@
     const TOAST_STYLES_ID     = "save-toast-styles";
     const TOAST_ID            = "global-save-toast";
     const OVERLAY_ID          = "global-save-overlay";
+    const nn = (v, fallback) => (v === null || v === undefined ? fallback : v);
 
     // ─── Catalog / Autocomplete ───────────────────────────────────────────────
 
@@ -55,7 +56,7 @@
     /** Normalises a materia object, accepting both nombre and asignatura as the name field. */
     function normalizeMateria(m = {}) {
         const nombre = m.nombre != null ? m.nombre : m.asignatura;
-        const str    = s => (s ?? "").toString();
+        const str    = s => nn(s, "").toString();
         const num    = v => (v !== null && v !== undefined && v !== "" && !isNaN(Number(v))) ? Number(v) : null;
         return {
             nombre:       str(nombre),
@@ -77,7 +78,7 @@
         return Array.from(block.querySelectorAll(".materia-row:not(.add-row)")).map(row => {
             let m = {};
             try { m = JSON.parse(row.getAttribute("data-materia") || "{}"); } catch (_) {}
-            if (!m.nombre && !m.asignatura) m.nombre = row.getAttribute("data-nombre") ?? "";
+            if (!m.nombre && !m.asignatura) m.nombre = nn(row.getAttribute("data-nombre"), "");
             return normalizeMateria(m);
         });
     }
@@ -100,8 +101,12 @@
 
         for (const [j, m] of materias.entries()) {
             const info = catalogMap[m.nombre] || {};
-            const matr = m.matriculados ?? info.matriculados ?? null;
-            const cupo = m.cupo ?? info.cupo ?? null;
+            const matr = m.matriculados !== null && m.matriculados !== undefined
+                ? m.matriculados
+                : (info.matriculados !== null && info.matriculados !== undefined ? info.matriculados : null);
+            const cupo = m.cupo !== null && m.cupo !== undefined
+                ? m.cupo
+                : (info.cupo !== null && info.cupo !== undefined ? info.cupo : null);
             let matrHtml = "";
             if (matr !== null && cupo !== null) {
                 matrHtml = ` <span style="font-weight:600;color:#777;">(${matr}/${cupo} matriculados)</span>`;
@@ -158,14 +163,14 @@
     function handleEdit(target, block, materias) {
         const row = target.closest(".materia-row");
         if (!row) return;
-        openEditor(block, parseInt(row.dataset.mindex ?? "-1", 10), materias);
+        openEditor(block, parseInt(nn(row.dataset.mindex, "-1"), 10), materias);
     }
 
     function handleDelete(target, block, textarea, materias) {
         if (!textarea) return;
         const row = target.closest(".materia-row");
         if (!row) return;
-        const idx = parseInt(row.dataset.mindex ?? "-1", 10);
+        const idx = parseInt(nn(row.dataset.mindex, "-1"), 10);
         if (idx >= 0 && idx < materias.length) {
             materias.splice(idx, 1);
             textarea.value = JSON.stringify(materias);
@@ -181,7 +186,7 @@
         const nuevoNombre = inp.value.trim();
         if (!nuevoNombre) { alert("Selecciona o escribe una asignatura."); return; }
 
-        const idx = parseInt(editor.dataset.editIndex ?? "-1", 10);
+        const idx = parseInt(nn(editor.dataset.editIndex, "-1"), 10);
         const norm = s => s.trim().toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
         const duplicado = materias.some((m, i) => {
             if (idx >= 0 && i === idx) return false;
@@ -279,8 +284,10 @@
     /** Removes the toast. If reload=true, recarga Streamlit para actualizar datos. */
     function removeToast(reload) {
         const topDoc = window.top.document;
-        topDoc.getElementById(TOAST_ID)?.remove();
-        topDoc.getElementById(OVERLAY_ID)?.remove();
+        const toastEl = topDoc.getElementById(TOAST_ID);
+        const ovlEl = topDoc.getElementById(OVERLAY_ID);
+        if (toastEl) toastEl.remove();
+        if (ovlEl) ovlEl.remove();
         window.top._stRemoveToast = null;
         if (reload) {
             try {
@@ -301,8 +308,10 @@
         const topDoc = getTopDoc();
 
         // Remove any stale toast / overlay
-        topDoc.getElementById(TOAST_ID)?.remove();
-        topDoc.getElementById(OVERLAY_ID)?.remove();
+        const staleToast = topDoc.getElementById(TOAST_ID);
+        const staleOverlay = topDoc.getElementById(OVERLAY_ID);
+        if (staleToast) staleToast.remove();
+        if (staleOverlay) staleOverlay.remove();
 
         ensureToastStyles();
 
@@ -346,15 +355,20 @@
         if (!progInput || progInput.value.toLowerCase() !== PROGRAMA_ERASMUS_IN) return;
 
         // Alumnos de investigación no necesitan asignaturas
-        const isInvestigacion = form.querySelector('input[name="is_investigacion"]')?.value === "1";
+        const invInput = form.querySelector('input[name="is_investigacion"]');
+        const isInvestigacion = invInput ? invInput.value === "1" : false;
         if (isInvestigacion) return;
 
         const textarea = form.querySelector('textarea[name="materias_raw"]');
         let materias = [];
-        try { materias = JSON.parse(textarea?.value ?? "[]"); } catch (_) {}
+        try { materias = JSON.parse(textarea ? nn(textarea.value, "[]") : "[]"); } catch (_) {}
 
         const hasSubjects = Array.isArray(materias) && materias.some(
-            m => (m?.asignatura || m?.nombre || "").toString().trim() !== ""
+            m => {
+                const asig = m && m.asignatura ? m.asignatura : "";
+                const nombre = m && m.nombre ? m.nombre : "";
+                return (asig || nombre || "").toString().trim() !== "";
+            }
         );
 
         if (!hasSubjects) {
@@ -372,10 +386,12 @@
     // ─── API response messages ────────────────────────────────────────────────
 
     window.addEventListener("message", ev => {
-        let data = ev.data ?? {};
+        let data = nn(ev.data, {});
         if (typeof data === "string") {
             try { data = JSON.parse(data); } catch (_) { return; }
         }
-        if (data.type === "saveStatus") showSaveToast(data.ok, data.messages ?? [], data.programa ?? "");
+        if (data.type === "saveStatus") {
+            showSaveToast(data.ok, nn(data.messages, []), nn(data.programa, ""));
+        }
     });
 })();
