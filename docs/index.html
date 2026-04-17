@@ -639,7 +639,7 @@
               ningún archivo manualmente.
             </p>
             <div class="store-cta-row">
-              <a href="https://apps.microsoft.com/store/detail/movilidadesii"
+              <a href="https://apps.microsoft.com/detail/9PBHCL7R9QNV?hl=es-es&gl=ES&ocid=pdpshare"
                  class="store-badge-link"
                  target="_blank"
                  rel="noopener noreferrer"
@@ -652,8 +652,7 @@
               </a>
               <p class="store-status-note">
                 <span class="store-status-dot"></span>
-                Envío en proceso de certificación por Microsoft.
-                El enlace estará activo en cuanto se complete la publicación.
+                Disponible en la Microsoft Store: aplicación certificada y firmada por Microsoft.
               </p>
             </div>
           </div>
@@ -822,8 +821,10 @@
         </div>
 
         <p class="section-intro">
-          La aplicación está siendo enviada a la Microsoft Store como paquete <strong>MSIX nativo</strong>,
+          La aplicación está publicada en la Microsoft Store como paquete <strong>MSIX nativo</strong>,
           construido directamente desde el código fuente sin envolver ningún instalador externo.
+          Tras superar íntegramente el proceso de certificación, Microsoft re-firma el paquete
+          con su propio certificado, por lo que los usuarios finales la instalan sin avisos de SmartScreen.
         </p>
 
         <!-- Ventajas Store vs EXE -->
@@ -854,34 +855,33 @@
         </div>
 
         <!-- Estado de certificación -->
-        <div class="smartscreen-callout" style="border-color:#3b82f6;border-left-color:#3b82f6;background-color:#eff6ff;">
-          <span class="smartscreen-callout-icon" style="color:#1d4ed8;" aria-hidden="true">&#9432;</span>
+        <div class="smartscreen-callout" style="border-color:#16a34a;border-left-color:#16a34a;background-color:#f0fdf4;">
+          <span class="smartscreen-callout-icon" style="color:#15803d;" aria-hidden="true">&#10003;</span>
           <div>
-            <strong style="color:#1e3a8a;">Estado de la certificación</strong>
-            <p style="color:#1e40af;">
-              El envío está en proceso de certificación en Microsoft Partner Center.
-              La aplicación ha superado los controles de empaquetado (política 10.2.5) y
-              de nombres en el menú Inicio (10.1.1.11). La política
-              de tiempo de arranque (10.1.2.10) se ha resuelto en el código del lanzador.
-              Queda pendiente la aprobación de la capacidad restringida <code style="background:rgba(59,130,246,.15);color:#1d4ed8;">runFullTrust</code>,
+            <strong style="color:#14532d;">Certificación completada</strong>
+            <p style="color:#166534;">
+              La aplicación ha sido <strong>aceptada en Microsoft Partner Center</strong> y está disponible
+              en la Microsoft Store. Durante el proceso de certificación se resolvieron los tres
+              incumplimientos de política identificados en la revisión inicial y Microsoft aprobó la
+              capacidad restringida <code style="background:rgba(22,163,74,.15);color:#15803d;">runFullTrust</code>,
               necesaria para que la aplicación pueda arrancar subprocesos Python en tiempo de ejecución.
             </p>
             <div style="margin-top:.75rem;display:flex;flex-direction:column;gap:.35rem;">
               <div style="display:flex;gap:.75rem;align-items:center;font-size:.875rem;">
                 <span style="color:#16a34a;font-weight:700;">✔</span>
-                <span style="color:#1e40af;">10.2.5 — Paquete MSIX nativo (sin instalador envuelto)</span>
+                <span style="color:#166534;">10.2.5 — Paquete MSIX nativo (sin instalador envuelto)</span>
               </div>
               <div style="display:flex;gap:.75rem;align-items:center;font-size:.875rem;">
                 <span style="color:#16a34a;font-weight:700;">✔</span>
-                <span style="color:#1e40af;">10.1.2.10 — Tiempo de arranque (lanzador optimizado)</span>
+                <span style="color:#166534;">10.1.2.10 — Tiempo de arranque (lanzador optimizado)</span>
               </div>
               <div style="display:flex;gap:.75rem;align-items:center;font-size:.875rem;">
                 <span style="color:#16a34a;font-weight:700;">✔</span>
-                <span style="color:#1e40af;">10.1.1.11 — Nombres únicos en el menú Inicio</span>
+                <span style="color:#166534;">10.1.1.11 — Nombres únicos en el menú Inicio</span>
               </div>
               <div style="display:flex;gap:.75rem;align-items:center;font-size:.875rem;">
-                <span style="color:#d97706;font-weight:700;">⏳</span>
-                <span style="color:#1e40af;">runFullTrust — Pendiente de aprobación de capacidad restringida</span>
+                <span style="color:#16a34a;font-weight:700;">✔</span>
+                <span style="color:#166534;">runFullTrust — Capacidad restringida aprobada por Microsoft</span>
               </div>
             </div>
           </div>
@@ -989,8 +989,8 @@
           necesario un certificado EV emitido por una CA reconocida (DigiCert, Sectigo&hellip;).
           Para una distribución académica de alcance limitado, el desbloqueo manual es suficiente.
           Si prefieres evitarlo por completo, instala desde la
-          <a href="#store">Microsoft Store</a> cuando esté disponible — Microsoft re-firma el paquete MSIX
-          durante la certificación, eliminando el aviso sin coste adicional.
+          <a href="#store">Microsoft Store</a> — el paquete MSIX está re-firmado por Microsoft
+          durante la certificación, de modo que no se muestra ningún aviso.
         </p>
 
       </div>

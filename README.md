@@ -11,6 +11,7 @@
 [![Tests](https://github.com/MariaPicazoSanchez/TFG-MariaPicazoSanchez/actions/workflows/tests.yml/badge.svg)](https://github.com/MariaPicazoSanchez/TFG-MariaPicazoSanchez/actions/workflows/tests.yml)
 [![Lint](https://github.com/MariaPicazoSanchez/TFG-MariaPicazoSanchez/actions/workflows/lint.yml/badge.svg)](https://github.com/MariaPicazoSanchez/TFG-MariaPicazoSanchez/actions/workflows/lint.yml)
 [![GitHub release](https://img.shields.io/github/v/release/MariaPicazoSanchez/TFG-MariaPicazoSanchez?cacheSeconds=60)](https://github.com/MariaPicazoSanchez/TFG-MariaPicazoSanchez/releases/latest)
+[![Microsoft Store](https://img.shields.io/badge/Microsoft%20Store-Available-0078D4?logo=microsoftstore&logoColor=white)](https://apps.microsoft.com/detail/9PBHCL7R9QNV?hl=es-es&gl=ES&ocid=pdpshare)
 [![License](https://img.shields.io/badge/License-CC%20BY--NC%204.0-lightgrey)](https://creativecommons.org/licenses/by-nc/4.0/)
 
 Windows desktop application that exposes a local web interface (Streamlit) backed by a REST microservice (Flask). All persistence is handled directly on the institution's existing Excel files — no additional database required.
@@ -530,7 +531,7 @@ To suppress the warning permanently for EXE installers, a commercial EV (Extende
 
 ## 11. Microsoft Store (MSIX)
 
-The application is being submitted to the **Microsoft Store** as a native MSIX package (see [§9 — Channel B](#channel-b--microsoft-store-native-msix)).
+The application is **published on the [Microsoft Store](https://apps.microsoft.com/detail/9PBHCL7R9QNV?hl=es-es&gl=ES&ocid=pdpshare)** as a native MSIX package (see [§9 — Channel B](#channel-b--microsoft-store-native-msix)).
 
 ### Advantages over the EXE installer
 
@@ -544,7 +545,7 @@ The application is being submitted to the **Microsoft Store** as a native MSIX p
 
 ### Certification status
 
-The submission is in progress. Microsoft certification checks the following policies; all three have been addressed in the current build:
+The application has been **accepted in Microsoft Partner Center**. Microsoft certification checks the following policies; all three were resolved in the current build:
 
 | Policy | Requirement | Resolution |
 |:---|:---|:---|
@@ -552,7 +553,7 @@ The submission is in progress. Microsoft certification checks the following poli
 | 10.1.2.10 | App must not load indefinitely after launch | Launcher detects MSIX install and skips dependency checks at startup |
 | 10.1.1.11 | Start Menu shortcut names must be unique | `AppxManifest.xml` sets `ShortName="MovilidadESII"` on the tile |
 
-The `runFullTrust` restricted capability is required because the launcher spawns Python subprocesses (Streamlit and Flask) and must be declared and approved in Partner Center before the submission can be certified.
+The `runFullTrust` restricted capability — required because the launcher spawns Python subprocesses (Streamlit and Flask) — was also approved by Microsoft, completing the certification.
 
 ---
 
