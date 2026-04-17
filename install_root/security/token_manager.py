@@ -1,7 +1,10 @@
 import secrets
 from pathlib import Path
 
-TOKEN_FILE = Path(__file__).parent / ".api_token"
+# Usar AppData Local para MSIX (y para desarrollo también)
+# En MSIX, __file__ apunta a una carpeta de solo lectura
+TOKEN_FILE = Path.home() / "AppData" / "Local" / "MaraPicazoSchez.MovilidadESII" / ".api_token"
+TOKEN_FILE.parent.mkdir(parents=True, exist_ok=True)
 
 
 def get_api_token() -> str:

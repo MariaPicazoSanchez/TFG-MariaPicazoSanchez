@@ -248,7 +248,7 @@ jobs:
           $xml.Add('    <TargetDeviceFamily')
           $xml.Add('      Name="Windows.Desktop"')
           $xml.Add('      MinVersion="10.0.17763.0"')
-          $xml.Add('      MaxVersionTested="10.0.22621.0" />')
+          $xml.Add('      MaxVersionTested="10.0.22631.0" />')
           $xml.Add('  </Dependencies>')
           $xml.Add('')
           $xml.Add('  <Resources>')
