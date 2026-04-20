@@ -110,6 +110,32 @@ class ErasmusInLoader:
 
         return self._attach_materias(grouped)
 
+    def load_flat_students(self) -> pd.DataFrame:
+        """
+        Devuelve un DataFrame plano (una fila por asignatura) con las columnas
+        normalizadas: estudiante, universidad, pais, ciudad, cuatrimestre,
+        link_LA, latitud, longitud.
+
+        Aplica la restricción a la tabla principal (ignora tablas auxiliares)
+        y resuelve el país por universidad desde la hoja "Coordenadas" (fuente
+        de verdad), con la columna "Origen" del Excel principal como fallback.
+        No hace clustering ni adjunta asignaturas — pensado para estadísticas.
+        """
+        df_raw = self._read_raw()
+        if df_raw.empty:
+            return pd.DataFrame()
+        cols = self._detect_columns(df_raw)
+        coords_exact, coords_norm, country_exact, country_norm = self._load_coords_dict()
+        df = self._build_students_df(
+            df_raw, cols,
+            coords_exact, coords_norm,
+            country_exact, country_norm,
+        )
+        if "estudiante" in df.columns:
+            est = df["estudiante"].astype(str).str.strip().str.lower()
+            df = df[~est.isin({"", "nan", "none", "0"})].copy()
+        return df
+
     # ── Fase 1: lectura bruta ─────────────────────────────────────────────────
 
     # Columnas que identifican una hoja de datos de alumnos (al menos una debe estar presente)

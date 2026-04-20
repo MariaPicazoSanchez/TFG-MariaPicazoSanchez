@@ -852,13 +852,19 @@ def start_processes(api_enabled: bool = True, api_disabled_reason: str | None = 
                 except Exception:
                     pass
 
+            # pywebview ≥ 5.x: FileDialog.OPEN / FileDialog.SAVE
+            # pywebview < 5.x: OPEN_DIALOG / SAVE_DIALOG (deprecado)
+            _FD = getattr(_wv, "FileDialog", None)
+            _OPEN_DIALOG = getattr(_FD, "OPEN", None) if _FD else getattr(_wv, "OPEN_DIALOG")
+            _SAVE_DIALOG = getattr(_FD, "SAVE", None) if _FD else getattr(_wv, "SAVE_DIALOG")
+
             class _API:
                 def pick_file(self):
                     windows = _wv.windows
                     if not windows:
                         return {"ok": False, "reason": "no_window"}
                     result = windows[0].create_file_dialog(
-                        _wv.OPEN_DIALOG,
+                        _OPEN_DIALOG,
                         allow_multiple=False,
                         file_types=(
                             "Documentos (*.pdf;*.doc;*.docx;*.xlsx;*.xls)",
@@ -872,22 +878,34 @@ def start_processes(api_enabled: bool = True, api_disabled_reason: str | None = 
                 def save_file(self, base64_data: str, filename: str):
                     import base64 as _b64
                     import os
+                    from urllib.parse import unquote
                     windows = _wv.windows
                     if not windows:
                         return {"ok": False, "reason": "no_window"}
                     ext = os.path.splitext(filename)[1].lower() or ".png"
                     file_types = (f"Imagen (*{ext})", "Todos los archivos (*.*)")
                     result = windows[0].create_file_dialog(
-                        _wv.SAVE_DIALOG,
+                        _SAVE_DIALOG,
                         save_filename=filename,
                         file_types=file_types,
                     )
                     if not result:
                         return {"ok": False, "reason": "cancelled"}
                     save_path = result if isinstance(result, str) else result[0]
-                    raw = base64_data.split(",", 1)[1] if "," in base64_data else base64_data
-                    with open(save_path, "wb") as f:
-                        f.write(_b64.b64decode(raw))
+
+                    # Data URLs tienen dos formatos:
+                    #   data:<mime>;base64,<datos>           → PNG, JPG, etc.
+                    #   data:<mime>;charset=utf-8,<datos>    → SVG (URL-encoded)
+                    header, _, payload = base64_data.partition(",")
+                    if not payload and header:
+                        payload, header = header, ""
+                    if ";base64" in header:
+                        with open(save_path, "wb") as f:
+                            f.write(_b64.b64decode(payload))
+                    else:
+                        # Texto URL-encoded (SVG, etc.)
+                        with open(save_path, "w", encoding="utf-8", newline="") as f:
+                            f.write(unquote(payload))
                     return {"ok": True, "path": save_path}
 
                 def save_zoom(self, level):
