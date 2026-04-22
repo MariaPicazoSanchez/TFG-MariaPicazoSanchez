@@ -312,9 +312,13 @@ def main():
     dfs, cfg_mtimes, load_messages = _load_dataframes_with_cache(config, global_sheet)
 
     # Reconstruir el índice de búsqueda solo cuando los datos cambian
-    _index_ver = st.session_state.get("data_version", 0) + sum(
-        st.session_state.get(f"_prog_ver_{p}", 0)
-        for p in (tuple(get_active_programs()) or [])
+    _index_ver = (
+        st.session_state.get("data_version", 0),
+        st.session_state.get("global_sheet", ""),
+        sum(
+            st.session_state.get(f"_prog_ver_{p}", 0)
+            for p in (tuple(get_active_programs()) or [])
+        ),
     )
     if st.session_state.get("_search_index_ver") != _index_ver:
         build_search_index(dfs)
