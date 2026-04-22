@@ -265,6 +265,134 @@ def _write_responsable_to_coordenadas(
 
 
 # ──────────────────────────────────────────────────────────────────────────────
+# Mapa universidad → plan de estudios (col índice 4 → col E, 1-based)
+# ──────────────────────────────────────────────────────────────────────────────
+
+PLAN_ESTUDIOS_COL_IDX = 4      # 0-based (para pandas)
+PLAN_ESTUDIOS_COL_XLSX = 5     # 1-based (para openpyxl)
+
+
+@st.cache_data(show_spinner=False)
+def get_university_plan_estudios_map(
+    path: str,
+    default_col_uni: int = 1,
+    default_col_pais: int = 0,
+) -> dict:
+    """
+    Devuelve {universidad: plan_estudios} desde la hoja 'Coordenadas' (col índice 4).
+    Si la columna no existe o está vacía, escanea las hojas de alumnos y escribe el
+    resultado en col E para que quede persistido.
+
+    Mismo comportamiento que get_university_responsable_map pero para la columna
+    'Plan de estudios' (col E, índice 4 basado en 0 / 5 basado en 1).
+    """
+    if not path:
+        return {}
+    try:
+        df_coords = pd.read_excel(path, sheet_name="Coordenadas", header=None, dtype=str)
+        col_pais, col_uni, skip = _detect_coords_columns(df_coords, default_col_pais, default_col_uni)
+        if skip:
+            df_coords = df_coords.iloc[1:].reset_index(drop=True)
+        if df_coords.shape[1] >= PLAN_ESTUDIOS_COL_IDX + 1:
+            unis  = df_coords.iloc[:, col_uni].fillna("").astype(str).str.strip()
+            plans = df_coords.iloc[:, PLAN_ESTUDIOS_COL_IDX].fillna("").astype(str).str.strip()
+            _bad  = {"nan", "none", ""}
+            mask  = unis.ne("") & plans.ne("") & ~plans.str.lower().isin(_bad)
+            result = dict(zip(unis[mask], plans[mask]))
+            if result:
+                return result
+        plan_map = _build_plan_estudios_from_students(path)
+        if plan_map:
+            _write_plan_estudios_to_coordenadas(path, plan_map, col_uni_openpyxl=col_uni + 1)
+        return plan_map
+    except Exception:
+        return {}
+
+
+def _build_plan_estudios_from_students(path: str) -> dict:
+    """Construye {universidad: plan_estudios} escaneando las hojas de datos del Excel."""
+    def _is_academic_sheet(name: str) -> bool:
+        return bool(re.search(r'\d{4}|\d{2}[-/]\d{2}', str(name)))
+
+    def _pick_col(df: pd.DataFrame, *names: str):
+        norm = lambda s: s.strip().lower()
+        for n in names:
+            for c in df.columns:
+                if norm(str(c)) == norm(n):
+                    return c
+        return None
+
+    plan_map: dict = {}
+    try:
+        wb_sheets = pd.ExcelFile(path, engine="openpyxl").sheet_names
+    except Exception:
+        return {}
+
+    hojas = [s for s in wb_sheets if _is_academic_sheet(s)]
+    if not hojas:
+        hojas = [s for s in wb_sheets if s.lower() != "coordenadas"]
+
+    # Ordenar por curso descendente para priorizar el más reciente
+    def _sort_key(s: str):
+        m = re.search(r'(\d{4})', str(s))
+        return int(m.group(1)) if m else 0
+    hojas = sorted(hojas, key=_sort_key, reverse=True)
+
+    for sheet in hojas:
+        try:
+            df = pd.read_excel(path, sheet_name=sheet, engine="openpyxl", dtype=str)
+            df.columns = [str(c).strip() for c in df.columns]
+            c_uni  = _pick_col(df, "Destino", "destino", "Universidad", "universidad")
+            c_plan = _pick_col(
+                df,
+                "Plan de estudios", "plan de estudios",
+                "Plan estudios", "plan estudios",
+                "Enlace plan de estudios", "enlace plan de estudios",
+                "Plan_estudios", "plan_estudios",
+                "PlanEstudios", "Plan",
+            )
+            if not c_uni or not c_plan:
+                continue
+            unis  = df[c_uni].fillna("").astype(str).str.strip()
+            plans = df[c_plan].fillna("").astype(str).str.strip()
+            _bad  = {"nan", "none", ""}
+            mask  = (unis.ne("") & plans.ne("")
+                     & ~unis.str.lower().isin(_bad)
+                     & ~plans.str.lower().isin(_bad))
+            for uni, plan in zip(unis[mask].tolist(), plans[mask].tolist()):
+                plan_map.setdefault(uni, plan)
+        except Exception:
+            continue
+    return plan_map
+
+
+def _write_plan_estudios_to_coordenadas(
+    path: str,
+    plan_map: dict,
+    col_uni_openpyxl: int = 2,
+) -> None:
+    """Escribe el plan de estudios en col E (col 5, 1-based) de la hoja 'Coordenadas'."""
+    try:
+        from openpyxl import load_workbook
+        wb = load_workbook(path)
+        if "Coordenadas" not in wb.sheetnames:
+            return
+        ws = wb["Coordenadas"]
+        for r_idx in range(1, ws.max_row + 1):
+            uni_val = str(ws.cell(row=r_idx, column=col_uni_openpyxl).value or "").strip()
+            if uni_val and uni_val.lower() not in ("nan", "none", ""):
+                plan_val = plan_map.get(uni_val, "")
+                if plan_val:
+                    ws.cell(row=r_idx, column=PLAN_ESTUDIOS_COL_XLSX).value = plan_val
+        wb.save(path)
+        logger.info("Plan de estudios escrito en hoja Coordenadas: %d universidades", len(plan_map))
+    except Exception as e:
+        logger.warning("No se pudo escribir plan de estudios en Coordenadas: %s", e)
+
+
+
+
+# ──────────────────────────────────────────────────────────────────────────────
 # Lista de países (ISO con babel, cacheada)
 # ──────────────────────────────────────────────────────────────────────────────
 

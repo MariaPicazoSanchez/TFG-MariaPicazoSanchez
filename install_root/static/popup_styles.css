@@ -99,6 +99,81 @@
   flex-shrink: 0;
 }
 
+/* ─── Plan de estudios (editable desde Coordenadas) ─── */
+.plan-block {
+  font-size: 12px;
+  color: #374151;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  padding: 6px 10px;
+  margin-top: 2px;
+}
+.plan-block .plan-toggle {
+  display: none;
+}
+.plan-view,
+.plan-edit {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+.plan-edit {
+  display: none;
+}
+.plan-block .plan-toggle:checked ~ .plan-view {
+  display: none;
+}
+.plan-block .plan-toggle:checked ~ .plan-edit {
+  display: flex;
+}
+.plan-label {
+  font-weight: 600;
+  color: #475569;
+  flex-shrink: 0;
+}
+.plan-value {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.plan-link {
+  color: #0b4bd6;
+  text-decoration: underline;
+}
+.plan-empty {
+  color: #94a3b8;
+  font-style: italic;
+}
+.plan-btn,
+.plan-save,
+.plan-cancel {
+  cursor: pointer;
+  border: 1px solid #cbd5e1;
+  background: #ffffff;
+  border-radius: 6px;
+  padding: 2px 6px;
+  font-size: 12px;
+  line-height: 1.2;
+  flex-shrink: 0;
+}
+.plan-btn:hover,
+.plan-save:hover,
+.plan-cancel:hover {
+  background: #f1f5f9;
+}
+.plan-input {
+  flex: 1;
+  min-width: 120px;
+  padding: 3px 6px;
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+  font-size: 12px;
+}
+
 .badges {
   display: flex;
   gap: 6px;

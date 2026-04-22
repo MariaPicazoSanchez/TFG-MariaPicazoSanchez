@@ -5,6 +5,7 @@ from ._helpers import (
     get_university_responsable_map,
     get_university_responsable_map as get_university_responsable,
     get_university_country_map,
+    get_university_plan_estudios_map,
     COUNTRY_OPTIONS,
 )
 
@@ -13,5 +14,6 @@ __all__ = [
     "get_university_responsable",
     "get_university_responsable_map",
     "get_university_country_map",
+    "get_university_plan_estudios_map",
     "COUNTRY_OPTIONS",
 ]

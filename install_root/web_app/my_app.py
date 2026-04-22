@@ -115,12 +115,36 @@ def _handle_query_params() -> None:
     saved         = get_query_param("student_saved")
     saved_program = get_query_param("saved_program")
     force_reload  = get_query_param("force_reload")
+    plan_saved    = get_query_param("plan_saved")
 
     if force_reload == "1":
         st.cache_data.clear()
         st.session_state["data_version"] = st.session_state.get("data_version", 0) + 1
         st.session_state.pop("_map_html_key", None)
         st.session_state.pop("last_map_html", None)
+        st.query_params.clear()
+        st.rerun()
+
+    if plan_saved == "1":
+        # Edición que sólo afecta a col E de Coordenadas (plan de estudios).
+        # Invalidamos únicamente la caché del mapa de planes y forzamos un
+        # re-render del HTML de Folium, SIN tocar data_version (mucho más rápido
+        # que el flujo de student_saved, que re-lee todos los Excels).
+        from ui.new_user import get_university_plan_estudios_map
+        try:
+            get_university_plan_estudios_map.clear()
+        except Exception:
+            pass
+        st.session_state.pop("_map_render_key", None)
+        st.session_state.pop("last_map_html", None)
+        # Actualizar snapshot de mtime para que el auto-refresh no dispare otra
+        # recarga innecesaria tras nuestra propia escritura.
+        _cfg = st.session_state.get("config", {})
+        _snap = dict(st.session_state.get("_excel_mtimes_snapshot", {}))
+        for _prog, _path in _cfg.items():
+            if _path and isinstance(_path, str) and os.path.exists(_path):
+                _snap[_prog] = os.path.getmtime(_path)
+        st.session_state["_excel_mtimes_snapshot"] = _snap
         st.query_params.clear()
         st.rerun()
 

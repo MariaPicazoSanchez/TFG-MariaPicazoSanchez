@@ -3,6 +3,7 @@ import logging
 import os
 from typing import Optional
 
+import pandas as pd
 from openpyxl import load_workbook
 
 from ._excel_tables import (
@@ -227,6 +228,92 @@ def update_student_in_excel(
 
     except Exception:
         logger.exception("[update_student_in_excel] Error guardando in-place")
+        return False
+    finally:
+        try:
+            if wb is not None:
+                wb.close()
+        except Exception:
+            pass
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Hoja 'Coordenadas': escritura del Plan de estudios por universidad
+# ─────────────────────────────────────────────────────────────────────────────
+
+# Col E (1-based = 5) reservada para el plan de estudios, en paralelo a col D
+# (responsable) que ya se escribe desde ui/new_user/_helpers.py.
+PLAN_ESTUDIOS_COL_XLSX = 5
+
+
+def _detect_uni_col_coordenadas(path: str, default_col_uni_0based: int) -> int:
+    """Detecta en qué columna (0-based) está la universidad en la hoja 'Coordenadas'.
+
+    Si la primera fila tiene una cabecera reconocible ('Universidad', 'Universidade',
+    'University'), usa esa. Si no, devuelve el default proporcionado.
+    """
+    try:
+        df = pd.read_excel(path, sheet_name="Coordenadas", header=None, dtype=str)
+        if len(df) == 0:
+            return default_col_uni_0based
+        first_row = [str(v).strip().lower() for v in df.iloc[0]]
+        _words_uni = {
+            "universidad", "universidade", "university",
+            "universidad destino", "universidad origen",
+        }
+        for i, v in enumerate(first_row):
+            if v in _words_uni:
+                return i
+    except Exception:
+        pass
+    return default_col_uni_0based
+
+
+def write_plan_estudios_for_university(
+    path: str,
+    universidad: str,
+    plan_estudios: str,
+    default_col_uni_0based: int = 1,
+) -> bool:
+    """
+    Actualiza el plan de estudios de una universidad en la hoja 'Coordenadas'
+    del fichero Excel indicado. Escribe en col E (1-based = 5).
+
+    default_col_uni_0based: índice 0-based de la columna Universidad.
+        Erasmus OUT → 0
+        Erasmus IN  → 1
+
+    Returns True si se encontró la universidad y se escribió, False si no.
+    """
+    if not path or not universidad:
+        return False
+    if not os.path.exists(path):
+        return False
+
+    col_uni_0 = _detect_uni_col_coordenadas(path, default_col_uni_0based)
+    col_uni_1 = col_uni_0 + 1  # openpyxl es 1-based
+
+    wb = None
+    try:
+        wb = load_workbook(path)
+        if "Coordenadas" not in wb.sheetnames:
+            return False
+        ws = wb["Coordenadas"]
+        target  = (universidad or "").strip().lower()
+        value   = (plan_estudios or "").strip() or None
+        written = False
+        # Actualizar TODAS las filas de esa universidad (puede aparecer varias
+        # veces en Coordenadas, una por estudiante/historial).
+        for r_idx in range(1, ws.max_row + 1):
+            uni_val = str(ws.cell(row=r_idx, column=col_uni_1).value or "").strip()
+            if uni_val and uni_val.lower() == target:
+                ws.cell(row=r_idx, column=PLAN_ESTUDIOS_COL_XLSX).value = value
+                written = True
+        if written:
+            wb.save(path)
+        return written
+    except Exception:
+        logger.exception("write_plan_estudios_for_university: error para %r", universidad)
         return False
     finally:
         try:

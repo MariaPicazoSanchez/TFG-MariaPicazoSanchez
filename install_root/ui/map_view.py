@@ -216,8 +216,8 @@ def show_map(
             // Solo actuamos si todo ha ido bien
             if (!data.ok) return;
 
-            // Desmarcar todos los checkboxes de edición
-            var toggles = document.querySelectorAll(".edit-toggle");
+            // Desmarcar todos los checkboxes de edición (estudiante + plan de estudios)
+            var toggles = document.querySelectorAll(".edit-toggle, .plan-toggle");
             if (toggles && toggles.length) {
                 toggles.forEach(function(ch) { ch.checked = false; });
             }

@@ -298,7 +298,7 @@
         }
     }
 
-    function showSaveToast(ok, messages = [], programa = "") {
+    function showSaveToast(ok, messages = [], programa = "", saveKind = "") {
         // Reset the save button as early as possible
         if (window._saveBtnRef) {
             window._saveBtnRef.textContent = "Guardar";
@@ -321,7 +321,12 @@
         const OID = "global-save-overlay";
         const closeOnlyScript = `(function(){var t=document.getElementById('${TID}');var o=document.getElementById('${OID}');if(t)t.remove();if(o)o.remove();})()`;
         const _sp = programa ? `u.searchParams.set('saved_program',${JSON.stringify(programa)});` : "";
-        const closeAndReloadScript = `(function(){var t=document.getElementById('${TID}');var o=document.getElementById('${OID}');if(t)t.remove();if(o)o.remove();try{var u=new URL(location.href);u.searchParams.set('student_saved','1');u.searchParams.set('clear_cache','1');${_sp}location.href=u.toString();}catch(e){location.reload();}})()`;
+        // Ruta ligera para ediciones que sólo tocan col E de Coordenadas:
+        // no invalidar _cached_load / _cached_materias (reduce tiempo de recarga).
+        const _savedParam = saveKind === "plan_coord"
+            ? "u.searchParams.set('plan_saved','1');"
+            : "u.searchParams.set('student_saved','1');u.searchParams.set('clear_cache','1');";
+        const closeAndReloadScript = `(function(){var t=document.getElementById('${TID}');var o=document.getElementById('${OID}');if(t)t.remove();if(o)o.remove();try{var u=new URL(location.href);${_savedParam}${_sp}location.href=u.toString();}catch(e){location.reload();}})()`;
 
         const overlay = topDoc.createElement("div");
         overlay.id = OVERLAY_ID;
@@ -391,7 +396,7 @@
             try { data = JSON.parse(data); } catch (_) { return; }
         }
         if (data.type === "saveStatus") {
-            showSaveToast(data.ok, nn(data.messages, []), nn(data.programa, ""));
+            showSaveToast(data.ok, nn(data.messages, []), nn(data.programa, ""), nn(data.save_kind, ""));
         }
     });
 })();

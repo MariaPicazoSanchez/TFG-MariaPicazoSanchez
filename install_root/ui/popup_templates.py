@@ -23,14 +23,19 @@ from persistence.data_access_mobility import (
     get_universities_from_coords_sheet,
     get_universities_from_sicue_data,
 )
-from ui.new_user_view import get_university_country_map, get_university_responsable_map
+from ui.new_user_view import (
+    get_university_country_map,
+    get_university_responsable_map,
+    get_university_plan_estudios_map,
+)
 from constants import PROGRAM_ERASMUS_IN, PROGRAM_ERASMUS_OUT, PROGRAM_SICUE_OUT
 
 logger = logging.getLogger("movilidad_ui")
 
-API_TOKEN   = get_api_token()
-API_URL     = os.getenv("API_URL", "http://127.0.0.1:5000").rstrip("/")
-FORM_ACTION = f"{API_URL}/update_student"
+API_TOKEN               = get_api_token()
+API_URL                 = os.getenv("API_URL", "http://127.0.0.1:5000").rstrip("/")
+FORM_ACTION             = f"{API_URL}/update_student"
+FORM_ACTION_PLAN_COORD  = f"{API_URL}/update_plan_coord"
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -558,6 +563,9 @@ def generate_dynamic_popup(row, programa: str, row_index: int) -> str:
     resp_map_out = get_university_responsable_map(
         config.get(PROGRAM_ERASMUS_OUT, ""), default_col_uni=0, default_col_pais=1
     )
+    plan_map_out = get_university_plan_estudios_map(
+        config.get(PROGRAM_ERASMUS_OUT, ""), default_col_uni=0, default_col_pais=1
+    )
     excel_path          = config.get(programa)
     materias_excel_path = config.get(f"{programa}_MATERIAS")
 
@@ -602,6 +610,15 @@ def generate_dynamic_popup(row, programa: str, row_index: int) -> str:
         if responsable_uni else ""
     )
 
+    plan_estudios_html = ""
+    if programa == PROGRAM_ERASMUS_OUT and universidad_raw:
+        plan_estudios_html = _build_plan_estudios_block(
+            universidad_raw=universidad_raw,
+            plan_value=plan_map_out.get(universidad_raw, ""),
+            row_index=row_index,
+            excel_path=config.get(PROGRAM_ERASMUS_OUT, ""),
+        )
+
     return f"""
     <div class="al-popup">
       <header class="head">
@@ -609,6 +626,7 @@ def generate_dynamic_popup(row, programa: str, row_index: int) -> str:
           <div class="title">{universidad}</div>
           {resp_chip_html}
         </div>
+        {plan_estudios_html}
         <div class="head-bottom">
           <div class="badges"><span class="badge count">{n}</span></div>
           {excel_btn_html}
@@ -618,6 +636,78 @@ def generate_dynamic_popup(row, programa: str, row_index: int) -> str:
       <ul class="plist">{items_html}</ul>
       <style>{POPUP_STYLES}</style>
     </div>
+    """
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Bloque "Plan de estudios" (Erasmus OUT, editable, persistido en Coordenadas)
+# ─────────────────────────────────────────────────────────────────────────────
+
+def _build_plan_estudios_block(
+    universidad_raw: str,
+    plan_value: str,
+    row_index: int,
+    excel_path: str,
+) -> str:
+    """
+    Renderiza la sección "Plan de estudios" del popup para Erasmus OUT.
+    Mismo patrón que el formulario de edición del estudiante:
+      - Checkbox oculto + CSS :checked para alternar vista/edición.
+      - Form POST a /update_plan_coord con target=iframe interno.
+      - Sin JS inline (Folium inserta el HTML en un template literal JS; el
+        sanitizador de map_view ya protege backticks, \\ y ${).
+    Solo caracteres BMP en el HTML para evitar problemas con template literals.
+    """
+    plan_str     = (plan_value or "").strip()
+    has_value    = bool(plan_str)
+    toggle_id    = html.escape(f"plan-edit-{row_index}", quote=True)
+    iframe_name  = html.escape(f"plan-opener-{row_index}", quote=True)
+    uni_attr     = html.escape(universidad_raw, quote=True)
+    excel_attr   = html.escape(str(excel_path or ""), quote=True)
+    plan_escaped = html.escape(plan_str, quote=True)
+
+    # Renderizado del valor en modo vista: link si es URL, mailto si es email,
+    # texto plano en los demás casos. html.escape protege <, >, &, ", '.
+    def _render_view_value(val: str) -> str:
+        if not val:
+            return '<span class="plan-empty">(sin plan de estudios)</span>'
+        low = val.lower()
+        if low.startswith(("http://", "https://")):
+            return (f'<a class="plan-link" href="{html.escape(val, quote=True)}" '
+                    f'target="_blank" rel="noopener">{html.escape(val)}</a>')
+        if low.startswith("www."):
+            return (f'<a class="plan-link" href="https://{html.escape(val, quote=True)}" '
+                    f'target="_blank" rel="noopener">{html.escape(val)}</a>')
+        if "@" in val and " " not in val:
+            return (f'<a class="plan-link" href="mailto:{html.escape(val, quote=True)}">'
+                    f'{html.escape(val)}</a>')
+        return f'<span class="plan-text">{html.escape(val)}</span>'
+
+    view_value_html = _render_view_value(plan_str)
+    edit_label      = "Editar" if has_value else "A\u00f1adir"
+
+    return f"""
+      <div class="plan-block">
+        <input type="checkbox" id="{toggle_id}" class="plan-toggle">
+        <div class="plan-view">
+          <span class="plan-label">Plan de estudios:</span>
+          <span class="plan-value">{view_value_html}</span>
+          <label for="{toggle_id}" class="plan-btn" title="{edit_label} plan de estudios">\u270f\ufe0f</label>
+        </div>
+        <form class="plan-edit" action="{FORM_ACTION_PLAN_COORD}" method="POST" target="{iframe_name}">
+          <iframe name="{iframe_name}" style="display:none;width:0;height:0;border:0;"></iframe>
+          <input type="hidden" name="token"       value="{API_TOKEN}">
+          <input type="hidden" name="programa"    value="{html.escape(PROGRAM_ERASMUS_OUT, quote=True)}">
+          <input type="hidden" name="universidad" value="{uni_attr}">
+          <input type="hidden" name="excel_path"  value="{excel_attr}">
+          <span class="plan-label">Plan de estudios:</span>
+          <input type="text" name="plan_estudios" class="plan-input"
+                 value="{plan_escaped}"
+                 placeholder="Enlace, correo o texto">
+          <button type="submit" class="plan-save">Guardar</button>
+          <label for="{toggle_id}" class="plan-cancel" title="Cancelar">\u2716</label>
+        </form>
+      </div>
     """
 
 

@@ -4,5 +4,6 @@ from .new_user import (  # noqa: F401
     render_new_user_form,
     get_university_responsable_map,
     get_university_country_map,
+    get_university_plan_estudios_map,
     COUNTRY_OPTIONS,
 )

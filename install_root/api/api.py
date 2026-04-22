@@ -445,6 +445,77 @@ def update_student():
     return _build_js_response(ok_global, messages, extra)
 
 
+@app.route("/update_plan_coord", methods=["POST"])
+@require_token
+def update_plan_coord():
+    """
+    Actualiza el plan de estudios de una universidad en la hoja 'Coordenadas'
+    del Excel del programa indicado (típicamente Erasmus OUT). Escribe en col E.
+    """
+    try:
+        form = request.form.to_dict()
+        universidad   = (form.get("universidad") or "").strip()
+        plan_estudios = (form.get("plan_estudios") or "").strip()
+        programa      = (form.get("programa") or "").strip()
+        excel_raw     = (form.get("excel_path") or "").strip()
+
+        if not universidad:
+            return _build_js_response(False, ["Falta el nombre de la universidad."])
+
+        # Preferir SIEMPRE la ruta desde config.json por programa
+        excel_path = repair_windows_path(excel_raw)
+        try:
+            cfg_path = os.getenv("APP_CONFIG_PATH", "config.json")
+            with open(cfg_path, "r", encoding="utf-8") as f:
+                config = json.load(f)
+            if programa:
+                cfg_raw = (config.get(programa, "") or "").strip()
+                cfg_fixed = repair_windows_path(cfg_raw)
+                if cfg_fixed and os.path.exists(cfg_fixed):
+                    excel_path = cfg_fixed
+        except Exception as e:
+            logger.debug("No se pudo leer config.json para '%s': %s", programa, e)
+
+        if not excel_path or not os.path.exists(excel_path):
+            return _build_js_response(False, [
+                f"ERROR: El archivo Excel no existe en: {excel_path}"
+            ])
+
+        # Para Erasmus OUT, Universidad está en col A (0-based = 0).
+        # Para Erasmus IN, col B (0-based = 1).
+        default_col_uni_0 = 0 if (programa or "").strip().lower() == "erasmus out" else 1
+
+        from persistence import write_plan_estudios_for_university
+
+        ok = write_plan_estudios_for_university(
+            excel_path,
+            universidad,
+            plan_estudios,
+            default_col_uni_0based=default_col_uni_0,
+        )
+
+        if not ok:
+            return _build_js_response(False, [
+                f"No se pudo encontrar la universidad '{universidad}' en la hoja Coordenadas."
+            ])
+
+        import time as _time
+        global _last_saved_ts
+        _last_saved_ts = _time.time()
+        return _build_js_response(True, ["Plan de estudios guardado."], {
+            "programa": programa or "",
+            "save_kind": "plan_coord",
+        })
+    except PermissionError:
+        logger.warning("PermissionError al guardar en Coordenadas (archivo abierto).")
+        return _build_js_response(False, [
+            "No se puede guardar: el archivo Excel está abierto en otro programa."
+        ])
+    except Exception as e:
+        logger.exception("Error actualizando plan de estudios en Coordenadas")
+        return _build_js_response(False, [f"Error: {e}"])
+
+
 if __name__ == "__main__":
     # Configurar logging a nivel DEBUG para el proceso de la API
     _log_dir = os.path.join(os.getenv("LOCALAPPDATA", "."), "MovilidadESII", "logs")
