@@ -666,22 +666,27 @@ def _build_plan_estudios_block(
     excel_attr   = html.escape(str(excel_path or ""), quote=True)
     plan_escaped = html.escape(plan_str, quote=True)
 
-    # Renderizado del valor en modo vista: link si es URL, mailto si es email,
-    # texto plano en los demás casos. html.escape protege <, >, &, ", '.
+    # Renderizado del valor en modo vista: boton que lanza la URL (o mailto),
+    # o boton deshabilitado si no hay valor util. Para texto plano se muestra
+    # el texto. html.escape protege <, >, &, ", '.
     def _render_view_value(val: str) -> str:
         if not val:
-            return '<span class="plan-empty">(sin plan de estudios)</span>'
+            return ('<button type="button" class="plan-open-btn" disabled '
+                    'title="Sin plan de estudios">Plan de estudios</button>')
         low = val.lower()
+        href = None
         if low.startswith(("http://", "https://")):
-            return (f'<a class="plan-link" href="{html.escape(val, quote=True)}" '
-                    f'target="_blank" rel="noopener">{html.escape(val)}</a>')
-        if low.startswith("www."):
-            return (f'<a class="plan-link" href="https://{html.escape(val, quote=True)}" '
-                    f'target="_blank" rel="noopener">{html.escape(val)}</a>')
-        if "@" in val and " " not in val:
-            return (f'<a class="plan-link" href="mailto:{html.escape(val, quote=True)}">'
-                    f'{html.escape(val)}</a>')
-        return f'<span class="plan-text">{html.escape(val)}</span>'
+            href = val
+        elif low.startswith("www."):
+            href = f"https://{val}"
+        elif "@" in val and " " not in val:
+            href = f"mailto:{val}"
+        if href:
+            return (f'<a class="plan-open-btn" href="{html.escape(href, quote=True)}" '
+                    f'target="_blank" rel="noopener" '
+                    f'title="{html.escape(val, quote=True)}">Plan de estudios</a>')
+        return (f'<button type="button" class="plan-open-btn" disabled '
+                f'title="{html.escape(val, quote=True)}">Plan de estudios</button>')
 
     view_value_html = _render_view_value(plan_str)
     edit_label      = "Editar" if has_value else "A\u00f1adir"
@@ -690,7 +695,6 @@ def _build_plan_estudios_block(
       <div class="plan-block">
         <input type="checkbox" id="{toggle_id}" class="plan-toggle">
         <div class="plan-view">
-          <span class="plan-label">Plan de estudios:</span>
           <span class="plan-value">{view_value_html}</span>
           <label for="{toggle_id}" class="plan-btn" title="{edit_label} plan de estudios">\u270f\ufe0f</label>
         </div>

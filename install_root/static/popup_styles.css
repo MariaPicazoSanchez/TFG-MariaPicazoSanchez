@@ -148,6 +148,32 @@
   color: #94a3b8;
   font-style: italic;
 }
+.plan-open-btn {
+  display: inline-flex;
+  align-items: center;
+  cursor: pointer;
+  border: 1px solid #0b4bd6;
+  background: #eef2ff;
+  color: #0b4bd6;
+  border-radius: 6px;
+  padding: 3px 10px;
+  font-size: 12px;
+  line-height: 1.2;
+  font-weight: 600;
+  text-decoration: none;
+  flex-shrink: 0;
+}
+.plan-open-btn:hover:not(:disabled):not([disabled]) {
+  background: #e0e7ff;
+}
+.plan-open-btn:disabled,
+.plan-open-btn[disabled] {
+  cursor: not-allowed;
+  opacity: 0.6;
+  background: #f1f5f9;
+  color: #94a3b8;
+  border-color: #cbd5e1;
+}
 .plan-btn,
 .plan-save,
 .plan-cancel {
