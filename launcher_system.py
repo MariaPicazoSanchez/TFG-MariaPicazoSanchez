@@ -1280,13 +1280,51 @@ def start_processes(api_enabled: bool = True, api_disabled_reason: str | None = 
     window.__sidebarToggleReady = true;
     var BTN_ID = '__sidebar_expand_btn';
 
-    function getSidebarBtn() {
-        return document.querySelector('[data-testid="stSidebarCollapseButton"] button')
-            || document.querySelector('[data-testid="stSidebarCollapseButton"]');
+    function getSidebar() {
+        return document.querySelector('[data-testid="stSidebar"]');
     }
     function isSidebarCollapsed() {
-        var s = document.querySelector('[data-testid="stSidebar"]');
-        return s && s.getAttribute('aria-expanded') === 'false';
+        var s = getSidebar();
+        if (!s) return false;
+        if (s.getAttribute('aria-expanded') === 'false') return true;
+        var r = s.getBoundingClientRect();
+        if (r.width < 50 || r.right <= 0) return true;
+        return false;
+    }
+    function findToggleBtn() {
+        var selectors = [
+            '[data-testid="stSidebarCollapseButton"] button',
+            '[data-testid="stSidebarCollapseButton"]',
+            '[data-testid="stSidebarCollapsedControl"] button',
+            '[data-testid="stSidebarCollapsedControl"]',
+            'button[aria-label*="sidebar" i]',
+            'button[aria-label*="panel" i]'
+        ];
+        for (var i = 0; i < selectors.length; i++) {
+            var el = document.querySelector(selectors[i]);
+            if (el) return el;
+        }
+        return null;
+    }
+    function syntheticClick(el) {
+        try {
+            ['pointerdown', 'mousedown', 'pointerup', 'mouseup', 'click'].forEach(function(t) {
+                el.dispatchEvent(new MouseEvent(t, { bubbles: true, cancelable: true, view: window }));
+            });
+        } catch (e) {}
+    }
+    function expandSidebar() {
+        var btn = findToggleBtn();
+        if (btn) {
+            try { btn.click(); } catch (e) {}
+            syntheticClick(btn);
+        }
+        setTimeout(function() {
+            var s = getSidebar();
+            if (s && s.getAttribute('aria-expanded') === 'false') {
+                s.setAttribute('aria-expanded', 'true');
+            }
+        }, 80);
     }
     function createBtn() {
         var btn = document.createElement('button');
@@ -1297,9 +1335,7 @@ def start_processes(api_enabled: bool = True, api_disabled_reason: str | None = 
             + 'background:#262730;color:#fff;border:none;border-radius:6px;'
             + 'padding:6px 10px;font-size:18px;cursor:pointer;display:none;'
             + 'line-height:1;box-shadow:0 2px 6px rgba(0,0,0,.4)';
-        btn.addEventListener('click', function() {
-            var nb = getSidebarBtn(); if (nb) nb.click();
-        });
+        btn.addEventListener('click', expandSidebar);
         document.body.appendChild(btn);
         return btn;
     }
@@ -1307,14 +1343,18 @@ def start_processes(api_enabled: bool = True, api_disabled_reason: str | None = 
         var btn = document.getElementById(BTN_ID) || createBtn();
         btn.style.display = isSidebarCollapsed() ? 'block' : 'none';
     }
-    function startObserver() {
-        var sidebar = document.querySelector('[data-testid="stSidebar"]');
-        if (!sidebar) { setTimeout(startObserver, 300); return; }
+    function start() {
+        var sidebar = getSidebar();
+        if (!sidebar) { setTimeout(start, 300); return; }
         update();
-        new MutationObserver(update).observe(sidebar,
-            { attributes: true, attributeFilter: ['aria-expanded'] });
+        try {
+            new MutationObserver(update).observe(sidebar, {
+                attributes: true, attributeFilter: ['aria-expanded', 'style', 'class']
+            });
+        } catch (e) {}
+        setInterval(update, 500);
     }
-    startObserver();
+    start();
 })();
 """
 

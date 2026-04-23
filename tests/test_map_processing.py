@@ -4,8 +4,10 @@ Tests para utils/map_processing.py
 Cubre: calculate_auto_zoom_bounds, check_dataframes_have_data,
        _filter_students_without_la, filter_out_no_la
 """
-import pandas as pd
 import pytest
+
+pd = pytest.importorskip("pandas")
+
 from utils.map_processing import (
     calculate_auto_zoom_bounds,
     check_dataframes_have_data,

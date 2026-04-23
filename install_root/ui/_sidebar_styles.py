@@ -59,7 +59,6 @@ SIDEBAR_CSS: str = """
     top:      0.4rem  !important;
     left:     0.4rem  !important;
     z-index:  9999    !important;
-    display:  block   !important;
 }
 
 /* ── MAIN CONTENT ─────────────────────────────────────────────*/
@@ -99,16 +98,63 @@ SIDEBAR_TOGGLE_JS: str = """
     // por eso usa window.parent.document para acceder al DOM de Streamlit.
     // En pywebview el botón se inyecta directamente desde el launcher (evaluate_js).
 
-    function getSidebarBtn() {
-        var doc = window.parent ? window.parent.document : document;
-        return doc.querySelector('[data-testid="stSidebarCollapseButton"] button')
-            || doc.querySelector('[data-testid="stSidebarCollapseButton"]');
+    function getDoc() {
+        return window.parent ? window.parent.document : document;
     }
 
+    function getSidebar() {
+        return getDoc().querySelector('[data-testid="stSidebar"]');
+    }
+
+    // Detección por ancho real (cubre versiones donde aria-expanded no basta).
     function isSidebarCollapsed() {
-        var doc = window.parent ? window.parent.document : document;
-        var sidebar = doc.querySelector('[data-testid="stSidebar"]');
-        return sidebar && sidebar.getAttribute('aria-expanded') === 'false';
+        var s = getSidebar();
+        if (!s) return false;
+        if (s.getAttribute('aria-expanded') === 'false') return true;
+        var rect = s.getBoundingClientRect();
+        if (rect.width < 50 || rect.right <= 0) return true;
+        return false;
+    }
+
+    // Lista de selectores candidatos del botón de toggle, por orden de preferencia.
+    function findToggleBtn() {
+        var doc = getDoc();
+        var selectors = [
+            '[data-testid="stSidebarCollapseButton"] button',
+            '[data-testid="stSidebarCollapseButton"]',
+            '[data-testid="stSidebarCollapsedControl"] button',
+            '[data-testid="stSidebarCollapsedControl"]',
+            'button[aria-label*="sidebar" i]',
+            'button[aria-label*="panel" i]'
+        ];
+        for (var i = 0; i < selectors.length; i++) {
+            var el = doc.querySelector(selectors[i]);
+            if (el) return el;
+        }
+        return null;
+    }
+
+    function syntheticClick(el) {
+        try {
+            ['pointerdown', 'mousedown', 'pointerup', 'mouseup', 'click'].forEach(function(t) {
+                el.dispatchEvent(new MouseEvent(t, { bubbles: true, cancelable: true, view: window }));
+            });
+        } catch (e) { /* ignore */ }
+    }
+
+    function expandSidebar() {
+        var btn = findToggleBtn();
+        if (btn) {
+            try { btn.click(); } catch (e) {}
+            syntheticClick(btn);
+        }
+        // Fallback: si nada cambió, forzar aria-expanded.
+        setTimeout(function() {
+            var s = getSidebar();
+            if (s && s.getAttribute('aria-expanded') === 'false') {
+                s.setAttribute('aria-expanded', 'true');
+            }
+        }, 80);
     }
 
     function createBtn(doc) {
@@ -123,33 +169,34 @@ SIDEBAR_TOGGLE_JS: str = """
             'cursor:pointer', 'display:none', 'line-height:1',
             'box-shadow:0 2px 6px rgba(0,0,0,.4)'
         ].join(';');
-        btn.addEventListener('click', function() {
-            var nb = getSidebarBtn();
-            if (nb) nb.click();
-        });
+        btn.addEventListener('click', expandSidebar);
         doc.body.appendChild(btn);
         return btn;
     }
 
     function update() {
-        var doc = window.parent ? window.parent.document : document;
+        var doc = getDoc();
         var btn = doc.getElementById(BTN_ID) || createBtn(doc);
         btn.style.display = isSidebarCollapsed() ? 'block' : 'none';
     }
 
-    function startObserver() {
-        var doc = window.parent ? window.parent.document : document;
-        var sidebar = doc.querySelector('[data-testid="stSidebar"]');
-        if (!sidebar) { setTimeout(startObserver, 300); return; }
+    function start() {
+        var sidebar = getSidebar();
+        if (!sidebar) { setTimeout(start, 300); return; }
         update();
-        new MutationObserver(update).observe(sidebar,
-            { attributes: true, attributeFilter: ['aria-expanded'] });
+        try {
+            new MutationObserver(update).observe(sidebar, {
+                attributes: true, attributeFilter: ['aria-expanded', 'style', 'class']
+            });
+        } catch (e) {}
+        // Poll como red de seguridad si Streamlit recrea el DOM del sidebar.
+        setInterval(update, 500);
     }
 
     if (document.readyState === 'loading') {
-        document.addEventListener('DOMContentLoaded', startObserver);
+        document.addEventListener('DOMContentLoaded', start);
     } else {
-        startObserver();
+        start();
     }
 })();
 </script>
