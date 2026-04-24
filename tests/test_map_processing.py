@@ -8,7 +8,7 @@ import pytest
 
 pd = pytest.importorskip("pandas")
 
-from utils.map_processing import (
+from install_root.utils.map_processing import (
     calculate_auto_zoom_bounds,
     check_dataframes_have_data,
     _filter_students_without_la,

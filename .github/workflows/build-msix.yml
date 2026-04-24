@@ -65,14 +65,10 @@ jobs:
       - name: Build EXE with PyInstaller
         shell: pwsh
         run: |
-          python -m PyInstaller `
-            --onedir `
-            --noconsole `
-            --clean `
-            --noconfirm `
-            --icon=install_root/MovilidadESII.ico `
-            --name MovilidadESII `
-            launcher_system.py
+          # Usamos el .spec (no flags sueltos) para que se apliquen los
+          # hiddenimports y data_files de pystray/PIL — imprescindibles para
+          # que el icono de bandeja funcione en el MSIX empaquetado.
+          python -m PyInstaller --clean --noconfirm MovilidadESII.spec
 
       # =========================
       # PYTHON EMBEBIDO PRECONFIGURADO

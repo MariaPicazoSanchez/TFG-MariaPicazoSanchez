@@ -1478,6 +1478,15 @@ def run_launcher() -> int:
     setup_launcher_logging()
     LOGGER.info("MovilidadESII launcher %s iniciando.", LAUNCHER_VERSION)
 
+    # En el primer arranque desde MSIX (Store), crea un acceso directo en el
+    # escritorio. No-op para Inno (que ya lo crea) ni en modo desarrollo.
+    try:
+        from desktop_shortcut import ensure_msix_desktop_shortcut
+        _ico = Path(sys.executable).parent / "MovilidadESII.ico"
+        ensure_msix_desktop_shortcut(APPDATA_DIR, _ico if _ico.exists() else None)
+    except Exception as _e:
+        LOGGER.debug("desktop_shortcut skipped: %s", _e)
+
     if DEV_MODE:
         # Modo desarrollo: sin lock de instancia, sin verificación de instalación,
         # usa el Python que ejecuta este script directamente.

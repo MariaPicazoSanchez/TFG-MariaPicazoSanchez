@@ -1,5 +1,6 @@
 import logging
 import os
+import re
 import unicodedata
 
 import openpyxl as _openpyxl
@@ -463,6 +464,7 @@ def get_asignaturas_catalog(config, sheet_name: str | None = None) -> list[dict]
         # Seleccionar hojas a iterar
         sheet_candidates = list(xls.keys())
         sheet_to_use = None
+        is_new_course = False
         if sheet_name:
             norm_target = _normalize_sheet(sheet_name)
             sheet_to_use = next(
@@ -470,7 +472,22 @@ def get_asignaturas_catalog(config, sheet_name: str | None = None) -> list[dict]
             ) or next(
                 (s for s in sheet_candidates if norm_target in _normalize_sheet(s)), None
             )
-        sheets_iter = [sheet_to_use] if sheet_to_use else sheet_candidates
+            if sheet_to_use is None:
+                is_new_course = True
+
+        if is_new_course:
+            # Curso académico nuevo: sugerir asignaturas de cursos anteriores
+            # priorizando el año más reciente.
+            def _year_key(s: str) -> int:
+                m = re.search(r"(\d{4})", str(s))
+                return int(m.group(1)) if m else 0
+            sheets_iter = sorted(
+                [s for s in sheet_candidates if s.lower() != "coordenadas"],
+                key=_year_key,
+                reverse=True,
+            )
+        else:
+            sheets_iter = [sheet_to_use] if sheet_to_use else sheet_candidates
 
         rows: list[dict] = []
 
@@ -521,6 +538,25 @@ def get_asignaturas_catalog(config, sheet_name: str | None = None) -> list[dict]
                     j += 1
 
                 i = j + 1
+
+        if is_new_course and rows:
+            # Deduplicar por nombre de asignatura (se conserva la primera
+            # aparición = curso más reciente por el orden de sheets_iter) y
+            # resetear matriculados/cupo a 0 para el nuevo curso.
+            seen: set[str] = set()
+            deduped: list[dict] = []
+            for r in rows:
+                key = _norm(r.get("asignatura", ""))
+                if not key or key in seen:
+                    continue
+                seen.add(key)
+                deduped.append({
+                    "asignatura": r["asignatura"],
+                    "cuat": r.get("cuat", ""),
+                    "matriculados": 0,
+                    "cupo": 0,
+                })
+            rows = deduped
 
         rows.sort(key=_catalog_sort_key)
         logger.debug("[catalog] Catálogo cargado: %d asignaturas", len(rows))

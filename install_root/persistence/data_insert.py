@@ -10,6 +10,7 @@ Exporta:
 import json
 import logging
 import os
+from collections import Counter
 from copy import copy
 
 import pandas as pd
@@ -61,16 +62,78 @@ def _append_erasmus_in_with_subjects(
         return True, None
 
     if not _sheet_exists(xlsx_path, target_sheet):
-        df_new = pd.DataFrame(rows_to_add, columns=cols)
-        mode = "a" if os.path.exists(xlsx_path) else "w"
+        # Intentar clonar la hoja de curso académico más reciente como plantilla,
+        # insertar materias y actualizar el catálogo en la misma sesión openpyxl.
         try:
-            with pd.ExcelWriter(xlsx_path, engine="openpyxl", mode=mode) as w:
-                df_new.to_excel(w, sheet_name=target_sheet, index=False)
+            from ._erasmus_in_catalog import (
+                append_to_catalog,
+                clone_sheet_as_new_course,
+                extend_tables_ref_to_row,
+                find_catalog_in_ws,
+                find_materias_header_in_ws,
+                insert_materias_rows,
+                pick_template_sheet,
+            )
+
+            wb_tpl = load_workbook(xlsx_path)
+            cloned = False
+            try:
+                template_name = pick_template_sheet(wb_tpl, exclude=target_sheet)
+                if template_name:
+                    clone_sheet_as_new_course(wb_tpl, template_name, target_sheet)
+                    new_ws = wb_tpl[target_sheet]
+
+                    header_hit = find_materias_header_in_ws(new_ws)
+                    if header_hit:
+                        header_row, cols_map = header_hit
+                        last_materias = insert_materias_rows(
+                            new_ws, header_row, cols_map, rows_to_add,
+                        )
+                        last_catalog = 0
+                        try:
+                            cat_info = find_catalog_in_ws(new_ws)
+                            if cat_info:
+                                counts = Counter(
+                                    f["Asignatura"] for f in rows_to_add if f["Asignatura"]
+                                )
+                                entries = [
+                                    {
+                                        "asignatura": f["Asignatura"],
+                                        "cuat":       f["Cuat"],
+                                        "matriculados": counts[f["Asignatura"]],
+                                    }
+                                    for f in rows_to_add if f["Asignatura"]
+                                ]
+                                append_to_catalog(new_ws, cat_info, entries)
+                                last_catalog = cat_info["data_end"]
+                        except Exception as e:
+                            logger.warning("No se pudo actualizar el catálogo: %s", e)
+
+                        extend_tables_ref_to_row(new_ws, max(last_materias, last_catalog))
+
+                        wb_tpl.save(xlsx_path)
+                        cloned = True
+            finally:
+                wb_tpl.close()
+
+            if cloned:
+                return True, None
         except PermissionError:
             return False, "El archivo está abierto en otra aplicación."
         except Exception as e:
-            return False, f"Error creando la hoja '{target_sheet}': {e}"
-        return True, None
+            logger.warning("No se pudo clonar plantilla para '%s': %s", target_sheet, e)
+
+        if not _sheet_exists(xlsx_path, target_sheet):
+            df_new = pd.DataFrame(rows_to_add, columns=cols)
+            mode = "a" if os.path.exists(xlsx_path) else "w"
+            try:
+                with pd.ExcelWriter(xlsx_path, engine="openpyxl", mode=mode) as w:
+                    df_new.to_excel(w, sheet_name=target_sheet, index=False)
+            except PermissionError:
+                return False, "El archivo está abierto en otra aplicación."
+            except Exception as e:
+                return False, f"Error creando la hoja '{target_sheet}': {e}"
+            return True, None
 
     try:
         from persistence.excel_update import _find_table_in_workbook, MATERIAS_HEADER_ALIASES, MATERIAS_REQUIRED
@@ -138,6 +201,27 @@ def _append_erasmus_in_with_subjects(
             from openpyxl.utils import range_boundaries, get_column_letter
             min_col, min_row, max_col, _ = range_boundaries(tbl.ref)
             tbl.ref = f"{get_column_letter(min_col)}{min_row}:{get_column_letter(max_col)}{last_inserted}"
+
+        # Actualiza el catálogo lateral: añade asignaturas nuevas con matr = cuenta
+        # en las materias del estudiante (por defecto 1 por asignatura).
+        try:
+            from ._erasmus_in_catalog import append_to_catalog, find_catalog_in_ws
+            cat_info = find_catalog_in_ws(ws)
+            if cat_info:
+                counts = Counter(
+                    fila["Asignatura"] for fila in rows_to_add if fila["Asignatura"]
+                )
+                entries = [
+                    {
+                        "asignatura":   fila["Asignatura"],
+                        "cuat":         fila["Cuat"],
+                        "matriculados": counts[fila["Asignatura"]],
+                    }
+                    for fila in rows_to_add if fila["Asignatura"]
+                ]
+                append_to_catalog(ws, cat_info, entries)
+        except Exception as e:
+            logger.warning("No se pudo actualizar el catálogo de asignaturas: %s", e)
 
         wb.save(xlsx_path)
         wb.close()
