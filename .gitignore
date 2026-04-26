@@ -1,7 +1,6 @@
 # ─── Build & distribution ────────────────────────────────────────────────────
 build/
 dist/
-MovilidadESII.spec
 
 # ─── Runtime artifacts ───────────────────────────────────────────────────────
 output/
