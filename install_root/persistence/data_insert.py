@@ -44,6 +44,13 @@ def _append_erasmus_in_with_subjects(
     la_default         = row_data.get("la_in", "")
 
     cols = ["Asignatura", "Estudiante", "Origen", "Universidad Origen", "Cuat", "Firmado", "LA"]
+
+    def _safe_int(v, default=0):
+        try:
+            return int(v) if v not in (None, "") else default
+        except (TypeError, ValueError):
+            return default
+
     rows_to_add = [
         {
             "Asignatura":        m.get("asignatura", "").strip(),
@@ -53,6 +60,7 @@ def _append_erasmus_in_with_subjects(
             "Cuat":              m.get("cuat", ""),
             "Firmado":           m.get("firmado", ""),
             "LA":                m.get("link_la", la_default),
+            "Cupo":              _safe_int(m.get("cupo"), 0),
         }
         for m in materias
         if m.get("asignatura", "").strip()
@@ -71,6 +79,7 @@ def _append_erasmus_in_with_subjects(
                 extend_tables_ref_to_row,
                 find_catalog_in_ws,
                 find_materias_header_in_ws,
+                gather_other_course_subjects,
                 insert_materias_rows,
                 pick_template_sheet,
             )
@@ -96,13 +105,28 @@ def _append_erasmus_in_with_subjects(
                                 counts = Counter(
                                     f["Asignatura"] for f in rows_to_add if f["Asignatura"]
                                 )
+                                # Asignaturas del estudiante: matr=count, cupo=valor del form
                                 entries = [
                                     {
                                         "asignatura": f["Asignatura"],
                                         "cuat":       f["Cuat"],
                                         "matriculados": counts[f["Asignatura"]],
+                                        "cupo":       f.get("Cupo", 0),
+                                        "_from_student": True,
                                     }
                                     for f in rows_to_add if f["Asignatura"]
+                                ]
+                                # Sugerencias cruzadas: asignaturas de otros cursos
+                                # con matr=0, cupo=0. La deduplicación interna de
+                                # append_to_catalog evita repetir las del estudiante.
+                                entries += [
+                                    {
+                                        "asignatura":  s["asignatura"],
+                                        "cuat":        s["cuat"],
+                                        "matriculados": 0,
+                                        "cupo":        0,
+                                    }
+                                    for s in gather_other_course_subjects(wb_tpl, target_sheet)
                                 ]
                                 append_to_catalog(new_ws, cat_info, entries)
                                 last_catalog = cat_info["data_end"]
@@ -203,9 +227,15 @@ def _append_erasmus_in_with_subjects(
             tbl.ref = f"{get_column_letter(min_col)}{min_row}:{get_column_letter(max_col)}{last_inserted}"
 
         # Actualiza el catálogo lateral: añade asignaturas nuevas con matr = cuenta
-        # en las materias del estudiante (por defecto 1 por asignatura).
+        # en las materias del estudiante; añade además las asignaturas vistas en
+        # otros cursos (matr=0, cupo=0) si no estaban ya en este curso, para que
+        # el desplegable de sugerencias muestre opciones cruzadas.
         try:
-            from ._erasmus_in_catalog import append_to_catalog, find_catalog_in_ws
+            from ._erasmus_in_catalog import (
+                append_to_catalog,
+                find_catalog_in_ws,
+                gather_other_course_subjects,
+            )
             cat_info = find_catalog_in_ws(ws)
             if cat_info:
                 counts = Counter(
@@ -216,8 +246,19 @@ def _append_erasmus_in_with_subjects(
                         "asignatura":   fila["Asignatura"],
                         "cuat":         fila["Cuat"],
                         "matriculados": counts[fila["Asignatura"]],
+                        "cupo":         fila.get("Cupo", 0),
+                        "_from_student": True,
                     }
                     for fila in rows_to_add if fila["Asignatura"]
+                ]
+                entries += [
+                    {
+                        "asignatura":   s["asignatura"],
+                        "cuat":         s["cuat"],
+                        "matriculados": 0,
+                        "cupo":         0,
+                    }
+                    for s in gather_other_course_subjects(wb, target_sheet)
                 ]
                 append_to_catalog(ws, cat_info, entries)
         except Exception as e:

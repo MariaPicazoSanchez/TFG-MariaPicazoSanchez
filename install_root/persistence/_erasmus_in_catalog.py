@@ -147,15 +147,28 @@ def append_to_catalog(
         seen_norm.add(key)
         to_add.append({"asignatura": name, "cuat": str(e.get("cuat", "") or "").strip()})
 
-    if not to_add:
-        return 0
-
     # Índice rápido para recuperar matriculados/cupo del entry original
     entries_by_key = {}
     for e in entries:
         k = _norm(e.get("asignatura", ""))
         if k and k not in entries_by_key:
             entries_by_key[k] = e
+
+    # Para asignaturas YA presentes en el catálogo que vengan marcadas como
+    # "_from_student" actualizamos su cupo (lo que el usuario haya tecleado en
+    # el formulario). El resto (sugerencias cruzadas con cupo=0) se respeta.
+    if info.get("cupo"):
+        for r in range(info["header_row"] + 1, info["data_end"] + 1):
+            existing_name = ws.cell(row=r, column=info["asig"]).value
+            k = _norm(existing_name)
+            entry = entries_by_key.get(k)
+            if entry and entry.get("_from_student"):
+                cupo_val = entry.get("cupo")
+                if cupo_val is not None:
+                    ws.cell(row=r, column=info["cupo"]).value = cupo_val
+
+    if not to_add:
+        return 0
 
     # Si el catálogo está vacío (tras clonar) preferimos header_row + 1: su estilo
     # se preservó durante el clonado aunque el valor se borrase. Usar header_row
@@ -194,6 +207,45 @@ def append_to_catalog(
 
     info["data_end"] = insert_start + len(to_add) - 1
     return len(to_add)
+
+
+def gather_other_course_subjects(wb, current_sheet_name: str) -> list[dict]:
+    """
+    Recopila las asignaturas presentes en los catálogos de las demás hojas de
+    curso académico del workbook (excluyendo `current_sheet_name`). Devuelve
+    una lista de {asignatura, cuat} sin duplicados (clave normalizada).
+
+    Sirve para enriquecer el catálogo de un curso nuevo o ya existente con
+    asignaturas vistas en otros cursos, de modo que el desplegable de
+    sugerencias del editor muestre opciones cruzadas.
+    """
+    seen: set[str] = set()
+    out: list[dict] = []
+    for ws in wb.worksheets:
+        if ws.title == current_sheet_name:
+            continue
+        if not _is_academic_year_sheet(ws.title):
+            continue
+        info = find_catalog_in_ws(ws)
+        if not info:
+            continue
+        asig_col = info["asig"]
+        cuat_col = info.get("cuat")
+        for r in range(info["header_row"] + 1, info["data_end"] + 1):
+            asig = ws.cell(row=r, column=asig_col).value
+            name = str(asig).strip() if asig else ""
+            if not name:
+                continue
+            key = _norm(name)
+            if not key or key in seen:
+                continue
+            seen.add(key)
+            cuat = ""
+            if cuat_col:
+                v = ws.cell(row=r, column=cuat_col).value
+                cuat = str(v).strip() if v else ""
+            out.append({"asignatura": name, "cuat": cuat})
+    return out
 
 
 # ─────────────────────────────────────────────────────────────────────────────

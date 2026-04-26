@@ -117,12 +117,14 @@ def _render_asignaturas_section(asignaturas_catalog: list, extra: dict) -> None:
 
     catalog_map = {a["asignatura"]: a for a in asignaturas_catalog}
 
-    header_cols = st.columns([8, 2, 1], vertical_alignment="bottom")
+    header_cols = st.columns([7, 1.5, 1.5, 1], vertical_alignment="bottom")
     with header_cols[0]:
         st.caption("Nombre de la asignatura")
     with header_cols[1]:
-        st.caption("Matr. / Cupo")
+        st.caption("Matr.")
     with header_cols[2]:
+        st.caption("Cupo")
+    with header_cols[3]:
         if st.button("➕ Añadir", key=f"{materias_key}_add"):
             materias.append({"nombre": ""})
 
@@ -132,7 +134,7 @@ def _render_asignaturas_section(asignaturas_catalog: list, extra: dict) -> None:
         nom_actual = asig_nombre_puro(raw_sel) if raw_sel else asig_nombre_puro(mat.get("nombre", ""))
         info = catalog_map.get(nom_actual)
 
-        row_cols = st.columns([8, 2, 1], vertical_alignment="center")
+        row_cols = st.columns([7, 1.5, 1.5, 1], vertical_alignment="center")
         with row_cols[0]:
             valor_actual = mat.get("nombre", "")
             seleccion = st.selectbox(
@@ -146,30 +148,50 @@ def _render_asignaturas_section(asignaturas_catalog: list, extra: dict) -> None:
             )
             mat["nombre"] = asig_nombre_puro(seleccion) if seleccion else ""
 
+        # Valor por defecto del cupo: el del catálogo si existe; si el usuario
+        # ya lo había tocado en este formulario, respetamos su entrada previa.
+        if info and info.get("cupo") is not None:
+            try:
+                cupo_default = int(info["cupo"])
+            except (TypeError, ValueError):
+                cupo_default = 0
+        else:
+            try:
+                cupo_default = int(mat.get("cupo") or 0)
+            except (TypeError, ValueError):
+                cupo_default = 0
+
         with row_cols[1]:
             if info:
                 matr = info.get("matriculados")
-                cupo = info.get("cupo")
                 matr_display = (matr + 1) if matr is not None else None
-                if matr_display is not None and cupo is not None:
-                    color = "#e05252" if matr_display > cupo else "#4caf50"
+                if matr_display is not None:
+                    color = "#888"
+                    if cupo_default:
+                        color = "#e05252" if matr_display > cupo_default else "#4caf50"
                     st.markdown(
                         f"<p style='margin:-0.5rem 0 0 -0.1rem;font-size:1.1rem;font-weight:700;"
                         f"color:{color};text-align:left;line-height:2.4rem'>"
-                        f"{matr_display}&nbsp;/&nbsp;{cupo}</p>",
-                        unsafe_allow_html=True,
-                    )
-                elif matr_display is not None:
-                    st.markdown(
-                        f"<p style='margin:-0.5rem 0 0 -0.1rem;font-size:1.1rem;font-weight:700;"
-                        f"color:#888;text-align:left;line-height:2.4rem'>"
                         f"{matr_display}</p>",
                         unsafe_allow_html=True,
                     )
+                else:
+                    st.empty()
             else:
                 st.empty()
 
         with row_cols[2]:
+            cupo_val = st.number_input(
+                f"Cupo {i+1}",
+                min_value=0,
+                value=cupo_default,
+                step=1,
+                key=f"{materias_key}_cupo_{i}",
+                label_visibility="collapsed",
+            )
+            mat["cupo"] = int(cupo_val or 0)
+
+        with row_cols[3]:
             if st.button("❌", key=f"{materias_key}_del_{i}", help="Eliminar asignatura",
                          type="secondary", use_container_width=True):
                 delete_idx = i

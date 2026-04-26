@@ -406,18 +406,29 @@ class ErasmusInLoader:
         return df
 
     def _build_nombre(self, df: pd.DataFrame, cols: _ColMap) -> pd.Series:
-        """Construye la columna 'estudiante' uniendo nombre + apellidos si existen."""
+        """Construye la columna 'estudiante' uniendo nombre + apellidos si existen.
+
+        Si toda la columna es numérica, pandas la lee como float y `astype(str)`
+        produce "123.0". Eso rompe el match contra `materias_in_por_estudiante`
+        (que lee con dtype=str, sin el ".0") cuando un usuario crea un alumno
+        Erasmus IN tecleando solo un ID/DNI numérico.
+        """
+        def _normalize(s: pd.Series) -> pd.Series:
+            txt = s.astype(str).str.strip()
+            # "12345.0" → "12345" (pandas convierte enteros a float si la columna es 100% numérica)
+            return txt.str.replace(r"^(-?\d+)\.0$", r"\1", regex=True)
+
         if cols.nombre or cols.ap1 or cols.ap2:
             parts = []
-            if cols.nombre: parts.append(df[cols.nombre].astype(str))
-            if cols.ap1:    parts.append(df[cols.ap1].astype(str))
-            if cols.ap2:    parts.append(df[cols.ap2].fillna("").astype(str))
+            if cols.nombre: parts.append(_normalize(df[cols.nombre]))
+            if cols.ap1:    parts.append(_normalize(df[cols.ap1]))
+            if cols.ap2:    parts.append(_normalize(df[cols.ap2].fillna("")))
             joined = parts[0]
             for p in parts[1:]:
                 joined = joined + " " + p
             return joined.str.replace(r"\s+", " ", regex=True).str.strip()
         if cols.estudiante:
-            return df[cols.estudiante].astype(str).str.strip()
+            return _normalize(df[cols.estudiante])
         if cols.email:
             return df[cols.email].astype(str).str.split("@").str[0]
         return pd.Series("", index=df.index)

@@ -160,6 +160,20 @@ def show_map(
     if materias_in_por_estudiante is None:
         materias_in_por_estudiante = {}
 
+    # Índices para matching flexible nombre→materias (Erasmus IN). Se construyen
+    # una sola vez por render: los usa el fallback cuando el lookup exacto contra
+    # el dict falla (p. ej. nombre con/sin acentos, espacios, palabras extra).
+    # Import lazy: persistence.loaders al importarse a nivel de módulo provoca
+    # un orden de inicialización inestable cuando ui/__init__ aún se está
+    # cargando y deja `setup_session` sin enlazar.
+    from persistence.loaders._common import (
+        _build_materias_index, _match_student_name,
+    )
+    _mat_exact_idx, _mat_last_idx = (
+        _build_materias_index(materias_in_por_estudiante)
+        if materias_in_por_estudiante else ({}, {})
+    )
+
     # Selector de tipo de mapa base
     selected_tile = "CartoDB Voyager"
 
@@ -297,14 +311,28 @@ def show_map(
                 continue
             row["estudiantes"] = filtered_ests
 
-            # SOLO PARA ERASMUS IN: enganchar materias IN a cada estudiante dentro del grupo
+            # SOLO PARA ERASMUS IN: enganchar materias IN a cada estudiante.
+            # Antes solo se hacía exact-match contra `materias_in_por_estudiante`,
+            # así que cualquier diferencia mínima entre el nombre del alumno y la
+            # clave del dict (espacios, acentos, una palabra de más o de menos)
+            # dejaba al alumno sin asignaturas y el popup mostraba
+            # "Sin asignaturas asignadas" pese a existir en la tabla.
+            # Ahora caemos a matching flexible (apellido) cuando el exacto falla.
             if program == PROGRAM_ERASMUS_IN:
                 for e in filtered_ests:
                     nombre = str(e.get("estudiante", "")).strip()
                     materias_list = materias_in_por_estudiante.get(nombre, [])
+                    if not materias_list and materias_in_por_estudiante:
+                        clave = _match_student_name(
+                            nombre, _mat_exact_idx, _mat_last_idx,
+                        )
+                        if clave:
+                            materias_list = materias_in_por_estudiante.get(clave, [])
                     e["materias_in"] = materias_list
                     # Guardar la hoja origen para que el guardado vaya a la hoja correcta
-                    e["materias_sheet_name"] = materias_list[0].get("sheet_name", "") if materias_list else ""
+                    e["materias_sheet_name"] = (
+                        materias_list[0].get("sheet_name", "") if materias_list else ""
+                    )
 
             # Pass only filtered students to popup
             row_for_popup = row.copy()

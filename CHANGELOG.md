@@ -9,6 +9,40 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.1.2] - 2026-04-25
+
+### Added
+- **Erasmus IN cross-course catalogue**: each academic-year sheet now aggregates the subjects seen in the other years' catalogues (with `matriculados=0`, `cupo=0`) so the editor's subject suggestions cover the full historical inventory regardless of which year the student is being enrolled in. Subjects already present in the current sheet are not duplicated.
+- **Per-subject `Cupo` input** in the *New student → Erasmus IN* form. The default is the catalogue value when the subject already exists; otherwise 0. The new value flows through the payload and updates the row in the catalogue (both for new subjects and for existing ones the user re-priced).
+- **Automatic creation of an academic-year sheet** when a student is added for a year that does not yet exist in the workbook. The most recent year is cloned as a template: header rows, banding, fills, font styles and `openpyxl.Table` objects (renamed to remain unique in the workbook) are preserved so the new sheet keeps the visual identity of the previous year.
+- **MSIX close-to-tray**: when the application is installed from the Microsoft Store, closing the window minimises to the system tray (Teams/Claude-style) instead of exiting; the launcher keeps running so notifications and the local API stay alive.
+- **MSIX desktop shortcut**: on first launch from a Microsoft Store install, a `.lnk` is generated on the user's Desktop pointing at `shell:AppsFolder\<PFN>!MovilidadESII`. A marker file under `%APPDATA%` prevents recreation if the user later removes the icon. Inert on Inno installs (Inno already creates its own shortcut) and on non-Windows platforms.
+- **Plan de estudios (study plan) for Erasmus OUT**: dedicated button in the popup and a new visualisation that surfaces the destination's study plan when available.
+- **Sidebar collapse/expand toggle button** with persisted state.
+- New `persistence/_erasmus_in_catalog.py` module gathering catalogue helpers (`find_catalog_in_ws`, `append_to_catalog`, `clone_sheet_as_new_course`, `insert_materias_rows`, `gather_other_course_subjects`, `extend_tables_ref_to_row`, `pick_template_sheet`).
+- `desktop_shortcut.py` at repo root with the MSIX-only `ensure_msix_desktop_shortcut(marker_dir, icon_path)` helper that detects the package context via `kernel32.GetCurrentPackageFamilyName` before doing anything.
+
+### Changed
+- **PyInstaller bundling for system-tray support**: `MovilidadESII.spec` now collects `pystray` and `PIL` submodules and data files dynamically (`collect_submodules` / `collect_data_files`) instead of relying on a hard-coded `pystray._win32` hidden import, and the application icon (`MovilidadESII.ico`) is shipped alongside the executable so MSIX builds (which, unlike Inno, don't copy it) can paint the tray icon.
+- **MSIX GitHub Actions workflow** (`.github/workflows/build-msix.yml`) now invokes PyInstaller via the `MovilidadESII.spec` file, so the bundling rules above apply consistently to the Store package.
+- **Per-entry `matriculados` and `cupo` in `append_to_catalog`**: the function now respects the value passed in each entry instead of always writing the global default, which is what makes the form's `Cupo` input visible in the saved sheet and what lets the actual enrolment count (`Counter` over the student's subjects) reach the catalogue.
+- **Style copying on insert is column-scoped**: both `insert_materias_rows` and `append_to_catalog` now copy cell styles only across their own table's columns, so writing the catalogue no longer clobbers the materias table (and vice-versa) when the two tables share rows on the same sheet.
+- Erasmus OUT popup updated with the study-plan section and refreshed `popup_styles.css`.
+- Statistics helpers reworked alongside the SVG exploration changes.
+- Documentation (`README.md`, `docs/index.html`) refreshed for the new release.
+
+### Fixed
+- **Inserted student rows rendered with the header's dark-blue / bold style** after a sheet was cloned for a new academic year. Two compounding bugs:
+  1. `append_to_catalog` was using `header_row` as the style template when the catalogue was empty after cloning (so freshly inserted rows inherited the header style).
+  2. Both insert helpers iterated `range(1, max_column + 1)`, so writing one table overwrote the styles of the neighbouring table on the same row.
+  Fixed by falling back to `header_row + 1` (whose style is preserved by `_clear_rows_preserve_style`) and restricting the column range to each table's own columns.
+- **`ws.tables.items()` returning `(name, ref_str)` instead of `(name, Table)`** in openpyxl 3.x silently broke the table-copy step in `clone_sheet_as_new_course` (`deepcopy` of a string, `new_tbl.name = ...` raised `AttributeError`, exception was swallowed). Now uses `ws.tables.values()` so the cloned sheet keeps a proper `TableStyleMedium2` with banding.
+- **Matriculados always written as 0** for new student subjects in the catalogue. Now uses a `Counter` over the student's subjects so the catalogue row reads `1` for a single enrolment, `n` for `n`.
+- **Search by the selected academic year** returned no rows in some configurations.
+- Statistics view crash / off-by-one when exploring SVG-rendered charts.
+
+---
+
 ## [1.1.1] - 2026-04-17
 
 ### Added
@@ -83,7 +117,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Embedded Python 3.12 runtime bundled in installer for zero-dependency deployment.
 - SHA256 checksums published alongside each GitHub Release.
 
-[Unreleased]: https://github.com/MariaPicazoSanchez/TFG-MariaPicazoSanchez/compare/v1.1.1...HEAD
+[Unreleased]: https://github.com/MariaPicazoSanchez/TFG-MariaPicazoSanchez/compare/v1.1.2...HEAD
+[1.1.2]: https://github.com/MariaPicazoSanchez/TFG-MariaPicazoSanchez/compare/v1.1.1...v1.1.2
 [1.1.1]: https://github.com/MariaPicazoSanchez/TFG-MariaPicazoSanchez/compare/v1.1.0...v1.1.1
 [1.1.0]: https://github.com/MariaPicazoSanchez/TFG-MariaPicazoSanchez/compare/v1.0.0...v1.1.0
 [1.0.0]: https://github.com/MariaPicazoSanchez/TFG-MariaPicazoSanchez/releases/tag/v1.0.0

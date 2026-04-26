@@ -152,12 +152,30 @@ def _extract_block_rows(df_raw, header_map: dict, start_row: int) -> list[dict]:
 
 
 def _block_is_valid(rows_data: list[dict], sheet_name: str, header_row: int) -> bool:
-    """Descarta bloques donde todos los 'estudiante' son numéricos (falso positivo)."""
+    """
+    Descarta blocks donde todos los 'estudiante' son enteros pequeños y consecutivos
+    (falso positivo: en realidad es una columna de contador/posición, no de alumno).
+
+    Antes se descartaba cualquier bloque con todos los estudiantes "numéricos", lo
+    que también se cargaba IDs largos legítimos (p. ej. el usuario crea un alumno
+    tecleando solo el DNI/expediente sin nombre y se queda sin asignaturas en el
+    popup pese a tenerlas guardadas en la misma fila).
+    """
     est_vals = [str(r.get("estudiante") or "").strip() for r in rows_data]
     est_nonempty = [v for v in est_vals if v and v.lower() not in ("nan", "none", "")]
-    if est_nonempty and all(_es_numerico(v) for v in est_nonempty):
+    if not est_nonempty:
+        return True
+    if not all(_es_numerico(v) for v in est_nonempty):
+        return True
+    # Todos numéricos: solo lo consideramos falso positivo si son contadores
+    # típicos (enteros pequeños, ≤ 4 dígitos sin punto decimal).
+    looks_like_counter = all(
+        v.isdigit() and len(v) <= 4 for v in est_nonempty
+    )
+    if looks_like_counter:
         logger.debug(
-            "[DEBUG] Bloque descartado en hoja '%s' fila %d: todos 'estudiante' numéricos (%s)",
+            "[DEBUG] Bloque descartado en hoja '%s' fila %d: todos 'estudiante' "
+            "parecen contadores (%s)",
             sheet_name, header_row, est_nonempty[:3],
         )
         return False
@@ -285,13 +303,22 @@ def load_materias_in(config) -> pd.DataFrame:
 
         df = df.dropna(subset=["Estudiante", "Asignatura"]).reset_index(drop=True)
 
-        mask_num = df["Estudiante"].apply(_es_numerico)
-        if mask_num.any():
+        # Solo descartamos filas cuyo "Estudiante" parece un contador (1..9999),
+        # no IDs largos legítimos: hay usuarios que crean alumnos Erasmus IN
+        # tecleando solo un DNI/expediente y aún así esperan ver sus asignaturas.
+        def _is_counter(v) -> bool:
+            s = str(v).strip()
+            return s.isdigit() and len(s) <= 4 and _es_numerico(s)
+
+        mask_counter = df["Estudiante"].apply(_is_counter)
+        if mask_counter.any():
             logger.warning(
-                "[MATERIAS-IN] Descartando %d filas con Estudiante numérico: %s",
-                mask_num.sum(), df.loc[mask_num, "Estudiante"].tolist()[:5],
+                "[MATERIAS-IN] Descartando %d filas con Estudiante que parece "
+                "contador: %s",
+                mask_counter.sum(),
+                df.loc[mask_counter, "Estudiante"].tolist()[:5],
             )
-        df = df[~mask_num].reset_index(drop=True)
+        df = df[~mask_counter].reset_index(drop=True)
 
         logger.warning(
             "[MATERIAS-IN] ✓ Carga completada: %d filas | %d alumnos únicos",

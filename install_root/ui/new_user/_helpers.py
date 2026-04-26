@@ -487,6 +487,70 @@ def is_academic_year(name: str) -> bool:
     return bool(re.search(r'\d{4}|\d{2}[-/]\d{2}', name))
 
 
+def normalize_academic_year(raw: str) -> str:
+    """
+    Normaliza una entrada de curso académico a "YYYY-YYYY".
+
+    - "2025-2026" / "2025/2026"  → "2025-2026"
+    - "2025"                     → "2025-2026"
+    - "28-29" / "28/29"          → "2028-2029"
+    - "25"                       → "2025-2026"
+
+    Si la entrada no encaja con ningún patrón reconocible, se devuelve tal cual
+    (limpiada de espacios) para no romper nombres de hoja personalizados.
+    """
+    s = (raw or "").strip()
+    if not s:
+        return s
+
+    # YYYY[-/]YYYY (ya correcto, solo unifica separador a "-")
+    m = re.fullmatch(r"(\d{4})\s*[-/]\s*(\d{4})", s)
+    if m:
+        return f"{m.group(1)}-{m.group(2)}"
+
+    # YY[-/]YY → 20YY-20YY
+    m = re.fullmatch(r"(\d{2})\s*[-/]\s*(\d{2})", s)
+    if m:
+        a, b = int(m.group(1)), int(m.group(2))
+        return f"20{a:02d}-20{b:02d}"
+
+    # YYYY → YYYY-(YYYY+1)
+    m = re.fullmatch(r"(\d{4})", s)
+    if m:
+        a = int(m.group(1))
+        return f"{a}-{a + 1}"
+
+    # YY → 20YY-20(YY+1)
+    m = re.fullmatch(r"(\d{2})", s)
+    if m:
+        a = int(m.group(1))
+        return f"20{a:02d}-20{(a + 1) % 100:02d}"
+
+    return s
+
+
+def suggest_next_academic_year(existing: list[str]) -> str:
+    """
+    Devuelve un sugerido "YYYY-YYYY" para el siguiente curso académico:
+      - Si hay hojas reconocibles, devuelve (max_anio+1)-(max_anio+2).
+      - Si no hay ninguna, devuelve el curso correspondiente al año del
+        sistema (year-(year+1)), que en pleno calendario académico será el
+        que el usuario espera por defecto.
+    """
+    import datetime as _dt
+    best = 0
+    for name in existing or []:
+        m = re.search(r'(\d{4})', str(name))
+        if m:
+            y = int(m.group(1))
+            if y > best:
+                best = y
+    if best:
+        return f"{best + 1}-{best + 2}"
+    today_year = _dt.date.today().year
+    return f"{today_year}-{today_year + 1}"
+
+
 def sheet_options_for(cfg: dict, tipo: str) -> list[str]:
     from persistence import sheets_for
     sheets_map = (cfg or {}).get("sheets", {}) or {}

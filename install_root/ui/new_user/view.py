@@ -20,8 +20,10 @@ from ._helpers import (
     asig_nombre_puro,
     load_asignaturas_catalog,
     geocode_cached,
+    normalize_academic_year,
     normalize_subject_name,
     sheet_options_for,
+    suggest_next_academic_year,
 )
 from ._form_out   import render_erasmus_out_form
 from ._form_in    import render_erasmus_in_form
@@ -35,7 +37,14 @@ logger = logging.getLogger("movilidad_ui")
 # ──────────────────────────────────────────────────────────────────────────────
 
 def _clear_new_user_form_state() -> None:
-    """Limpia todo el estado del formulario de nuevo usuario."""
+    """
+    Limpia los campos del formulario de nuevo usuario tras un guardado.
+
+    Importante: NO toca `new_user_tipo` ni `new_user_sheet` (selectores de
+    cabecera). Streamlit los gestiona por su clave; resetearlos hace que el
+    desplegable salte al primer programa (Erasmus OUT) aunque el usuario
+    estuviera en otro.
+    """
     for k in list(st.session_state.keys()):
         if k.startswith("nu_"):
             del st.session_state[k]
@@ -69,6 +78,15 @@ def render_new_user_form(available_types: list[str], config: dict) -> dict | Non
         _widget_key = _buf_key[len("_buf_"):]
         st.session_state[_widget_key] = st.session_state.pop(_buf_key)
 
+    # Si el guardado anterior dejó una hoja "pendiente" (caso de hoja nueva),
+    # la aplicamos al desplegable AHORA, antes de instanciar el selectbox.
+    # Streamlit prohíbe escribir el state de un widget tras instanciarlo, así
+    # que el guardado solo deja la marca y aquí la consumimos.
+    _pending_sheet = st.session_state.pop("_nu_pending_sheet", None)
+    if _pending_sheet:
+        st.session_state["new_user_sheet"] = _pending_sheet
+        st.session_state.pop("nu_sheet_new_name", None)
+
     if st.session_state.pop("_user_saved", False):
         _clear_new_user_form_state()
         st.toast("Guardado correctamente", icon="✅")
@@ -89,13 +107,18 @@ def render_new_user_form(available_types: list[str], config: dict) -> dict | Non
     col_tipo, col_sheet = st.columns([1, 1], gap="small")
 
     with col_tipo:
-        prev_tipo = st.session_state.get("new_user_tipo", available_types[0])
-        if prev_tipo not in available_types:
-            prev_tipo = available_types[0]
+        # Aseguramos que session_state["new_user_tipo"] exista y sea válido
+        # ANTES de instanciar el widget. Así Streamlit lo respeta como única
+        # fuente de verdad y no cae al primer elemento de `available_types`
+        # tras un st.rerun (causa del "tras guardar Erasmus IN aparecía el
+        # botón Erasmus OUT").
+        cur_tipo = st.session_state.get("new_user_tipo")
+        if cur_tipo not in available_types:
+            cur_tipo = available_types[0]
+            st.session_state["new_user_tipo"] = cur_tipo
         tipo = st.selectbox(
             "Tipo de alumno",
             options=available_types,
-            index=available_types.index(prev_tipo),
             key="new_user_tipo",
         )
         open_label = f"{ICON_BY_TIPO.get(tipo, '📄')} Abrir {tipo}"
@@ -105,21 +128,37 @@ def render_new_user_form(available_types: list[str], config: dict) -> dict | Non
         SENT_NEW = "➕ Nueva hoja…"
         options = ([SENT_NEW] + sheet_opts) if sheet_opts else [SENT_NEW]
 
-        prev_sheet  = st.session_state.get("new_user_sheet")
-        global_sel  = st.session_state.get("global_sheet", "Todas")
-        if prev_sheet in options:
-            idx = options.index(prev_sheet)
-        elif global_sel in options:
-            idx = options.index(global_sel)
-        else:
-            idx = 1 if len(options) > 1 else 0
+        # Mismo patrón que con `tipo`: garantizamos un valor válido en el
+        # state antes de renderizar el widget.
+        cur_sheet  = st.session_state.get("new_user_sheet")
+        global_sel = st.session_state.get("global_sheet", "Todas")
+        if cur_sheet not in options:
+            if global_sel in options:
+                cur_sheet = global_sel
+            elif len(options) > 1:
+                cur_sheet = options[1]
+            else:
+                cur_sheet = options[0]
+            st.session_state["new_user_sheet"] = cur_sheet
 
-        choice = st.selectbox("Curso", options=options, index=idx, key="new_user_sheet")
+        choice = st.selectbox("Curso", options=options, key="new_user_sheet")
         new_sheet_name = None
         if choice == SENT_NEW:
-            new_sheet_name = st.text_input(
-                "Nombre de la nueva hoja", key="nu_sheet_new_name", placeholder="2025-2026"
+            suggested = suggest_next_academic_year(sheet_opts)
+            # Pre-rellena el input con la sugerencia la PRIMERA vez que aparece
+            # (cuando aún no hay valor en session_state). De este modo el
+            # usuario ve el curso autocompletado al abrir "➕ Nueva hoja…" y
+            # solo lo edita si quiere otro.
+            if "nu_sheet_new_name" not in st.session_state:
+                st.session_state["nu_sheet_new_name"] = suggested
+            raw_input = st.text_input(
+                "Nombre de la nueva hoja",
+                key="nu_sheet_new_name",
+                help="Formatos aceptados: 2025-2026, 2025, 25-26 (se autocompleta a YYYY-YYYY).",
             )
+            new_sheet_name = normalize_academic_year(raw_input) if raw_input else suggested
+            if raw_input and new_sheet_name != raw_input.strip():
+                st.caption(f"➡️ Se creará como **{new_sheet_name}**")
 
     selected_sheet = (
         new_sheet_name.strip() if new_sheet_name
@@ -127,7 +166,13 @@ def render_new_user_form(available_types: list[str], config: dict) -> dict | Non
     )
     st.session_state["nu_sheet"] = selected_sheet
 
-    if selected_sheet and selected_sheet != st.session_state.get("global_sheet"):
+    # Solo persistimos el cambio de curso global si el usuario eligió una hoja
+    # YA EXISTENTE; mientras está tecleando un nombre nuevo no se toca
+    # `global_sheet` para que la barra lateral no intente cargar una hoja que
+    # aún no existe (eso provocaba mensajes "hoja 'XX-YY' no encontrada").
+    if (choice != SENT_NEW
+            and selected_sheet
+            and selected_sheet != st.session_state.get("global_sheet")):
         save_course(selected_sheet)
         st.session_state["global_sheet"] = selected_sheet
 
@@ -142,8 +187,15 @@ def render_new_user_form(available_types: list[str], config: dict) -> dict | Non
     </style>
     """, unsafe_allow_html=True)
 
-    # Catálogo de asignaturas (solo necesario para Erasmus IN)
-    asignaturas_catalog = load_asignaturas_catalog(cfg, sheet_name=selected_sheet)
+    # Catálogo de asignaturas (solo necesario para Erasmus IN). Si el usuario
+    # está tecleando un nombre de hoja nueva, NO usamos esa hoja como fuente
+    # del catálogo (no existe aún → recargas/errores en cada keystroke).
+    # Caemos a la hoja existente más reciente.
+    catalog_sheet = (
+        selected_sheet if (choice != SENT_NEW and selected_sheet)
+        else (sheet_opts[-1] if sheet_opts else None)
+    )
+    asignaturas_catalog = load_asignaturas_catalog(cfg, sheet_name=catalog_sheet)
 
     # ── Sub-formulario por programa ───────────────────────────────────────────
     if tipo == PROGRAM_ERASMUS_OUT:
@@ -332,6 +384,7 @@ def render_new_user_form(available_types: list[str], config: dict) -> dict | Non
                 "cuat": cuat_global,
                 "firmado": firmado_global,
                 "link_la": la_global,
+                "cupo": 0,
             }]
         else:
             materias_payload = [
@@ -340,6 +393,7 @@ def render_new_user_form(available_types: list[str], config: dict) -> dict | Non
                     "cuat": cuat_global,
                     "firmado": firmado_global,
                     "link_la": la_global,
+                    "cupo": int(m.get("cupo") or 0),
                 }
                 for m in st.session_state.get("nu_materias_in", [])
                 if asig_nombre_puro((m.get("nombre") or "").strip())
@@ -362,6 +416,17 @@ def render_new_user_form(available_types: list[str], config: dict) -> dict | Non
     if not ok:
         st.toast(f"Error guardando en Excel: {err}", icon="❌")
         return None
+
+    # Una vez creada la hoja en disco, sí podemos fijarla como curso global.
+    if selected_sheet and selected_sheet != st.session_state.get("global_sheet"):
+        save_course(selected_sheet)
+        st.session_state["global_sheet"] = selected_sheet
+
+    # Si se creó una hoja nueva, dejamos un "pendiente" para que en el próximo
+    # run el desplegable se conmute a esa hoja (no se puede escribir el state
+    # del widget aquí porque ya está instanciado).
+    if choice == SENT_NEW and selected_sheet:
+        st.session_state["_nu_pending_sheet"] = selected_sheet
 
     from ui._sidebar_config import _list_sheets_in_file
     from ui.stats_helpers import build_export_xlsx
