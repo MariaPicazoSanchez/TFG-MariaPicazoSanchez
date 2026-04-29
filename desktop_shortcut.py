@@ -12,7 +12,9 @@ from __future__ import annotations
 
 import ctypes
 import logging
+import shutil
 import subprocess
+import sys
 from pathlib import Path
 
 logger = logging.getLogger("movilidad_launcher")
@@ -20,9 +22,35 @@ logger = logging.getLogger("movilidad_launcher")
 # Debe coincidir con <Application Id="..."> del AppxManifest.xml.
 APP_ID = "MovilidadESII"
 SHORTCUT_NAME = "MovilidadESII.lnk"
+ICON_FILENAME = "MovilidadESII.ico"
 _APPMODEL_ERROR_NO_PACKAGE = 15700
 _ERROR_INSUFFICIENT_BUFFER = 122
 _CREATE_NO_WINDOW = 0x08000000
+
+
+def _find_app_icon(hint: Path | None) -> Path | None:
+    """
+    Localiza MovilidadESII.ico probando primero la pista del caller y luego
+    rutas habituales de PyInstaller. En PyInstaller 6.x onedir los datafiles
+    viven en `_internal/` junto al EXE, no en el mismo directorio que él, así
+    que un único candidato no basta.
+    """
+    candidates: list[Path] = []
+    if hint is not None:
+        candidates.append(hint)
+    exe_dir = Path(sys.executable).parent
+    candidates.append(exe_dir / ICON_FILENAME)
+    candidates.append(exe_dir / "_internal" / ICON_FILENAME)
+    meipass = getattr(sys, "_MEIPASS", None)
+    if meipass:
+        candidates.append(Path(meipass) / ICON_FILENAME)
+    for c in candidates:
+        try:
+            if c.exists():
+                return c
+        except OSError:
+            continue
+    return None
 
 
 def _get_package_family_name() -> str | None:
@@ -75,7 +103,9 @@ def ensure_msix_desktop_shortcut(
 
     try:
         marker_dir.mkdir(parents=True, exist_ok=True)
-        marker = marker_dir / ".desktop_shortcut_msix_v1"
+        # v2: garantiza que instalaciones previas con shortcut sin icono se
+        # regeneren al ejecutar la nueva versión.
+        marker = marker_dir / ".desktop_shortcut_msix_v2"
         if marker.exists():
             return
     except OSError as exc:
@@ -84,10 +114,22 @@ def ensure_msix_desktop_shortcut(
 
     aumid = f"{pfn}!{APP_ID}"
     icon_line = ""
-    if icon_path and icon_path.exists():
+    resolved_icon = _find_app_icon(icon_path)
+    if resolved_icon is not None:
+        # Copiamos el .ico a marker_dir (LocalAppData) y apuntamos ahí la
+        # IconLocation: la ruta de instalación de un paquete MSIX cambia en
+        # cada actualización (versión + hash en WindowsApps\...), lo que
+        # rompería un IconLocation que apuntase dentro del propio paquete.
+        persistent_icon = marker_dir / ICON_FILENAME
+        try:
+            shutil.copyfile(resolved_icon, persistent_icon)
+            target_icon = persistent_icon
+        except OSError as exc:
+            logger.debug("No se pudo copiar icono a %s: %s", persistent_icon, exc)
+            target_icon = resolved_icon
         # Las comillas dobles en PowerShell permiten rutas con caracteres
         # especiales; escapamos comillas dobles del path con backtick.
-        safe_icon = str(icon_path).replace('"', '`"')
+        safe_icon = str(target_icon).replace('"', '`"')
         icon_line = f'$s.IconLocation = "{safe_icon}";'
 
     # [Environment]::GetFolderPath('Desktop') resuelve correctamente los

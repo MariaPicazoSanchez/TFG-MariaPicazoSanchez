@@ -1177,11 +1177,27 @@ def start_processes(api_enabled: bool = True, api_disabled_reason: str | None = 
                     from PIL import Image as _PILImage
 
                     if getattr(sys, "frozen", False):
-                        _ico_path = str(Path(sys.executable).parent / "MovilidadESII.ico")
+                        # PyInstaller 6.x onedir coloca los datafiles en
+                        # `_internal/` junto al EXE, no al lado del EXE; en MSIX
+                        # esto rompía la carga del icono y, al fallar PIL, el
+                        # handler de la X devolvía None y permitía el cierre
+                        # real en vez de minimizar a la bandeja.
+                        _exe_dir = Path(sys.executable).parent
+                        _ico_candidates = [
+                            _exe_dir / "MovilidadESII.ico",
+                            _exe_dir / "_internal" / "MovilidadESII.ico",
+                        ]
+                        _meipass = getattr(sys, "_MEIPASS", None)
+                        if _meipass:
+                            _ico_candidates.append(Path(_meipass) / "MovilidadESII.ico")
                     else:
-                        _ico_path = str(
+                        _ico_candidates = [
                             Path(__file__).parent / "install_root" / "MovilidadESII.ico"
-                        )
+                        ]
+                    _ico_path = str(next(
+                        (p for p in _ico_candidates if p.exists()),
+                        _ico_candidates[0],
+                    ))
                     _tray_ref = [None]   # [pystray.Icon | None]
                     _quit_flag = [False]  # True → cierre real desde la bandeja
 
@@ -1233,6 +1249,19 @@ def start_processes(api_enabled: bool = True, api_disabled_reason: str | None = 
                         if _tray_ref[0] is None:
                             try:
                                 _img = _PILImage.open(_ico_path)
+                            except Exception as _ie:
+                                # Si el .ico no se encuentra en el bundle, no
+                                # dejamos que falle el minimize-to-tray: usamos
+                                # un placeholder en memoria. La bandeja se
+                                # mostrará sin icono visible, pero la ventana
+                                # se ocultará correctamente y el menú seguirá
+                                # accesible con clic derecho.
+                                LOGGER.warning(
+                                    "No se pudo cargar %s: %s — usando placeholder.",
+                                    _ico_path, _ie,
+                                )
+                                _img = _PILImage.new("RGBA", (16, 16), (0, 0, 0, 0))
+                            try:
                                 _menu = _pystray.Menu(
                                     _pystray.MenuItem(
                                         "Restaurar ventana",
