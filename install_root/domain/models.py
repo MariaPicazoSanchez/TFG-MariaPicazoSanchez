@@ -7,7 +7,7 @@ ESTADOS_FIRMA = [
 
 COMMON_COLS = ["Nombre", "Apellidos", "Email", "Universidad", "Coordenadas"]
 SPEC_COLS = {
-    "Erasmus OUT": ["ToR", "Curso", "ActaEquivalencias"],
+    "Erasmus OUT": ["Curso"],
     "Erasmus IN":  ["LA", "Horario"],
     "SICUE OUT":   ["LA", "EstadoFirmas", "PlanEstudios"],
 }
@@ -71,12 +71,6 @@ FIELD_ALIASES = {
         "link_la",
         "Learning agreement",
         "Learning Agreement",
-    ],
-    "ToR": [
-        "ToR", "TOR", "Transcript of Records",
-    ],
-    "acta_equivalencias": [
-        "acta_equivalencias", "Acta de equivalencias",
     ],
     "link_plan": [
         "Plan de estudios",

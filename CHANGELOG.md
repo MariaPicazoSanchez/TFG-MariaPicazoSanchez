@@ -9,6 +9,35 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.2.0] - 2026-04-30
+
+### Added
+- **User-configurable X-button behaviour**: new "Ajustes" popover at the bottom-right of the sidebar exposes a "Mantener en segundo plano al pulsar X" checkbox (checked by default). When unchecked, clicking the window's X closes the application completely instead of minimising to the system tray. The choice persists via a new `close_to_tray` key in `config.json`; the launcher re-reads it on every close so the change takes effect without restarting the app.
+- `_render_settings_popover` + `_on_close_to_tray_change` helpers in `ui/sidebar.py`. The settings entry uses `st.popover` (native to Streamlit ≥1.32) with the Material Symbol `:material/settings:` icon, so it no longer relies on the gear emoji (which renders inconsistently across operating systems) and does not require manual `st.rerun()` calls — the popover manages its own open/close state and the checkbox change is persisted via an `on_change` callback. Rendered in every view (map, stats, new student).
+- Fallback in-memory PIL placeholder image for the system-tray icon so the X handler never falls through to a real close just because the `.ico` cannot be loaded.
+
+### Changed
+- **Multi-path icon discovery**: both the system-tray initialisation (`launcher_system.py`) and the MSIX desktop-shortcut helper (`desktop_shortcut.py`) now look for `MovilidadESII.ico` in `Path(sys.executable).parent`, `Path(sys.executable).parent / "_internal"`, and `sys._MEIPASS` — covering both the Inno install layout (icon next to the EXE) and the MSIX/PyInstaller 6.x layout (icon under `_internal/`).
+- **Persistent icon for the MSIX shortcut**: `ensure_msix_desktop_shortcut` now copies the resolved `.ico` to `marker_dir` (LocalAppData) and sets `IconLocation` to that stable path. Previously, IconLocation pointed inside the MSIX install folder, which changes on every Store update (`WindowsApps\…\version_hash`), invalidating the icon. The marker version was bumped from `_v1` to `_v2` so existing installs with a broken shortcut regenerate it on next launch.
+- README §2 (Repository Structure) rewritten to match the actual tree: `config.json` moved from the repo root to `install_root/`; `desktop_shortcut.py`, `MovilidadESII.spec`, `CHANGELOG.md` listed at the root; missing files in `persistence/`, `export/`, `ui/`, `utils/`, `static/` and the icon/PNG assets in `install_root/` added with descriptions.
+- README §3 (Configuration): development path of `config.json` corrected to `install_root/config.json`; `APP_CONFIG_PATH` override mentioned.
+- README §7 (REST API Reference): added `GET /saved_flag` (last-save timestamp polling) and `POST /update_plan_coord` (study-plan write into the `Coordenadas` sheet) with their full field tables and error codes.
+- `docs/index.html` install section: the two `.exe` download buttons now resolve dynamically to the latest release's assets via `https://api.github.com/repos/.../releases/latest` (matched by the `data-asset-pattern` attribute). On API failure, the static `releases/latest` URL acts as a fallback so the buttons keep working.
+
+### Fixed
+- **MSIX X-button silently closed the application** instead of minimising to tray. The handler in `launcher_system.py` was opening the icon at `Path(sys.executable).parent / "MovilidadESII.ico"`, but PyInstaller 6.x onedir places datafiles under `_internal/`. The resulting `FileNotFoundError` made `_on_closing` return `None`, which pywebview interprets as "do not cancel the close." Now the icon is searched in multiple locations and a placeholder is used as last resort, so the X always minimises to tray when configured to do so. Inno builds were unaffected because the installer copies the `.ico` next to the executable explicitly.
+- **MSIX desktop shortcut showed the explorer.exe (folder) icon** instead of the application icon. Same root cause: the launcher passed `None` to `ensure_msix_desktop_shortcut`, no `IconLocation` was set on the `.lnk`, and Windows fell back to the `explorer.exe` icon. Fixed by the multi-path search and persistent-copy logic above.
+- `docs/index.html` install buttons no longer link to the non-existent `docs/downloads/` folder (which would 404 on GitHub Pages).
+
+### Removed
+- **Erasmus OUT: `ToR` and `Acta de equivalencias` columns** dropped from the read/write pipeline and from the structure documentation. The institution does not use either field, so keeping them in the schema only added clutter to the popup, the new-student form and the destination Excel files.
+  - Read path: `tor`/`acta` removed from `COLUMN_ALIASES` (`constants.py`), `FIELD_ALIASES` and `SPEC_COLS["Erasmus OUT"]` (`domain/models.py`), the `_excel_cells.py` alias dictionary, the `loaders/erasmus_out.py` `_pick`/`mapping` block, and the `student_cols` projection in `ui/map_view.py`.
+  - Write path: `ToR` / `ActaEquivalencias` removed from the new-sheet row builder and from the existing-sheet `Erasmus OUT` branch in `persistence/_insert_row_builders.py`; also from the form-data extraction tuple in `persistence/data_insert.py`.
+  - UI: `nu_tor` / `nu_acta` text inputs and their file pickers removed from `ui/new_user/_form_out.py`; the corresponding session-state keys removed from `ui/new_user/view.py::_clear_form()`. Popup view + edit fields cleaned in `ui/popup_templates.py` (the `tor_val`/`acta_val` keys, the `_view_link` rows for ToR/Acta, the `acta_field` HTML block, the `tor_field` `build_link_file_field` call, and the field assembly lists for both Erasmus OUT and the fallback case).
+  - Documentation: `docs/excel_structure.html` now shows the Erasmus-OUT sheet with 11 columns instead of 12 (header `<th>`s, header row, both example rows, and the `colspan` for the "más filas" footer all updated). The note "LA / ToR" is now just "LA".
+  - Existing Excel files with these columns still in place are not modified — the loader simply ignores them and the writer skips them, so legacy data is preserved without manual cleanup.
+- `psutil==7.2.2` from `install_root/requirements.txt`. The package was unused: `shutdown_processes` in `launcher_system.py` uses Windows' native `taskkill /F /T` to terminate process trees. The corresponding row was also removed from the dependency table in README §4.
+
 ## [1.1.2] - 2026-04-25
 
 ### Added
@@ -117,7 +146,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Embedded Python 3.12 runtime bundled in installer for zero-dependency deployment.
 - SHA256 checksums published alongside each GitHub Release.
 
-[Unreleased]: https://github.com/MariaPicazoSanchez/TFG-MariaPicazoSanchez/compare/v1.1.2...HEAD
+[Unreleased]: https://github.com/MariaPicazoSanchez/TFG-MariaPicazoSanchez/compare/v1.2.0...HEAD
+[1.2.0]: https://github.com/MariaPicazoSanchez/TFG-MariaPicazoSanchez/compare/v1.1.2...v1.2.0
 [1.1.2]: https://github.com/MariaPicazoSanchez/TFG-MariaPicazoSanchez/compare/v1.1.1...v1.1.2
 [1.1.1]: https://github.com/MariaPicazoSanchez/TFG-MariaPicazoSanchez/compare/v1.1.0...v1.1.1
 [1.1.0]: https://github.com/MariaPicazoSanchez/TFG-MariaPicazoSanchez/compare/v1.0.0...v1.1.0

@@ -51,7 +51,7 @@ def _clear_new_user_form_state() -> None:
 
     _empty_keys = (
         "nu_nombre", "nu_apellidos", "nu_email", "nu_destino_origen", "nu_pais_out",
-        "nu_ciudad", "nu_tor", "nu_curso", "nu_la_out_opt", "nu_acta", "nu_dur_out",
+        "nu_ciudad", "nu_curso", "nu_la_out_opt", "nu_dur_out",
         "nu_resp_prog", "nu_plan_out", "nu_pais_in", "nu_la_in", "nu_horario",
         "nu_cuatri_in", "nu_la_sicue", "nu_plan", "nu_dur_sicue", "nu_coord_dest",
         "nu_materias_in", "nu_plan_sic_out",

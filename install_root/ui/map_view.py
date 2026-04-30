@@ -98,7 +98,7 @@ def group_rows_by_location(df, decimals=2):
     df["_lat_r"] = df["latitud"].round(decimals)
     df["_lon_r"] = df["longitud"].round(decimals)
 
-    student_cols = [c for c in ["estudiante","curso","link_LA","ToR","acta_equivalencias","link_plan"] if c in df.columns]
+    student_cols = [c for c in ["estudiante","curso","link_LA","link_plan"] if c in df.columns]
     keys = [c for c in ["universidad","pais","_lat_r","_lon_r"] if c in df.columns]
 
     grouped = []

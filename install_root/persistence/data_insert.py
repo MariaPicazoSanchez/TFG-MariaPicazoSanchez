@@ -396,7 +396,7 @@ def handle_save_student_query() -> None:
     campos: dict = {}
     for key in ("estudiante", "email", "curso", "cuatrimestre",
                 "duracion_meses", "gestion_LA", "coordinador_destino",
-                "link_la", "ToR", "acta_equivalencias", "link_plan"):
+                "link_la", "link_plan"):
         v = _qp_val(params, key)
         if v is not None:
             campos[key] = v

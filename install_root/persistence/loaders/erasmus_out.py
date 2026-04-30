@@ -41,7 +41,6 @@ def load_erasmus_out(
     c_curso    = _pick(df, "Curso", "curso")
     c_duracion = _pick(df, "Duracion meses", "Duración meses", "duracion_meses", "duración_meses")
     c_resp     = _pick(df, "Responsable programa", "Responsable", "responsable")
-    c_tor      = _pick(df, "ToR", "tor")
 
     # Construir columna estudiante
     if c_nombre or c_ap1 or c_ap2:
@@ -131,7 +130,6 @@ def load_erasmus_out(
         if c_curso:    mapping[c_curso]    = "curso"
         if c_duracion: mapping[c_duracion] = "duracion_meses"
         if c_resp:     mapping[c_resp]     = "responsable"
-        if c_tor:      mapping[c_tor]      = "ToR"
 
         keep = ["estudiante"]
         if "link_LA"   in g.columns: keep.append("link_LA")

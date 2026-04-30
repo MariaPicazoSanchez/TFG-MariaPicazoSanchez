@@ -47,9 +47,7 @@ def build_new_sheet_row(
     if tipo == "Erasmus OUT":
         need_cols = [c for c in need_cols if c.lower() != "coordenadas"]
         new.update({
-            "ToR":              row_data.get("tor"),
-            "Curso":            row_data.get("curso"),
-            "ActaEquivalencias": row_data.get("acta_equivalencias"),
+            "Curso": row_data.get("curso"),
         })
         if row_data.get("ciudad"):
             new["Ciudad"] = row_data.get("ciudad")
@@ -166,9 +164,7 @@ def build_existing_sheet_row(
 
     elif tipo == "Erasmus OUT":
         c_la     = _pick_col(df, "LA", "la")
-        c_tor    = _pick_col(df, "ToR", "tor")
         c_curso  = _pick_col(df, "Curso", "curso")
-        c_acta   = _pick_col(df, "Acta de equivalencias", "ActaEquivalencias", "acta equivalencias")
         c_dur    = _pick_col(df, "duracion meses", "duración meses", "duracion_meses")
         c_resp   = _pick_col(df, "responsable programa", "responsable del programa")
         c_plan   = _pick_col(df, "Enlace plan de estudios", "plan de estudios")
@@ -176,9 +172,7 @@ def build_existing_sheet_row(
         c_pais   = _pick_col(df, "País", "Pais")
         c_ciudad = _pick_col(df, "Ciudad", "ciudad", "city", "localidad", "poblacion")
         if c_la:    new_row[c_la]    = row_data.get("la")
-        if c_tor:   new_row[c_tor]   = row_data.get("tor")
         if c_curso: new_row[c_curso] = row_data.get("curso")
-        if c_acta:  new_row[c_acta]  = row_data.get("acta_equivalencias")
         if c_dur:   new_row[c_dur]   = row_data.get("dur_out") or None
         if c_resp:  new_row[c_resp]  = row_data.get("resp_prog") or None
         if c_la and row_data.get("la_out"):             new_row[c_la]   = row_data.get("la_out")

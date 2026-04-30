@@ -1236,16 +1236,36 @@ def start_processes(api_enabled: bool = True, api_disabled_reason: str | None = 
                         except Exception:
                             pass
 
+                    def _read_close_to_tray() -> bool:
+                        """
+                        Lee `close_to_tray` desde config.json.
+                          True  (default) → la X minimiza a la bandeja
+                          False           → la X cierra la app por completo
+                        Se relee en cada cierre, así el cambio en el sidebar
+                        surte efecto sin reiniciar la app.
+                        """
+                        try:
+                            with open(CONFIG_PATH, "r", encoding="utf-8") as f:
+                                cfg = json.load(f)
+                            return bool(cfg.get("close_to_tray", True))
+                        except Exception:
+                            return True
+
                     def _on_closing():
                         """
                         Intercepta el cierre de ventana (clic en X).
                         Si _quit_flag está activo, permite el cierre real.
-                        Si no, oculta la ventana y crea el icono en la bandeja.
-                        Devuelve False para cancelar el cierre real.
+                        Si el usuario desactivó "minimizar a bandeja" en el
+                        sidebar, también permite el cierre real.
+                        En caso contrario, oculta la ventana y crea el icono
+                        en la bandeja. Devuelve False para cancelar la X.
                         """
                         if _quit_flag[0]:
                             return  # Cierre real desde bandeja → no cancelar
                         _save_window_state()
+                        if not _read_close_to_tray():
+                            # Usuario optó por cierre completo
+                            return
                         if _tray_ref[0] is None:
                             try:
                                 _img = _PILImage.open(_ico_path)

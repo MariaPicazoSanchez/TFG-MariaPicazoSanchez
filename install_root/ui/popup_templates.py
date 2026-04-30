@@ -87,8 +87,6 @@ def _extract_student_fields(e: dict, row: dict) -> dict:
         "gest_val":        _clean(e.get("gestion_LA") or row.get("gestion_LA") or row.get("Gestión LA") or row.get("Gestion LA")),
         "coord_val":       _clean(e.get("coordinador_destino") or row.get("coordinador_destino") or row.get("Coordinador en destino")),
         "la_val":          _clean(e.get("link_la")),
-        "tor_val":         _clean(e.get("ToR") or row.get("ToR") or row.get("tor")),
-        "acta_val":        _clean(e.get("acta_equivalencias")),
         "plan_val":        _clean(e.get("link_plan") or row.get("Plan de estudios") or row.get("Plan estudios") or row.get("Enlace plan de estudios")),
         "destino_val":     _clean(e.get("destino") or row.get("destino") or row.get("Destino") or row.get("universidad")),
         "origen_val":      _clean(
@@ -148,7 +146,6 @@ def _build_view_lines(
             _view_line("País",                d["pais_val"]),
             _view_link("Learning Agreement",  d["la_val"],   open_in_system=True),
             _view_link("Propuesta Alumno LA", d["plan_val"], open_in_system=True),
-            _view_link("ToR",                 d["tor_val"],  open_in_system=True),
         ]
 
     elif prog_upper == "ERASMUS IN":
@@ -178,8 +175,6 @@ def _build_view_lines(
             _view_line("Gestión LA",           d["gest_val"]),
             _view_line("Coordinador destino",  d["coord_val"]),
             _view_link("Learning Agreement",   d["la_val"],   open_in_system=True),
-            _view_link("ToR",                  d["tor_val"],  open_in_system=True),
-            _view_link("Acta de equivalencias", d["acta_val"], open_in_system=True),
             _view_link("Propuesta Alumno LA",  d["plan_val"], open_in_system=True),
         ]
         if has_materias and materias_view_html:
@@ -271,14 +266,7 @@ def _build_edit_fields(
           <input name="coordinador_destino" value="{html.escape(d['coord_val'], quote=True)}">
         </div>'''
 
-    acta_field = f'''
-        <div class="field">
-          <label>Acta de equivalencias</label>
-          <input name="acta_equivalencias" value="{html.escape(d['acta_val'], quote=True)}">
-        </div>'''
-
     la_field   = build_link_file_field("LA",                "link_la",   d["la_val"],   row_index_attr, idx_attr, "la")
-    tor_field  = build_link_file_field("ToR",               "link_tor",  d["tor_val"],  row_index_attr, idx_attr, "tor")
     plan_field = build_link_file_field("Propuesta Alumno LA","link_plan", d["plan_val"], row_index_attr, idx_attr, "plan")
 
     # ── Campos de universidad ─────────────────────────────────────────────────
@@ -397,14 +385,14 @@ def _build_edit_fields(
 
     if prog_upper == "ERASMUS OUT":
         return [nombre_field, email_field, curso_field, dur_field, la_field,
-                plan_field, tor_field, destino_field, pais_field, ciudad_field]
+                plan_field, destino_field, pais_field, ciudad_field]
 
     if prog_upper == "ERASMUS IN":
         return [nombre_field, cuatri_field, la_field, origen_field, pais_field, firmado_field]
 
     # fallback
     return [nombre_field, email_field, curso_field, cuatri_field, dur_field, gest_field,
-            coord_field, la_field, tor_field, acta_field, plan_field]
+            coord_field, la_field, plan_field]
 
 
 # ─────────────────────────────────────────────────────────────────────────────

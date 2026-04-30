@@ -123,6 +123,65 @@ def route_editor(config: dict) -> None:
 # Sidebar principal
 # ─────────────────────────────────────────────────────────────────────────────
 
+def _on_close_to_tray_change() -> None:
+    """
+    Callback del checkbox de Ajustes. Persiste el nuevo valor en
+    config.json y refresca el cache en session_state. No llama a
+    st.rerun(): Streamlit ya hace su propio rerun tras la interacción
+    con el widget; un rerun manual añadido encima es lo que hacía que
+    la app pareciese "recargarse" entera.
+    """
+    new_val = bool(st.session_state.get("cfg_close_to_tray", True))
+    save_config({"close_to_tray": new_val})
+    cfg = st.session_state.get("config", {}) or {}
+    cfg["close_to_tray"] = new_val
+    st.session_state["config"] = cfg
+    st.toast("Preferencia guardada", icon="✅")
+
+
+def _render_settings_popover() -> None:
+    """
+    Botón de ajustes al pie del sidebar.
+
+    Usa `st.popover` (nativo de Streamlit ≥1.32) con un Material Symbol
+    Icon como `icon=":material/settings:"`, así:
+      • no se necesita el emoji ⚙️ (que renderiza distinto en cada SO);
+      • no hay toggle manual ni `st.rerun()`: el propio popover gestiona
+        su apertura/cierre y Streamlit conserva el estado entre reruns;
+      • el panel se posiciona como overlay flotante, no como sección
+        extra empujando todo el sidebar hacia abajo.
+    """
+    cfg = st.session_state.get("config", {}) or {}
+    # Inicializar el estado de session_state solo si no existe — en reruns
+    # posteriores Streamlit ya tiene el valor bajo la clave del checkbox.
+    st.session_state.setdefault(
+        "cfg_close_to_tray", bool(cfg.get("close_to_tray", True))
+    )
+
+    st.sidebar.markdown("---")
+    _, col = st.sidebar.columns([2, 3])
+    with col:
+        with st.popover(
+            "Ajustes",
+            icon=":material/settings:",
+            use_container_width=True,
+            help="Preferencias de la aplicación",
+        ):
+            st.markdown("##### Preferencias")
+            st.checkbox(
+                "Mantener en segundo plano al pulsar X",
+                key="cfg_close_to_tray",
+                on_change=_on_close_to_tray_change,
+                help=(
+                    "Marcado (recomendado): al pulsar X la aplicación se "
+                    "minimiza a la bandeja del sistema y sigue corriendo "
+                    "en segundo plano —el icono queda junto al reloj y "
+                    "permite restaurar la ventana donde la dejaste. "
+                    "Desmarcado: X cierra la aplicación por completo."
+                ),
+            )
+
+
 def sidebar_controls() -> tuple[str | None, st.delta_generator.DeltaGenerator | None]:
     """Crea la barra lateral con filtros y gestión de rutas."""
 
@@ -141,6 +200,7 @@ def sidebar_controls() -> tuple[str | None, st.delta_generator.DeltaGenerator | 
     if "view" not in st.session_state:
         st.session_state["view"] = "map"
 
+    base_map: str | None = None
     search_slot = None
 
     if st.session_state["view"] == "new_user":
@@ -215,6 +275,9 @@ def sidebar_controls() -> tuple[str | None, st.delta_generator.DeltaGenerator | 
                 unsafe_allow_html=True,
             )
 
-        return base_map, search_slot
+    # Botón de ajustes (popover Material) al pie del sidebar — visible en
+    # todas las vistas. El popover gestiona su propio estado, no requiere
+    # st.rerun() manual.
+    _render_settings_popover()
 
-    return None, search_slot
+    return base_map, search_slot

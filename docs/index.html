@@ -62,7 +62,6 @@
              rel="noopener noreferrer">
             Ver repositorio en GitHub
           </a>
-          <a href="#funcionalidades" class="btn btn-outline">Explorar funcionalidades</a>
           <a href="excel_structure.html" class="btn btn-outline">Estructura Excel</a>
           <a href="privacy.html" class="btn btn-outline">Política de privacidad</a>
         </div>
@@ -672,7 +671,10 @@
             </ul>
             <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:1rem;margin-bottom:1.25rem;">
 
-              <a href="downloads/MovilidadESII_SinData_latest.exe"
+              <a id="download-sindata"
+                 href="https://github.com/MariaPicazoSanchez/TFG-MariaPicazoSanchez/releases/latest"
+                 rel="noopener noreferrer"
+                 data-asset-pattern="SinData_v"
                  style="display:flex;flex-direction:column;gap:.35rem;padding:1rem 1.25rem;
                         background:#fff;border:2px solid var(--color-primary);
                         border-radius:var(--radius-md);text-decoration:none;
@@ -685,7 +687,10 @@
                 <span style="margin-top:.4rem;font-size:.85rem;font-weight:600;color:var(--color-primary);">Descargar .exe</span>
               </a>
 
-              <a href="downloads/MovilidadESII_ConData_latest.exe"
+              <a id="download-condata"
+                 href="https://github.com/MariaPicazoSanchez/TFG-MariaPicazoSanchez/releases/latest"
+                 rel="noopener noreferrer"
+                 data-asset-pattern="ConData_v"
                  style="display:flex;flex-direction:column;gap:.35rem;padding:1rem 1.25rem;
                         background:#fff7ed;border:2px solid var(--color-border-strong);
                         border-radius:var(--radius-md);text-decoration:none;
@@ -1204,6 +1209,37 @@
   <button id="back-to-top" aria-label="Volver al inicio" title="Volver al inicio">⬆</button>
 
   <script>
+    // Resuelve los enlaces de descarga directa al .exe de la última release
+    // vía la API pública de GitHub. Si la API falla (rate limit, sin red),
+    // los enlaces conservan el href de respaldo a la página de la release.
+    document.addEventListener('DOMContentLoaded', function () {
+      var REPO = 'MariaPicazoSanchez/TFG-MariaPicazoSanchez';
+      var anchors = document.querySelectorAll('a[data-asset-pattern]');
+      if (!anchors.length) return;
+
+      fetch('https://api.github.com/repos/' + REPO + '/releases/latest', {
+        headers: { 'Accept': 'application/vnd.github+json' }
+      })
+        .then(function (r) { return r.ok ? r.json() : null; })
+        .then(function (data) {
+          if (!data || !Array.isArray(data.assets)) return;
+          anchors.forEach(function (a) {
+            var pattern = a.getAttribute('data-asset-pattern');
+            if (!pattern) return;
+            var asset = data.assets.find(function (x) {
+              return x.name && x.name.indexOf(pattern) !== -1 && /\.exe$/i.test(x.name);
+            });
+            if (asset && asset.browser_download_url) {
+              a.href = asset.browser_download_url;
+              if (data.tag_name) {
+                a.title = 'Descargar ' + asset.name + ' (' + data.tag_name + ')';
+              }
+            }
+          });
+        })
+        .catch(function () { /* fallback al href estático */ });
+    });
+
     // Copiar contenido de bloques de código — añade feedback visual
     document.addEventListener('DOMContentLoaded', function () {
       document.querySelectorAll('.code-copy-btn').forEach(function (btn) {

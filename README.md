@@ -115,81 +115,98 @@ The Streamlit app connects to the WebSocket server on load. When the browser tab
 ```text
 TFG-MariaPicazoSanchez/
 ├── launcher_system.py           # Unified launcher — --dev · --demo · production
-├── config.json                  # Excel file paths per mobility programme
+├── desktop_shortcut.py          # MSIX-only desktop shortcut creation (no-op for Inno)
+├── MovilidadESII.spec           # PyInstaller build spec (icon + bundled datafiles)
 ├── installer.iss                # Inno Setup script (demo build — bundles sample data, passes --demo)
 ├── installer_sindata.iss        # Inno Setup script (production build — no data bundled)
 ├── requirements-dev.txt         # Development dependencies (includes pytest)
 ├── pytest.ini                   # pytest configuration
+├── CHANGELOG.md                 # Version history
 ├── tests/                       # Unit tests (pytest)
 │   ├── conftest.py              # Path setup and streamlit mocks
 │   ├── test_converters.py       # Tests for domain/_converters.py
 │   ├── test_validators.py       # Tests for domain/_validator_rules.py
-│   └── test_map_processing.py  # Tests for utils/map_processing.py
+│   └── test_map_processing.py   # Tests for utils/map_processing.py
 └── install_root/
+    ├── config.json                 # Excel file paths per mobility programme (development)
+    ├── MovilidadESII.ico           # Application icon (window, tray, MSIX shortcut)
+    ├── assets_png/                 # MSIX tile/logo assets (44x44, 150x150, Store)
     ├── api/
-    │   └── api.py               # Flask microservice (see §7)
+    │   └── api.py                  # Flask microservice (see §7)
     ├── web_app/
-    │   └── my_app.py            # Streamlit entry point — view routing
-    ├── constants.py             # Global constants (programme names, Excel columns, …)
-    ├── requirements.txt         # Pinned Python dependencies
+    │   └── my_app.py               # Streamlit entry point — view routing
+    ├── constants.py                # Global constants (programme names, Excel columns, …)
+    ├── requirements.txt            # Pinned Python dependencies
     ├── domain/
-    │   ├── models.py            # Column definitions and programme constants
-    │   ├── map_filters.py       # Filter logic for the map view
-    │   ├── stats_filters.py     # Filter logic for the statistics view
-    │   ├── validators.py        # DataValidator orchestrator and schemas
-    │   ├── _converters.py       # Type converters and normalizers
-    │   ├── _validator_rules.py  # Individual validator factories
-    │   └── es_cities.py         # Static catalogue of Spanish cities
+    │   ├── models.py               # Column definitions and programme constants
+    │   ├── map_filters.py          # Filter logic for the map view
+    │   ├── stats_filters.py        # Filter logic for the statistics view
+    │   ├── validators.py           # DataValidator orchestrator and schemas
+    │   ├── _converters.py          # Type converters and normalizers
+    │   ├── _validator_rules.py     # Individual validator factories
+    │   └── es_cities.py            # Static catalogue of Spanish cities
     ├── persistence/
-    │   ├── data_insert.py           # New row insertion into Excel
-    │   ├── excel_update.py          # In-place row update (openpyxl)
-    │   ├── materias_in_loader.py    # Erasmus IN subject-sheet loader
-    │   ├── _excel_cells.py          # Cell-level helpers (geocoding, field aliases)
-    │   ├── _excel_tables.py         # Table/header detection utilities
-    │   ├── _insert_helpers.py       # Column lookup helpers
-    │   ├── _insert_row_builders.py  # Row dict builders per programme type
+    │   ├── data_access_mobility.py # Backward-compat shim re-exporting from loaders/
+    │   ├── data_insert.py          # New row insertion into Excel
+    │   ├── excel_update.py         # In-place row update (openpyxl)
+    │   ├── materias_in_loader.py   # Erasmus IN subject-sheet loader
+    │   ├── sheets_helpers.py       # Sheet-name normalization and resolution
+    │   ├── _erasmus_in_catalog.py  # Erasmus IN course-catalogue table detection
+    │   ├── _excel_cells.py         # Cell-level helpers (geocoding, field aliases)
+    │   ├── _excel_tables.py        # Table/header detection utilities
+    │   ├── _insert_helpers.py      # Column lookup helpers
+    │   ├── _insert_row_builders.py # Row dict builders per programme type
     │   └── loaders/
-    │       ├── all_dataframes.py    # Loads all programmes into DataFrames
-    │       ├── erasmus_in.py        # Erasmus IN loader
-    │       ├── erasmus_out.py       # Erasmus OUT loader
-    │       ├── sicue_out.py         # SICUE OUT loader
-    │       └── _common.py           # Shared loader utilities
+    │       ├── all_dataframes.py   # Loads all programmes into DataFrames
+    │       ├── erasmus_in.py       # Erasmus IN loader
+    │       ├── erasmus_out.py      # Erasmus OUT loader
+    │       ├── sicue_out.py        # SICUE OUT loader
+    │       └── _common.py          # Shared loader utilities
     ├── export/
-    │   └── stats_export.py      # Statistics export to .xlsx
+    │   ├── map_export.py           # Folium-map HTML export (offline file)
+    │   └── stats_export.py         # Statistics export to .xlsx
     ├── ui/
-    │   ├── map_view.py          # Interactive map view (Folium + streamlit-folium)
-    │   ├── stats_view.py        # Statistics view (Altair / st.bar_chart)
-    │   ├── sidebar.py           # Filter sidebar
-    │   ├── _sidebar_config.py   # Config I/O and file-picker helpers
-    │   ├── popup_materias.py    # Erasmus IN subject-editing popup
-    │   ├── popup_templates.py   # Map popup HTML generation
-    │   ├── search_helpers.py    # Sidebar autocomplete and search
-    │   ├── stats_helpers.py     # Metric computation for the statistics view
-    │   ├── stats_table.py       # Paginated results table
-    │   ├── stats_details.py     # Per-row statistics detail panel
-    │   ├── styles.py            # CSS injected into Streamlit
+    │   ├── map_view.py             # Interactive map view (Folium + streamlit-folium)
+    │   ├── stats_view.py           # Statistics view (Altair / st.bar_chart)
+    │   ├── sidebar.py               # Filter sidebar
+    │   ├── _sidebar_config.py      # Config I/O and file-picker helpers
+    │   ├── _sidebar_styles.py      # CSS/JS constants for sidebar and layout
+    │   ├── new_user_view.py        # Backward-compat shim re-exporting new_user/
+    │   ├── popup_helpers.py        # HTML escaping and JSON helpers for popups
+    │   ├── popup_materias.py       # Erasmus IN subject-editing popup
+    │   ├── popup_templates.py      # Map popup HTML generation
+    │   ├── search_helpers.py       # Sidebar autocomplete and search
+    │   ├── stats_helpers.py        # Metric computation for the statistics view
+    │   ├── stats_table.py          # Paginated results table
+    │   ├── stats_details.py        # Per-row statistics detail panel
+    │   ├── styles.py               # CSS injected into Streamlit
     │   └── new_user/
-    │       ├── view.py          # New student registration form (orchestrator)
-    │       ├── _form_in.py      # Erasmus IN sub-form
-    │       ├── _form_out.py     # Erasmus OUT sub-form
-    │       ├── _form_sicue.py   # SICUE OUT sub-form
-    │       └── _helpers.py      # Shared helpers (geocoding, catalogue, country map)
+    │       ├── view.py             # New student registration form (orchestrator)
+    │       ├── _form_in.py         # Erasmus IN sub-form
+    │       ├── _form_out.py        # Erasmus OUT sub-form
+    │       ├── _form_sicue.py      # SICUE OUT sub-form
+    │       └── _helpers.py         # Shared helpers (geocoding, catalogue, country map)
     ├── utils/
-    │   ├── app_config.py        # config.json reader, session defaults
-    │   ├── map_processing.py    # Zoom bounds, DataFrame checks, LA filtering
-    │   └── file_opener.py       # OS-level file opener
+    │   ├── app_config.py           # config.json reader, session defaults
+    │   ├── map_processing.py       # Zoom bounds, DataFrame checks, LA filtering
+    │   ├── path_helpers.py         # Path normalization helpers
+    │   └── file_opener.py          # OS-level file opener
     ├── security/
-    │   └── token_manager.py     # API token generation and persistence
+    │   └── token_manager.py        # API token generation and persistence
     ├── static/
-    │   └── materias_editor.js   # Subject-editor JS (served by Flask)
-    └── data_demo/               # Sample data (bundled in the demo installer)
+    │   ├── html2canvas.min.js      # html2canvas bundle (PNG snapshots from popups)
+    │   ├── materias_editor.js      # Subject-editor JS (served by Flask)
+    │   ├── popup_styles.css        # Shared popup styles
+    │   ├── save_reload.js          # Post-save reload trigger from popups
+    │   └── stats_excel_export.js   # Client-side hook for Excel export
+    └── data_demo/                  # Sample data (bundled in the demo installer)
 ```
 
 ---
 
 ## 3. Configuration
 
-`config.json` maps each mobility programme key to the absolute path of its Excel file. It is located either at the repository root (development) or at `%LOCALAPPDATA%\MovilidadESII\` (installed build).
+`config.json` maps each mobility programme key to the absolute path of its Excel file. In development it lives at `install_root/config.json`; in installed builds (Inno or MSIX) it is created at `%LOCALAPPDATA%\MovilidadESII\config.json` on first run. The `APP_CONFIG_PATH` environment variable overrides the location.
 
 ```jsonc
 {
@@ -253,7 +270,6 @@ pip install -r requirements-dev.txt
 | `jsonschema` | 4.26.0 | JSON Schema validation |
 | `pywebview` | 5.0.5 | Native desktop window wrapping the Streamlit web UI |
 | `pystray` | 0.19.5 | System tray icon — minimise-to-tray and restore |
-| `psutil` | 7.2.2 | Process tree termination on shutdown |
 
 
 ### Offline wheelhouse
@@ -339,7 +355,9 @@ Write endpoints require the `X-API-TOKEN` header (see [§8 Security Model](#8-se
 | Method | Path | Auth | Description |
 |:---|:---|:---:|:---|
 | `GET` | `/health` | — | Liveness check. Returns `{"ok": true}`. |
+| `GET` | `/saved_flag` | — | Returns `{"ts": <unix_timestamp>}` of the last successful save. Streamlit polls it to know when to reload data without a full page refresh. |
 | `POST` | `/update_student` | ✔ | Updates a student record in the corresponding Excel file. |
+| `POST` | `/update_plan_coord` | ✔ | Updates the *plan de estudios* of a destination university in the `Coordenadas` sheet (typically Erasmus OUT). |
 
 ### `POST /update_student`
 
@@ -367,6 +385,26 @@ Write endpoints require the `X-API-TOKEN` header (see [§8 Security Model](#8-se
 |:---|:---|
 | `401` | Missing or invalid `X-API-TOKEN` |
 | `200` + `{"ok": false}` | Excel file locked, path not found, or invalid indices |
+
+### `POST /update_plan_coord`
+
+**Content-Type:** `multipart/form-data`
+
+| Field | Type | Required | Description |
+|:---|:---|:---:|:---|
+| `universidad` | string | ✔ | Destination university name (matched against the `Coordenadas` sheet) |
+| `plan_estudios` | string | | URL or path to the curriculum plan; written into column `E` |
+| `programa` | string | | Programme key — `"Erasmus OUT"` (default) or `"Erasmus IN"`. Determines the column where `universidad` is matched (col `A` for OUT, col `B` for IN) |
+| `excel_path` | string | | Excel path; overridden by the `config.json` value for the given `programa` when present |
+
+**Response:** same `text/html` + `postMessage` envelope as `/update_student`. On success, updates the internal `_last_saved_ts` so subsequent `/saved_flag` polls trigger a UI reload.
+
+**Error codes:**
+
+| Status | Meaning |
+|:---|:---|
+| `401` | Missing or invalid `X-API-TOKEN` |
+| `200` + `{"ok": false}` | University not found in `Coordenadas`, file locked, or path missing |
 
 ---
 

@@ -52,9 +52,7 @@ COLUMN_ALIASES = {
     
     # Documentación
     "la": ["LA", "link_la", "Learning Agreement"],
-    "tor": ["ToR", "tor", "link_tor"],
     "plan": ["link_plan", "Plan de estudios", "Plan estudios", "Enlace plan de estudios"],
-    "acta": ["acta_equivalencias", "Acta de equivalencias"],
     
     # Gestión
     "gestion_la": ["gestion_LA", "Gestión LA", "Gestion LA"],

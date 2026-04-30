@@ -63,12 +63,6 @@ FIELD_ALIASES: dict[str, list[str]] = {
     "link_la": [
         "LA", "link_la", "Learning agreement", "Learning Agreement",
     ],
-    "ToR": [
-        "ToR", "TOR", "Transcript of Records",
-    ],
-    "acta_equivalencias": [
-        "acta_equivalencias", "Acta de equivalencias",
-    ],
     "link_plan": [
         "Plan de estudios", "link_plan", "Plan estudios", "Plan",
     ],

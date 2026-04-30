@@ -73,32 +73,24 @@ def render_erasmus_out_form(config: dict, asignaturas_catalog: list) -> dict:
             else:
                 extra["dur_out"] = dur_out_val
 
-            act_col1, act_col2 = st.columns([8, 1.5])
-            with act_col2:
-                st.markdown("<br>", unsafe_allow_html=True)
-                file_picker_button("📁", "nu_acta", "nu_acta_browse", "Abrir explorador de archivos.")
-            with act_col1:
-                extra["acta_equivalencias"] = st.text_input(
-                    "Acta de equivalencias (ruta o enlace)", key="nu_acta"
+            plan_col1, plan_col2 = st.columns([8, 1.5])
+            with plan_col1:
+                extra["plan_out"] = st.text_input(
+                    "Propuesta alumno LA (ruta o enlace)", key="nu_plan_out"
                 )
-
-            tor_col1, tor_col2 = st.columns([8, 1.5])
-            with tor_col1:
-                extra["tor"] = st.text_input("ToR (ruta o enlace)", key="nu_tor")
-            with tor_col2:
+            with plan_col2:
                 st.markdown("<br>", unsafe_allow_html=True)
-                file_picker_button("📁", "nu_tor", "nu_tor_browse", "Abrir explorador de archivos.")
-
-            
-
-        with col2:
-            extra["curso"] = st.selectbox("Curso", options=["", "1", "2", "3", "4"], key="nu_curso")
-            extra["ciudad"] = st.text_input("Ciudad", key="nu_ciudad")
+                file_picker_button("📁", "nu_plan_out", "nu_plan_out_browse", "Abrir explorador de archivos.")
 
             resp_auto = resp_map_out.get((destino_origen or "").strip(), "")
             extra["resp_prog"] = resp_auto
             if resp_auto:
                 st.caption(f"Responsable: **{resp_auto}**")
+
+
+        with col2:
+            extra["curso"] = st.selectbox("Curso", options=["", "1", "2", "3", "4"], key="nu_curso")
+            extra["ciudad"] = st.text_input("Ciudad", key="nu_ciudad")
 
             la_col1, la_col2 = st.columns([8, 1.5])
             with la_col1:
@@ -109,15 +101,8 @@ def render_erasmus_out_form(config: dict, asignaturas_catalog: list) -> dict:
                     "📁", "nu_la_out_opt", "nu_la_out_opt_browse",
                     "Abrir explorador de archivos.", file_filter=_FILTER_ALL
                 )
-            plan_col1, plan_col2 = st.columns([8, 1.5])
-            with plan_col1:
-                extra["plan_out"] = st.text_input(
-                    "Propuesta alumno LA (ruta o enlace)", key="nu_plan_out"
-                )
-            with plan_col2:
-                st.markdown("<br>", unsafe_allow_html=True)
-                file_picker_button("📁", "nu_plan_out", "nu_plan_out_browse", "Abrir explorador de archivos.")
-
+            
+            
     return {
         "nombre": nombre,
         "apellidos": apellidos,
