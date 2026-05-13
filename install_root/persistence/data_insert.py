@@ -166,6 +166,7 @@ def _append_erasmus_in_with_subjects(
             xlsx_path, MATERIAS_HEADER_ALIASES, MATERIAS_REQUIRED,
             extra_min_matches=2,
             extras_pool={"origen", "universidad_origen", "cuat", "firmado"},
+            target_sheet=target_sheet,
         )
 
         if not table_info:
@@ -205,9 +206,20 @@ def _append_erasmus_in_with_subjects(
         insert_row = last_row + 1
         fmt_row = last_row if last_row >= table_info.data_start else table_info.header_row
 
+        # Restringimos la copia de estilos al rango de columnas de la propia
+        # tabla de materias. Si copiamos para todas las columnas de la hoja,
+        # extendemos el formato/banding de la tabla lateral de asignaturas
+        # (catálogo: Asignatura/Cuat/Matriculados/Cupo) a las filas nuevas
+        # del alumno, que no deberían tocarse.
+        _mat_cols = [v for v in table_info.cols.values() if isinstance(v, int) and v > 0]
+        if _mat_cols:
+            col_min, col_max = min(_mat_cols), max(_mat_cols)
+        else:
+            col_min, col_max = 1, ws.max_column
+
         for i, fila in enumerate(rows_to_add):
             r = insert_row + i
-            for col_idx in range(1, ws.max_column + 1):
+            for col_idx in range(col_min, col_max + 1):
                 src = ws.cell(row=fmt_row, column=col_idx)
                 dst = ws.cell(row=r, column=col_idx)
                 if src.has_style:
@@ -221,10 +233,17 @@ def _append_erasmus_in_with_subjects(
             if c_la:   ws.cell(row=r, column=c_la).value   = fila["LA"]
 
         last_inserted = insert_row + len(rows_to_add) - 1
+        from openpyxl.utils import range_boundaries, get_column_letter
         for tbl in ws.tables.values():
-            from openpyxl.utils import range_boundaries, get_column_letter
-            min_col, min_row, max_col, _ = range_boundaries(tbl.ref)
-            tbl.ref = f"{get_column_letter(min_col)}{min_row}:{get_column_letter(max_col)}{last_inserted}"
+            min_col, min_row, max_col, max_row = range_boundaries(tbl.ref)
+            # Solo extender la tabla de materias (la que contiene su cabecera
+            # en table_info.header_row). No tocar otras tablas de la hoja
+            # (p.ej. el catálogo lateral de asignaturas), para no destruir su
+            # formato ni recortar/extender su rango incorrectamente.
+            if min_row != table_info.header_row:
+                continue
+            new_max = max(last_inserted, max_row)
+            tbl.ref = f"{get_column_letter(min_col)}{min_row}:{get_column_letter(max_col)}{new_max}"
 
         # Actualiza el catálogo lateral: añade asignaturas nuevas con matr = cuenta
         # en las materias del estudiante; añade además las asignaturas vistas en

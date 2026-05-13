@@ -7,7 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
-## [Unreleased]
+## [1.2.1] - 2026-05-13
+
+### Fixed
+- Erasmus IN: new student was inserted at a random row and broke the table formatting of the side catalogue and the following alumni.
+- New student form: the "Tipo de alumno" selector reverted to Erasmus OUT after saving, and then could not be changed.
+
+### Tooling
+- `.vscode/settings.json`: interpreter pointing to `.venv` and `install_root` added to `python.analysis.extraPaths` so Pylance resolves internal imports and venv dependencies.
 
 ## [1.2.0] - 2026-04-30
 

@@ -45,6 +45,18 @@ def _clear_new_user_form_state() -> None:
     desplegable salte al primer programa (Erasmus OUT) aunque el usuario
     estuviera en otro.
     """
+    # Snapshot defensivo de los selectores de cabecera. Aunque la limpieza
+    # de claves "nu_*" no debería afectarles, blindamos su valor por si
+    # alguna otra ruta los hubiera borrado.
+    _preserved = {
+        k: st.session_state[k]
+        for k in (
+            "new_user_tipo", "new_user_sheet",
+            "new_user_tipo_saved", "new_user_sheet_saved",
+        )
+        if k in st.session_state
+    }
+
     for k in list(st.session_state.keys()):
         if k.startswith("nu_"):
             del st.session_state[k]
@@ -63,6 +75,12 @@ def _clear_new_user_form_state() -> None:
     st.session_state["nu_investigacion_in"]  = False
     st.session_state["_nu_inv_stable"]       = False
     st.session_state["nu_estado"]            = ESTADOS_FIRMA[0] if ESTADOS_FIRMA else ""
+
+    # Restaurar los selectores de cabecera para que el usuario permanezca en
+    # el mismo programa/curso tras guardar (p. ej. seguir creando SICUE OUT
+    # sin volver a Erasmus OUT).
+    for k, v in _preserved.items():
+        st.session_state[k] = v
 
 
 # ──────────────────────────────────────────────────────────────────────────────
@@ -107,20 +125,21 @@ def render_new_user_form(available_types: list[str], config: dict) -> dict | Non
     col_tipo, col_sheet = st.columns([1, 1], gap="small")
 
     with col_tipo:
-        # Aseguramos que session_state["new_user_tipo"] exista y sea válido
-        # ANTES de instanciar el widget. Así Streamlit lo respeta como única
-        # fuente de verdad y no cae al primer elemento de `available_types`
-        # tras un st.rerun (causa del "tras guardar Erasmus IN aparecía el
-        # botón Erasmus OUT").
+        # Si el widget tiene un valor válido (selección actual del usuario),
+        # respetarlo siempre. Solo si no existe o quedó inválido, hidratar
+        # desde el backup persistente "_saved" o caer al primero.
         cur_tipo = st.session_state.get("new_user_tipo")
         if cur_tipo not in available_types:
-            cur_tipo = available_types[0]
+            cur_tipo = st.session_state.get("new_user_tipo_saved")
+            if cur_tipo not in available_types:
+                cur_tipo = available_types[0]
             st.session_state["new_user_tipo"] = cur_tipo
         tipo = st.selectbox(
             "Tipo de alumno",
             options=available_types,
             key="new_user_tipo",
         )
+        st.session_state["new_user_tipo_saved"] = tipo
         open_label = f"{ICON_BY_TIPO.get(tipo, '📄')} Abrir {tipo}"
 
     with col_sheet:
@@ -128,20 +147,23 @@ def render_new_user_form(available_types: list[str], config: dict) -> dict | Non
         SENT_NEW = "➕ Nueva hoja…"
         options = ([SENT_NEW] + sheet_opts) if sheet_opts else [SENT_NEW]
 
-        # Mismo patrón que con `tipo`: garantizamos un valor válido en el
-        # state antes de renderizar el widget.
+        # Mismo patrón que con `tipo`: solo hidratar si el widget no tiene
+        # ya un valor válido (no pisar la selección actual del usuario).
         cur_sheet  = st.session_state.get("new_user_sheet")
-        global_sel = st.session_state.get("global_sheet", "Todas")
         if cur_sheet not in options:
-            if global_sel in options:
-                cur_sheet = global_sel
-            elif len(options) > 1:
-                cur_sheet = options[1]
-            else:
-                cur_sheet = options[0]
+            cur_sheet = st.session_state.get("new_user_sheet_saved")
+            global_sel = st.session_state.get("global_sheet", "Todas")
+            if cur_sheet not in options:
+                if global_sel in options:
+                    cur_sheet = global_sel
+                elif len(options) > 1:
+                    cur_sheet = options[1]
+                else:
+                    cur_sheet = options[0]
             st.session_state["new_user_sheet"] = cur_sheet
 
         choice = st.selectbox("Curso", options=options, key="new_user_sheet")
+        st.session_state["new_user_sheet_saved"] = choice
         new_sheet_name = None
         if choice == SENT_NEW:
             suggested = suggest_next_academic_year(sheet_opts)
