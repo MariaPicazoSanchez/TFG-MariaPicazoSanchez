@@ -19,7 +19,6 @@ from utils.app_config import save_course
 from ._helpers import (
     asig_nombre_puro,
     load_asignaturas_catalog,
-    geocode_cached,
     normalize_academic_year,
     normalize_subject_name,
     sheet_options_for,

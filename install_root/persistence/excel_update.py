@@ -25,7 +25,6 @@ from ._excel_cells import (
     _name_to_scalar,
     _normalize_firmado,
     _recalculate_coords,
-    _recalculate_coords_ws,
     _set_ws_cell_if_field_exists,
     _split_full_name,
     _students_table_is_dynamic_unique,
