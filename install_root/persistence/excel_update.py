@@ -217,10 +217,9 @@ def update_student_in_excel(
                 if col_ape2 and ape2:
                     ws.cell(row=row_found, column=col_ape2).value = ape2
 
-        try:
-            _recalculate_coords_ws(ws, row_found, norm_to_col_1based)
-        except Exception as e:
-            logger.warning("[update_student_in_excel] No se pudieron recalcular coords: %s", e)
+        # Coordenadas: NO se recalculan ni se escriben en la columna del curso.
+        # La fuente de verdad es la hoja "Coordenadas" del propio Excel, que el
+        # loader cruza por universidad al renderizar el mapa.
 
         wb.save(excel_path)
         logger.info("[update_student_in_excel] Guardado OK (misma fila, in-place).")

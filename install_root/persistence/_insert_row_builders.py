@@ -27,15 +27,9 @@ def build_new_sheet_row(
         need_cols = need_cols + ["Apellidos"]
     if (row_data.get("ciudad") or row_data.get("ciudad_sicue")) and "Ciudad" not in need_cols:
         need_cols = need_cols + ["Ciudad"]
-
-    coords_str = (
-        f"{row_data['coordenadas'][0]}, {row_data['coordenadas'][1]}"
-        if isinstance(row_data.get("coordenadas"), (tuple, list))
-        and len(row_data["coordenadas"]) == 2
-        and row_data["coordenadas"][0] is not None
-        and row_data["coordenadas"][1] is not None
-        else None
-    )
+    # Coordenadas: nunca se materializan en la fila del alumno. Se quitan
+    # también de la lista de columnas requeridas al crear hojas nuevas.
+    need_cols = [c for c in need_cols if c.lower() != "coordenadas"]
 
     new: dict = {
         "Nombre":      row_data.get("nombre"),
@@ -45,7 +39,6 @@ def build_new_sheet_row(
     }
 
     if tipo == "Erasmus OUT":
-        need_cols = [c for c in need_cols if c.lower() != "coordenadas"]
         new.update({
             "Curso": row_data.get("curso"),
         })
@@ -61,8 +54,9 @@ def build_new_sheet_row(
             new["Ciudad"] = row_data.get("ciudad")
 
     else:  # SICUE OUT
-        new["Coordenadas"] = coords_str
-        need_cols = list(SICUE_OUT_COLS)
+        # Coordenadas: ver nota en build_existing_sheet_row — la fuente de
+        # verdad es la hoja "Coordenadas".
+        need_cols = [c for c in SICUE_OUT_COLS if c.lower() != "coordenadas"]
         apes = (row_data.get("apellidos") or "").strip()
         parts = apes.split()
         new = {
@@ -77,11 +71,6 @@ def build_new_sheet_row(
             "Destino":                row_data.get("destino_origen"),
             "Ciudad":                 row_data.get("ciudad_sicue"),
             "Plan de estudios":       row_data.get("plan_sic_out"),
-            "Coordenadas": (
-                f"{lat}, {lon}"
-                if lat is not None and lon is not None
-                else None
-            ),
         }
 
     return new, need_cols
@@ -133,14 +122,11 @@ def build_existing_sheet_row(
     if c_univ:
         new_row[c_univ] = row_data.get("destino_origen")
 
-    if tipo != "Erasmus OUT":
-        if c_coords and lat is not None and lon is not None:
-            new_row[c_coords] = f"{lat}, {lon}"
-        else:
-            if c_lat:
-                new_row[c_lat] = lat
-            if c_lon:
-                new_row[c_lon] = lon
+    # Coordenadas: deliberadamente NO se escriben en la fila del alumno
+    # (ni Coordenadas, ni Latitud/Longitud). La fuente de verdad es la hoja
+    # "Coordenadas" del Excel, que el loader cruza por universidad. Escribir
+    # aquí duplica el dato y obliga a mantener dos fuentes sincronizadas.
+    _ = (c_coords, c_lat, c_lon, lat, lon)
 
     if tipo == "SICUE OUT":
         c_la      = _pick_col(df, "LA", "la")

@@ -348,18 +348,9 @@ def append_user_to_excel(
         [df, pd.DataFrame([new_row])], ignore_index=True
     ).reindex(columns=cols_order)
 
-    # Calcular coordenadas automáticamente si faltan (excepto Erasmus OUT)
-    last_idx = len(out) - 1
-    coords_cols = [c for c in out.columns if str(c).strip().lower() in
-                   ("coordenadas", "latitud", "latitude", "longitud", "longitude")]
-    if tipo != "Erasmus OUT" and coords_cols:
-        vals = [out.at[last_idx, c] for c in coords_cols]
-        if all(pd.isna(v) or v in (None, "", "nan", "None") for v in vals):
-            try:
-                from persistence.excel_update import _recalculate_coords
-                _recalculate_coords(out, last_idx)
-            except Exception as e:
-                logger.warning("Error al recalcular coordenadas: %s", e)
+    # Coordenadas: NO se recalculan ni se escriben en la fila del alumno.
+    # La fuente de verdad es la hoja "Coordenadas" del propio Excel, que el
+    # loader cruza por universidad cuando se renderiza el mapa.
 
     try:
         with pd.ExcelWriter(xlsx_path, engine="openpyxl", mode="a", if_sheet_exists="replace") as w:

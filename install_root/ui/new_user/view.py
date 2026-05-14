@@ -343,22 +343,12 @@ def render_new_user_form(available_types: list[str], config: dict) -> dict | Non
 
     clean_data = validator.get_clean_data()
 
-    # ── Geocoding (solo SICUE OUT) ────────────────────────────────────────────
+    # Coordenadas: NO se calculan ni escriben en la fila del alumno. Las
+    # coordenadas se resuelven en tiempo de carga desde la hoja "Coordenadas"
+    # del propio Excel (universidad → lat,lon). Mantener la columna del curso
+    # vacía evita duplicar la fuente de verdad.
     lat, lon = None, None
-    if tipo == PROGRAM_SICUE_OUT:
-        coords_conocidas = st.session_state.pop("_sicue_coords_known", None)
-        if coords_conocidas:
-            lat, lon = coords_conocidas
-        else:
-            lat, lon, gerr = geocode_cached(destino_origen.strip())
-            if lat is None or lon is None:
-                ciudad_opt = (extra.get("ciudad_sicue") or "").strip()
-                if ciudad_opt:
-                    lat, lon, gerr2 = geocode_cached(ciudad_opt)
-                    if gerr and not gerr2:
-                        gerr = None
-            if lat is None and lon is None:
-                st.warning(f"No se pudo geocodificar '{destino_origen}'")
+    st.session_state.pop("_sicue_coords_known", None)
 
     # ── Construcción del payload ──────────────────────────────────────────────
     if tipo == PROGRAM_SICUE_OUT:
