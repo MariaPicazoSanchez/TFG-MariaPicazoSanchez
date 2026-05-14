@@ -35,25 +35,34 @@ from utils.map_processing import (
     calculate_auto_zoom_bounds, check_dataframes_have_data, filter_out_no_la
 )
 from persistence import load_all_dataframes, get_materias_in_por_estudiante
-from constants import PROGRAM_ERASMUS_OUT
+from constants import PROGRAM_ERASMUS_OUT, PROGRAM_ERASMUS_IN, PROGRAM_SICUE_OUT
 from ui._sidebar_config import _list_sheets_in_file
 from ui.stats_helpers import build_export_xlsx
 
 
 # ---------------------------------------------------------------------------
-# Caché al nivel de módulo para que st.cache_data.clear() funcione bien
+# Caché al nivel de módulo
 # ---------------------------------------------------------------------------
+#
+# Caché POR PROGRAMA con clave (path, mtime, sheet). Al cambiar la mtime de
+# un fichero (porque la app o el usuario lo ha editado), Streamlit invalida
+# automáticamente solo ese programa; los otros dos quedan intactos en
+# memoria. Esto hace que tras guardar un alumno de Erasmus OUT no se vuelva
+# a leer Erasmus IN ni SICUE OUT.
 
 @st.cache_data(show_spinner=False)
-def _cached_load(cfg_items: tuple, sheet: str, data_version: int,
-                 src_mtimes: tuple):
+def _cached_load_one(programa: str, path: str, mtime: float, sheet: str,
+                     cfg_items: tuple):
     cfg = dict(cfg_items)
-    return load_all_dataframes(cfg, sheet, programs_to_load=None)
+    dfs, messages = load_all_dataframes(cfg, sheet, programs_to_load=[programa])
+    return dfs.get(programa), messages
 
 
 @st.cache_data(show_spinner=False)
-def _cached_materias(cfg_items: tuple, data_version: int, src_mtimes: tuple):
-    return get_materias_in_por_estudiante(dict(cfg_items))
+def _cached_materias_one(path: str, mtime: float):
+    """Cargar materias IN por estudiante. Clave por mtime de Erasmus IN.xlsx
+    para no recalcularlas cuando se edita un alumno de OUT o SICUE."""
+    return get_materias_in_por_estudiante({"Erasmus IN": path})
 
 
 # ---------------------------------------------------------------------------
@@ -152,13 +161,20 @@ def _handle_query_params() -> None:
         st.cache_data.clear()
 
     if saved == "1":
-        # Solo limpiamos las cachés que cambian al añadir un alumno.
-        # _cached_load y _cached_materias se invalidan automáticamente via data_version.
-        # Las cachés de universidades/países/coordenadas NO cambian al guardar un alumno.
+        # Las cachés de loaders (_cached_load_one, _cached_materias_one) se
+        # invalidan SOLAS para el programa afectado porque su clave incluye la
+        # mtime del fichero, y al guardar la mtime ha cambiado. No hace falta
+        # llamar a st.cache_data.clear() — eso tiraría también IN/SICUE.
         _list_sheets_in_file.clear()   # por si se creó una hoja nueva
         build_export_xlsx.clear()      # el export incluye al nuevo alumno
+        # Bump de data_version solo para invalidar la caché del HTML del mapa
+        # (cuya clave depende de data_version); las cachés de loader NO usan
+        # data_version, así que no se re-leen los Excels no modificados.
         st.session_state["data_version"] = st.session_state.get("data_version", 0) + 1
-        # Actualizar snapshot de mtime para evitar doble reload del auto-refresh
+        st.session_state.pop("last_map_html", None)
+        st.session_state.pop("_map_render_key", None)
+        # Mantener el snapshot de mtime alineado (por si reactivamos algún día
+        # el auto-refresh; no afecta a las cachés de loader).
         if saved_program:
             _cfg = st.session_state.get("config", {})
             _excel_path = _cfg.get(saved_program, "")
@@ -178,16 +194,23 @@ def _load_dataframes_with_cache(config, global_sheet: str):
     cfg_mtimes = get_config_mtimes(config)
     cfg_items  = tuple(sorted(config.items()))
 
-    result = _cached_load(
-        cfg_items, global_sheet,
-        st.session_state.get("data_version", 0),
-        cfg_mtimes,
-    )
-
-    if isinstance(result, tuple) and len(result) == 2:
-        dfs, messages = result
-    else:
-        dfs, messages = result, []
+    dfs: dict = {}
+    messages: list = []
+    for programa in (PROGRAM_ERASMUS_OUT, PROGRAM_ERASMUS_IN, PROGRAM_SICUE_OUT):
+        path = config.get(programa)
+        if not path or not os.path.exists(path):
+            continue
+        try:
+            mtime = os.path.getmtime(path)
+        except Exception:
+            mtime = 0.0
+        df, msgs = _cached_load_one(
+            programa, path, mtime, global_sheet or "", cfg_items,
+        )
+        if df is not None and len(df):
+            dfs[programa] = df
+        if msgs:
+            messages.extend(msgs)
     return dfs, cfg_mtimes, messages
 
 
@@ -195,11 +218,14 @@ def _load_materias_with_cache(config, cfg_mtimes):
     if not st.session_state.get("has_data", False):
         return {}
 
-    return _cached_materias(
-        tuple(sorted(config.items())),
-        st.session_state.get("data_version", 0),
-        cfg_mtimes,
-    )
+    path = config.get(PROGRAM_ERASMUS_IN)
+    if not path or not os.path.exists(path):
+        return {}
+    try:
+        mtime = os.path.getmtime(path)
+    except Exception:
+        mtime = 0.0
+    return _cached_materias_one(path, mtime)
 
 
 def _render_map_view(dfs, base_map, materias):
