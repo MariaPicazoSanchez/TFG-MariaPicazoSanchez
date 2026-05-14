@@ -328,8 +328,8 @@ def main():
 
     base_map, search_slot = sidebar_controls()
 
-    # Auto-refresco cuando el Excel cambia en disco
-    _auto_refresh_on_excel_change()
+    # Auto-refresco deshabilitado: ahora el usuario refresca manualmente con el
+    # botón "Recargar" del sidebar cuando edita un Excel fuera de la app.
 
     # Cargar datos
     global_sheet = st.session_state.get("global_sheet", None)
@@ -358,27 +358,47 @@ def main():
         st.title("Visualización de Movilidad ESII")
     with _col_btn:
         st.markdown("""
-            <form action="" method="get">
-                <button name="force_reload" value="1" class="reload-btn">
-                    ⟳ Recargar
+            <form action="" method="get" style="display:flex;justify-content:flex-end;align-items:center;height:100%;">
+                <button name="force_reload" value="1" class="reload-btn"
+                        title="Recargar datos desde los Excel"
+                        aria-label="Recargar datos">
+                    <span class="reload-icon">⟳</span>
                 </button>
             </form>
 
             <style>
             .reload-btn {
-                border:1px solid #d1d5db;
-                background:#f9fafb;
-                color:#111827;
-                padding:6px 12px;
-                border-radius:8px;
-                font-size:14px;
+                width:42px;
+                height:42px;
+                display:inline-flex;
+                align-items:center;
+                justify-content:center;
+                border:1px solid #e5e7eb;
+                background:#ffffff;
+                color:#2563eb;
+                border-radius:50%;
+                font-size:20px;
+                line-height:1;
                 cursor:pointer;
-                transition:all 0.15s ease;
+                box-shadow:0 1px 2px rgba(0,0,0,0.06);
+                transition:transform 0.2s ease, background 0.15s ease,
+                           border-color 0.15s ease, box-shadow 0.15s ease;
             }
-
+            .reload-btn .reload-icon {
+                display:inline-block;
+                transition:transform 0.4s ease;
+                font-weight:700;
+            }
             .reload-btn:hover {
-                background:#f3f4f6;
-                border-color:#9ca3af;
+                background:#eff6ff;
+                border-color:#93c5fd;
+                box-shadow:0 2px 6px rgba(37,99,235,0.18);
+            }
+            .reload-btn:hover .reload-icon {
+                transform:rotate(180deg);
+            }
+            .reload-btn:active {
+                transform:scale(0.94);
             }
             </style>
             """, unsafe_allow_html=True)
