@@ -319,7 +319,10 @@ def append_user_to_excel(
         lon = row_data.get("lon")
 
     if tipo == "Erasmus IN" and row_data.get("materias_in"):
-        return _append_erasmus_in_with_subjects(xlsx_path, row_data, target_sheet, lat, lon)
+        ok, err = _append_erasmus_in_with_subjects(xlsx_path, row_data, target_sheet, lat, lon)
+        if ok:
+            _ensure_university_in_coords(xlsx_path, tipo, row_data)
+        return ok, err
 
     # ── Hoja NO existe → crear con columnas estándar ──────────────────────────
     if not _sheet_exists(xlsx_path, target_sheet):
@@ -348,9 +351,26 @@ def append_user_to_excel(
         [df, pd.DataFrame([new_row])], ignore_index=True
     ).reindex(columns=cols_order)
 
-    # Coordenadas: NO se recalculan ni se escriben en la fila del alumno.
-    # La fuente de verdad es la hoja "Coordenadas" del propio Excel, que el
-    # loader cruza por universidad cuando se renderiza el mapa.
+    # SICUE OUT no tiene hoja "Coordenadas" aparte: la columna Coordenadas
+    # vive en cada hoja de curso. Si la universidad ya aparece en otro alumno
+    # se copia su valor; si no, se geocodifica con sufijo " (auto)".
+    if tipo == "SICUE OUT":
+        universidad = (row_data.get("destino_origen") or "").strip()
+        coords_col = next(
+            (c for c in cols_order if str(c).strip().lower() == "coordenadas"),
+            None,
+        )
+        if universidad and coords_col is not None:
+            try:
+                from ._coords_sheet import resolve_sicue_coords_for_universidad
+                coords_val = resolve_sicue_coords_for_universidad(xlsx_path, universidad)
+                if coords_val:
+                    out.at[len(out) - 1, coords_col] = coords_val
+            except Exception as e:
+                logger.warning("[coords-sicue] No se pudo resolver coords: %s", e)
+
+    # Erasmus IN / Erasmus OUT: la columna Coordenadas de la hoja del curso se
+    # deja vacía a propósito; la fuente de verdad es la hoja "Coordenadas".
 
     try:
         with pd.ExcelWriter(xlsx_path, engine="openpyxl", mode="a", if_sheet_exists="replace") as w:
@@ -363,7 +383,29 @@ def append_user_to_excel(
     except Exception as e:
         return False, f"Error guardando: {e}"
 
+    # Si la universidad es nueva, geocodificarla y añadirla a la hoja
+    # "Coordenadas" con el sufijo " (auto)" para que el coordinador sepa que
+    # son coordenadas auto-generadas y pueda revisarlas.
+    _ensure_university_in_coords(xlsx_path, tipo, row_data)
+
     return True, None
+
+
+def _ensure_university_in_coords(xlsx_path: str, tipo: str, row_data: dict) -> None:
+    """Wrapper tolerante a fallos para no bloquear el guardado del alumno."""
+    try:
+        from ._coords_sheet import ensure_university_in_coords_sheet
+        universidad = (row_data.get("destino_origen") or "").strip()
+        if tipo == "Erasmus IN":
+            pais = (row_data.get("pais_in") or "").strip()
+        elif tipo == "Erasmus OUT":
+            pais = (row_data.get("pais_out") or "").strip()
+        else:
+            pais = ""
+        if universidad:
+            ensure_university_in_coords_sheet(xlsx_path, tipo, universidad, pais)
+    except Exception as e:
+        logger.warning("[coords-sheet] No se pudo asegurar universidad: %s", e)
 
 
 # ─────────────────────────────────────────────────────────────────────────────

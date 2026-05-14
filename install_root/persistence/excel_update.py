@@ -190,6 +190,17 @@ def update_student_in_excel(
 
         is_dynamic_matrix = _students_table_is_dynamic_unique(ws, table_info_found)
 
+        # Para SICUE OUT capturamos el destino actual antes de aplicar los
+        # cambios: la columna Coordenadas de la hoja se recalcula solo si la
+        # universidad de destino cambia (ver más abajo).
+        _col_destino_pre = _find_col_in_ws_by_aliases(
+            norm_to_col_1based, ["destino", "Destino"],
+        )
+        _old_destino = ""
+        if _col_destino_pre:
+            _v = ws.cell(row=row_found, column=_col_destino_pre).value
+            _old_destino = "" if _v is None else str(_v).strip()
+
         for field in FIELD_ALIASES.keys():
             if is_dynamic_matrix and field in ("estudiante", "nombre"):
                 continue
@@ -217,12 +228,56 @@ def update_student_in_excel(
                 if col_ape2 and ape2:
                     ws.cell(row=row_found, column=col_ape2).value = ape2
 
-        # Coordenadas: NO se recalculan ni se escriben en la columna del curso.
-        # La fuente de verdad es la hoja "Coordenadas" del propio Excel, que el
-        # loader cruza por universidad al renderizar el mapa.
+        # Inferir programa por el nombre del fichero (no hay campo explícito).
+        programa_guess = ""
+        low = (excel_path or "").lower()
+        if "erasmus out" in low:
+            programa_guess = "Erasmus OUT"
+        elif "erasmus in" in low:
+            programa_guess = "Erasmus IN"
+        elif "sicue" in low:
+            programa_guess = "SICUE OUT"
+
+        # SICUE OUT: la columna Coordenadas vive en la hoja del curso. Si la
+        # universidad de destino ha cambiado, recalcular el valor copiándolo de
+        # otra fila con la misma universidad o, en su defecto, geocodificando.
+        if programa_guess == "SICUE OUT":
+            new_destino = (data.get("destino") or "").strip()
+            col_coords = _find_col_in_ws_by_aliases(
+                norm_to_col_1based, ["coordenadas", "Coordenadas"],
+            )
+            if (col_coords and new_destino
+                    and new_destino.lower() != _old_destino.lower()):
+                try:
+                    from ._coords_sheet import resolve_sicue_coords_for_universidad
+                    coords_val = resolve_sicue_coords_for_universidad(
+                        excel_path, new_destino,
+                        exclude_sheet=table_info_found.sheet_name,
+                        exclude_row=row_found,
+                    )
+                    if coords_val:
+                        ws.cell(row=row_found, column=col_coords).value = coords_val
+                except Exception as e:
+                    logger.warning("[coords-sicue] No se pudo resolver coords: %s", e)
 
         wb.save(excel_path)
         logger.info("[update_student_in_excel] Guardado OK (misma fila, in-place).")
+
+        # Erasmus IN / OUT: añadir la universidad a la hoja "Coordenadas" si
+        # es nueva (con coordenadas auto-geocodificadas marcadas " (auto)").
+        # SICUE OUT no tiene esa hoja, así que el helper saldrá sin hacer nada.
+        try:
+            from ._coords_sheet import ensure_university_in_coords_sheet
+            uni = (
+                (data.get("destino") or data.get("universidad_origen")
+                 or data.get("origen") or "").strip()
+            )
+            pais = (data.get("pais") or "").strip()
+            if uni:
+                ensure_university_in_coords_sheet(excel_path, programa_guess, uni, pais)
+        except Exception as e:
+            logger.warning("[coords-sheet] No se pudo asegurar universidad: %s", e)
+
         return True
 
     except Exception:
