@@ -484,8 +484,8 @@
               </div>
               <div class="excel-notes">
                 <ul>
-                  <li>Esta hoja actúa como <strong>caché geográfica</strong>: evita geocodificaciones repetidas.</li>
-                  <li>Al añadir un nuevo estudiante, si su universidad ya está aquí sus coordenadas y responsable se toman directamente.</li>
+                  <li>Esta hoja es la <strong>fuente de verdad</strong> de las coordenadas de cada universidad. La columna <em>Coordenadas</em> de la hoja del curso queda vacía a propósito.</li>
+                  <li>Al guardar/editar un alumno, si la universidad <strong>no estaba</strong> en esta hoja, la aplicación la añade automáticamente geocodificándola con Nominatim. Las coordenadas auto-generadas se marcan con el sufijo <code>(auto)</code>, p. ej. <code>52.5122, 13.3271 (auto)</code>, para que sepas que conviene revisarlas. Bórralo o sobrescríbelas con las correctas si hace falta.</li>
                   <li><strong>Responsable:</strong> columna opcional. Si no existe, la aplicación la genera automáticamente a partir del campo <em>Responsable de programa</em> de la hoja del curso académico, agrupando por universidad. Una vez creada, <strong>el valor de esta hoja tiene prioridad</strong>: la app no lo sobreescribe aunque cambie el responsable en el curso académico. Para cambiar un responsable, edítalo directamente aquí. Si la columna aún no existe, cambia el <em>Responsable de programa</em> en la fila con la universidad correspondiente del curso académico y se actualizará al relanzar la aplicación.</li>
                   <li>El selector de universidad en el formulario se alimenta de esta lista.</li>
                 </ul>
@@ -637,7 +637,8 @@
               </div>
               <div class="excel-notes">
                 <ul>
-                  <li>Misma función que en Erasmus OUT: caché de coordenadas por universidad de origen.</li>
+                  <li>Misma función que en Erasmus OUT: <strong>fuente de verdad</strong> de las coordenadas por universidad de origen. La columna <em>Coordenadas</em> de la hoja del curso queda vacía a propósito.</li>
+                  <li>Si al guardar un alumno su universidad de origen no estaba aquí, la app la añade automáticamente geocodificando con Nominatim. Las coordenadas auto-generadas llevan el sufijo <code>(auto)</code> para que el coordinador pueda revisarlas y corregirlas.</li>
                   <li>El selector de universidad de origen en el formulario de alta se alimenta de esta lista.</li>
                 </ul>
               </div>
@@ -723,8 +724,10 @@
               <div class="excel-notes">
                 <ul>
                   <li><strong>Gestión LA</strong> acepta: <code>Pendiente firma del coordinador</code> · <code>Pendiente firma del estudiante</code> · <code>Enviado a vicerrectorado</code>.</li>
-                  <li><strong>Coordenadas</strong>: se calculan geocodificando el <em>Destino</em> (universidad) o la <em>Ciudad</em> si la universidad no se reconoce. El selector de destino sugiere universidades ya conocidas del histórico.</li>
-                  <li>A diferencia de Erasmus, SICUE no tiene hoja <em>Coordenadas</em>: el caché geográfico se construye leyendo el historial de alumnos.</li>
+                  <li>A diferencia de Erasmus, SICUE <strong>no tiene hoja Coordenadas</strong> separada: las coordenadas viven en la propia columna <em>Coordenadas</em> de cada hoja de curso académico.</li>
+                  <li><strong>Coordenadas</strong>: al guardar un nuevo alumno, la app busca otra fila (en cualquier curso) con la misma universidad y copia su valor. Si no encuentra ninguna, geocodifica con Nominatim y escribe el resultado con el sufijo <code>(auto)</code> (p. ej. <code>37.17, -3.59 (auto)</code>) para que sepas que conviene revisarlo.</li>
+                  <li>Al <strong>editar</strong> un alumno, la columna Coordenadas solo se recalcula si cambia el <em>Destino</em>; si solo cambias otros campos, las coordenadas existentes no se tocan.</li>
+                  <li>El selector de destino sugiere universidades ya conocidas del histórico.</li>
                 </ul>
               </div>
             </div>

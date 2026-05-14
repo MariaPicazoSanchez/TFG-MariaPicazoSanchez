@@ -379,52 +379,72 @@ def main():
     handle_open_pdf_query()
     handle_open_excel_query()
 
-    _col_title, _col_btn = st.columns([14, 1])
+    _col_title, _col_btn = st.columns([10, 2])
     with _col_title:
         st.title("Visualización de Movilidad ESII")
     with _col_btn:
         st.markdown("""
-            <form action="" method="get" style="display:flex;justify-content:flex-end;align-items:center;height:100%;">
+            <form action="" method="get" style="display:flex;justify-content:flex-end;align-items:center;height:100%;width:100%;overflow:visible;">
                 <button name="force_reload" value="1" class="reload-btn"
                         title="Recargar datos desde los Excel"
                         aria-label="Recargar datos">
                     <span class="reload-icon">⟳</span>
+                    <span class="reload-label">Recargar</span>
                 </button>
             </form>
 
             <style>
             .reload-btn {
-                width:42px;
-                height:42px;
                 display:inline-flex;
                 align-items:center;
                 justify-content:center;
-                border:1px solid #e5e7eb;
-                background:#ffffff;
-                color:#2563eb;
-                border-radius:50%;
-                font-size:20px;
+                padding:0.25rem 0.55rem;
+                background:transparent;
+                /* Hereda el color del texto de Streamlit (oscuro en tema
+                   claro, claro en tema oscuro), y deriva el borde del mismo
+                   color con currentColor para garantizar contraste siempre. */
+                color:inherit;
+                border:1px solid currentColor;
+                border-radius:0.5rem;
+                font-size:15px;
                 line-height:1;
                 cursor:pointer;
-                box-shadow:0 1px 2px rgba(0,0,0,0.06);
-                transition:transform 0.2s ease, background 0.15s ease,
-                           border-color 0.15s ease, box-shadow 0.15s ease;
+                overflow:hidden;
+                opacity:0.6;
+                transition:opacity 0.15s ease, color 0.15s ease,
+                           border-color 0.15s ease, background 0.15s ease;
             }
             .reload-btn .reload-icon {
                 display:inline-block;
                 transition:transform 0.4s ease;
-                font-weight:700;
+            }
+            .reload-btn .reload-label {
+                display:inline-block;
+                max-width:0;
+                opacity:0;
+                margin-left:0;
+                white-space:nowrap;
+                overflow:hidden;
+                transition:max-width 0.35s ease, opacity 0.25s ease 0.05s,
+                           margin-left 0.35s ease;
+                font-size:14px;
             }
             .reload-btn:hover {
-                background:#eff6ff;
-                border-color:#93c5fd;
-                box-shadow:0 2px 6px rgba(37,99,235,0.18);
+                opacity:1;
+                color:#ff4b4b;
+                border-color:#ff4b4b;
             }
             .reload-btn:hover .reload-icon {
                 transform:rotate(180deg);
             }
+            .reload-btn:hover .reload-label {
+                max-width:140px;
+                opacity:1;
+                margin-left:0.45rem;
+                padding-right:0.15rem;
+            }
             .reload-btn:active {
-                transform:scale(0.94);
+                background:rgba(255,75,75,0.06);
             }
             </style>
             """, unsafe_allow_html=True)

@@ -7,6 +7,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.2.2] - 2026-05-14
+
+### Added
+- New universities are automatically appended to the `Coordenadas` sheet with auto-geocoded coords (Nominatim) tagged with the suffix ` (auto)` so the coordinator can review and adjust them.
+- SICUE OUT (no separate `Coordenadas` sheet): the `Coordenadas` column in the course sheet is now filled by looking up an existing row with the same university; if none, by geocoding and tagging the value with ` (auto)`. On edit, the value is only refreshed when the destination changes.
+- Manual "Recargar" button next to the page title (round-icon → text-on-hover, theme-adaptive) that triggers a full cache clear and reload.
+
+### Changed
+- Per-program / per-mtime cache keys for loaders: editing one Excel no longer invalidates the in-memory dataframes of the other two programs.
+- Erasmus IN: when inserting an alumno, only the materias table is extended; side tables (catalog, info) are shrunk to their real last data row to repair previously over-extended ranges.
+
+### Fixed
+- Coordinates are no longer written into the alumno row's `Coordenadas` / `Latitud` / `Longitud` columns for any program (Erasmus OUT/IN/SICUE OUT). The source of truth is the `Coordenadas` sheet (Erasmus) / cross-row lookup (SICUE).
+- The "Tipo de alumno" selector now keeps the user's current selection while editing and after saving.
+
+### Removed
+- Auto-refresh polling that reloaded the app every ~10s when an Excel changed on disk. Use the new "Recargar" button instead.
+
 ## [1.2.1] - 2026-05-13
 
 ### Fixed
