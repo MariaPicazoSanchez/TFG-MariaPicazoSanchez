@@ -13,6 +13,7 @@
 [![GitHub release](https://img.shields.io/github/v/release/MariaPicazoSanchez/TFG-MariaPicazoSanchez?cacheSeconds=60)](https://github.com/MariaPicazoSanchez/TFG-MariaPicazoSanchez/releases/latest)
 [![Microsoft Store](https://img.shields.io/badge/Microsoft%20Store-Available-0078D4?logo=microsoftstore&logoColor=white)](https://apps.microsoft.com/detail/9PBHCL7R9QNV?hl=es-es&gl=ES&ocid=pdpshare)
 [![License](https://img.shields.io/badge/License-CC%20BY--NC%204.0-lightgrey)](https://creativecommons.org/licenses/by-nc/4.0/)
+[![Changelog](https://img.shields.io/badge/Changelog-ver-lightgrey)](CHANGELOG.md)
 
 Windows desktop application that exposes a local web interface (Streamlit) backed by a REST microservice (Flask). All persistence is handled directly on the institution's existing Excel files — no additional database required.
 
@@ -20,19 +21,12 @@ Windows desktop application that exposes a local web interface (Streamlit) backe
 
 ## Install
 
-**Option A — Microsoft Store (recommended)**
+| | |
+|:---|:---|
+| [![Microsoft Store](https://img.shields.io/badge/Microsoft%20Store-Instalar-0078D4?style=for-the-badge&logo=microsoftstore&logoColor=white)](https://apps.microsoft.com/detail/9PBHCL7R9QNV?hl=es-es&gl=ES&ocid=pdpshare) | Recommended · no SmartScreen · automatic updates · clean uninstall |
+| [![Download .exe](https://img.shields.io/github/v/release/MariaPicazoSanchez/TFG-MariaPicazoSanchez?style=for-the-badge&logo=github&label=Download%20.exe)](https://github.com/MariaPicazoSanchez/TFG-MariaPicazoSanchez/releases/latest) | No Python required · demo-data variant available |
 
-<a href="https://apps.microsoft.com/detail/9PBHCL7R9QNV?hl=es-es&gl=ES&ocid=pdpshare">
-  <img src="https://get.microsoft.com/images/es-es%20dark.svg" alt="Get it from Microsoft" width="180" />
-</a>
-
-No SmartScreen warning · automatic updates · clean uninstall.
-
-**Option B — Windows installer (.exe)**
-
-→ [Download latest release](https://github.com/MariaPicazoSanchez/TFG-MariaPicazoSanchez/releases/latest) — includes a demo-data variant.
-
-For development setup, see [§4 Development Setup](#4-development-setup).
+Development setup → [4. Development Setup](#4-development-setup)
 
 ---
 
@@ -151,7 +145,7 @@ TFG-MariaPicazoSanchez/
     ├── MovilidadESII.ico           # Application icon (window, tray, MSIX shortcut)
     ├── assets_png/                 # MSIX tile/logo assets (44x44, 150x150, Store)
     ├── api/
-    │   └── api.py                  # Flask microservice (see §7)
+    │   └── api.py                  # Flask microservice (see section 7)
     ├── web_app/
     │   └── my_app.py               # Streamlit entry point — view routing
     ├── constants.py                # Global constants (programme names, Excel columns, …)
@@ -345,7 +339,7 @@ python -m streamlit run web_app/my_app.py
 
 The test suite covers the core domain logic and data processing utilities. Tests run without launching the Streamlit or Flask processes — all UI dependencies are mocked automatically.
 
-With the venv active (see [§4](#4-development-setup)):
+With the venv active (see [4. Development Setup](#4-development-setup)):
 
 ```bash
 pytest -v
@@ -367,7 +361,7 @@ Tests also run automatically on every push and pull request to `main` via the **
 
 The port is dynamically allocated by the launcher. In manual mode it defaults to `5000` unless overridden by the `API_PORT` environment variable.
 
-Write endpoints require the `X-API-TOKEN` header (see [§8 Security Model](#8-security-model)). The token is also accepted as a `token` query parameter for form-based submissions.
+Write endpoints require the `X-API-TOKEN` header (see [8. Security Model](#8-security-model)). The token is also accepted as a `token` query parameter for form-based submissions.
 
 ### Endpoints
 
@@ -491,7 +485,7 @@ Compare the output with the corresponding entry in `SHA256.txt`.
 - Does not require Python to be installed on the target machine.
 - Creates `.installer_complete` marker on success so the launcher skips dependency checks at startup.
 
-> **SmartScreen warning:** EXE installers distributed outside the Store are not signed with a commercial CA certificate, so Windows will show an *Unknown Publisher* warning. See [§10](#10-windows-smartscreen-warning) for the unblock procedure. Installing from the Microsoft Store avoids this entirely.
+> **SmartScreen warning:** EXE installers distributed outside the Store are not signed with a commercial CA certificate, so Windows will show an *Unknown Publisher* warning. See [10. Windows SmartScreen Warning](#10-windows-smartscreen-warning) for the unblock procedure. Installing from the Microsoft Store avoids this entirely.
 
 ---
 
@@ -588,7 +582,7 @@ To suppress the warning permanently for EXE installers, a commercial EV (Extende
 
 ## 11. Microsoft Store (MSIX)
 
-The application is **published on the [Microsoft Store](https://apps.microsoft.com/detail/9PBHCL7R9QNV?hl=es-es&gl=ES&ocid=pdpshare)** as a native MSIX package (see [§9 — Channel B](#channel-b--microsoft-store-native-msix)).
+The application is **published on the [Microsoft Store](https://apps.microsoft.com/detail/9PBHCL7R9QNV?hl=es-es&gl=ES&ocid=pdpshare)** as a native MSIX package (see [9. Build & Distribution — Channel B](#channel-b--microsoft-store-native-msix)).
 
 ### Advantages over the EXE installer
 

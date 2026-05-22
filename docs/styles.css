@@ -1474,14 +1474,24 @@ code {
   width: 8px;
   height: 8px;
   border-radius: 50%;
-  background-color: #f59e0b;
+  background-color: #16a34a;
   flex-shrink: 0;
-  animation: pulse-dot 1.8s ease-in-out infinite;
 }
 
-@keyframes pulse-dot {
-  0%, 100% { opacity: 1; transform: scale(1); }
-  50%       { opacity: 0.55; transform: scale(0.85); }
+/* ----------------------------------------------------------------
+   CÓMO CITAR
+---------------------------------------------------------------- */
+.cite-block {
+  max-width: 800px;
+}
+
+.cite-label {
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--color-primary);
+  margin-bottom: var(--space-sm);
 }
 
 /* ----------------------------------------------------------------
