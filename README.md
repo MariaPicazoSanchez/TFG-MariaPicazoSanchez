@@ -18,6 +18,24 @@ Windows desktop application that exposes a local web interface (Streamlit) backe
 
 ---
 
+## Install
+
+**Option A — Microsoft Store (recommended)**
+
+<a href="https://apps.microsoft.com/detail/9PBHCL7R9QNV?hl=es-es&gl=ES&ocid=pdpshare">
+  <img src="https://get.microsoft.com/images/es-es%20dark.svg" alt="Get it from Microsoft" width="180" />
+</a>
+
+No SmartScreen warning · automatic updates · clean uninstall.
+
+**Option B — Windows installer (.exe)**
+
+→ [Download latest release](https://github.com/MariaPicazoSanchez/TFG-MariaPicazoSanchez/releases/latest) — includes a demo-data variant.
+
+For development setup, see [§4 Development Setup](#4-development-setup).
+
+---
+
 ## Preview
 
 | Mapa interactivo | Búsqueda y filtros |
@@ -43,8 +61,9 @@ Windows desktop application that exposes a local web interface (Streamlit) backe
 9. [Build & Distribution](#9-build--distribution)
 10. [Windows SmartScreen Warning](#10-windows-smartscreen-warning)
 11. [Microsoft Store (MSIX)](#11-microsoft-store-msix)
-12. [Licence](#12-licence)
-13. [Author](#13-author)
+12. [How to Cite](#12-how-to-cite)
+13. [Licence](#13-licence)
+14. [Author](#14-author)
 
 ---
 
@@ -595,13 +614,34 @@ The `runFullTrust` restricted capability — required because the launcher spawn
 
 ---
 
-## 12. Licence
+## 12. How to Cite
+
+If you use or reference this project in academic work, please cite it as:
+
+**APA 7:**
+> Picazo Sánchez, M. (2026). *Movilidad ESII: Herramienta de gestión y visualización de movilidad académica* \[Trabajo de Fin de Grado\]. Universidad de Castilla-La Mancha. https://github.com/MariaPicazoSanchez/TFG-MariaPicazoSanchez
+
+**BibTeX:**
+```bibtex
+@thesis{picazo2026movilidad,
+  author  = {Picazo Sánchez, María},
+  title   = {Movilidad {ESII}: Herramienta de gestión y visualización de movilidad académica},
+  school  = {Universidad de Castilla-La Mancha},
+  year    = {2026},
+  type    = {Trabajo de Fin de Grado},
+  url     = {https://github.com/MariaPicazoSanchez/TFG-MariaPicazoSanchez}
+}
+```
+
+---
+
+## 13. Licence
 
 This project is released under the **Creative Commons Attribution-NonCommercial 4.0 International (CC BY-NC 4.0)** license. You are free to use, share, and adapt this work for non-commercial purposes with attribution. Commercial use requires explicit written permission from the author. See [`LICENSE`](LICENSE) for details.
 
 ---
 
-## 13. Author
+## 14. Author
 
 **María Picazo Sánchez**  
 Grado en Ingeniería Informática — Escuela Superior de Ingeniería Informática en el campus de Albacete (ESIIAB)  

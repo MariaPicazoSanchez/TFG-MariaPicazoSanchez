@@ -369,6 +369,64 @@ h1, h2, h3, h4 {
   margin-top: 0;
 }
 
+/* Bloque de instalación rápida en el hero */
+.hero-install {
+  display: flex;
+  align-items: center;
+  gap: var(--space-lg);
+  flex-wrap: wrap;
+  margin-top: var(--space-md);
+}
+
+.hero-install-store {
+  display: inline-flex;
+  align-items: center;
+  transition: opacity var(--transition), transform var(--transition);
+}
+
+.hero-install-store:hover {
+  opacity: 0.85;
+  transform: translateY(-2px);
+}
+
+.hero-install-store img {
+  height: 52px;
+  width: auto;
+  display: block;
+}
+
+.btn-hero-download {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-sm);
+  padding: 0.7rem 1.4rem;
+  border-radius: var(--radius-md);
+  font-size: 0.95rem;
+  font-weight: 700;
+  background-color: transparent;
+  color: #f97316;
+  border: 2px solid #f97316;
+  text-decoration: none;
+  transition: background-color var(--transition), color var(--transition), box-shadow var(--transition);
+}
+
+.btn-hero-download:hover {
+  background-color: #f97316;
+  color: #fff;
+  text-decoration: none;
+  box-shadow: 0 4px 14px rgba(249,115,22,.35);
+}
+
+.hero-install-note {
+  font-size: 0.8rem;
+  color: #475569;
+  margin-top: calc(-1 * var(--space-sm));
+}
+
+.hero-install-note a {
+  color: #94a3b8;
+}
+
 
 /* ----------------------------------------------------------------
    STACK TECNOLÓGICO
