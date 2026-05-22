@@ -12,7 +12,7 @@ Open an issue on GitHub describing:
 ## Submitting a pull request
 
 1. Fork the repository and create a branch from `main`.
-2. Set up the development environment (see [§4 of the README](README.md#4-development-setup)).
+2. Set up the development environment (see [ 4 of the README](README.md#4-development-setup)).
 3. Make your changes. Run the test suite before opening a PR:
    ```bash
    pytest -v

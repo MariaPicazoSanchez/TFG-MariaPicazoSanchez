@@ -44,9 +44,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 - **Multi-path icon discovery**: both the system-tray initialisation (`launcher_system.py`) and the MSIX desktop-shortcut helper (`desktop_shortcut.py`) now look for `MovilidadESII.ico` in `Path(sys.executable).parent`, `Path(sys.executable).parent / "_internal"`, and `sys._MEIPASS` — covering both the Inno install layout (icon next to the EXE) and the MSIX/PyInstaller 6.x layout (icon under `_internal/`).
 - **Persistent icon for the MSIX shortcut**: `ensure_msix_desktop_shortcut` now copies the resolved `.ico` to `marker_dir` (LocalAppData) and sets `IconLocation` to that stable path. Previously, IconLocation pointed inside the MSIX install folder, which changes on every Store update (`WindowsApps\…\version_hash`), invalidating the icon. The marker version was bumped from `_v1` to `_v2` so existing installs with a broken shortcut regenerate it on next launch.
-- README §2 (Repository Structure) rewritten to match the actual tree: `config.json` moved from the repo root to `install_root/`; `desktop_shortcut.py`, `MovilidadESII.spec`, `CHANGELOG.md` listed at the root; missing files in `persistence/`, `export/`, `ui/`, `utils/`, `static/` and the icon/PNG assets in `install_root/` added with descriptions.
-- README §3 (Configuration): development path of `config.json` corrected to `install_root/config.json`; `APP_CONFIG_PATH` override mentioned.
-- README §7 (REST API Reference): added `GET /saved_flag` (last-save timestamp polling) and `POST /update_plan_coord` (study-plan write into the `Coordenadas` sheet) with their full field tables and error codes.
+- README  2 (Repository Structure) rewritten to match the actual tree: `config.json` moved from the repo root to `install_root/`; `desktop_shortcut.py`, `MovilidadESII.spec`, `CHANGELOG.md` listed at the root; missing files in `persistence/`, `export/`, `ui/`, `utils/`, `static/` and the icon/PNG assets in `install_root/` added with descriptions.
+- README  3 (Configuration): development path of `config.json` corrected to `install_root/config.json`; `APP_CONFIG_PATH` override mentioned.
+- README  7 (REST API Reference): added `GET /saved_flag` (last-save timestamp polling) and `POST /update_plan_coord` (study-plan write into the `Coordenadas` sheet) with their full field tables and error codes.
 - `docs/index.html` install section: the two `.exe` download buttons now resolve dynamically to the latest release's assets via `https://api.github.com/repos/.../releases/latest` (matched by the `data-asset-pattern` attribute). On API failure, the static `releases/latest` URL acts as a fallback so the buttons keep working.
 
 ### Fixed
@@ -61,7 +61,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - UI: `nu_tor` / `nu_acta` text inputs and their file pickers removed from `ui/new_user/_form_out.py`; the corresponding session-state keys removed from `ui/new_user/view.py::_clear_form()`. Popup view + edit fields cleaned in `ui/popup_templates.py` (the `tor_val`/`acta_val` keys, the `_view_link` rows for ToR/Acta, the `acta_field` HTML block, the `tor_field` `build_link_file_field` call, and the field assembly lists for both Erasmus OUT and the fallback case).
   - Documentation: `docs/excel_structure.html` now shows the Erasmus-OUT sheet with 11 columns instead of 12 (header `<th>`s, header row, both example rows, and the `colspan` for the "más filas" footer all updated). The note "LA / ToR" is now just "LA".
   - Existing Excel files with these columns still in place are not modified — the loader simply ignores them and the writer skips them, so legacy data is preserved without manual cleanup.
-- `psutil==7.2.2` from `install_root/requirements.txt`. The package was unused: `shutdown_processes` in `launcher_system.py` uses Windows' native `taskkill /F /T` to terminate process trees. The corresponding row was also removed from the dependency table in README §4.
+- `psutil==7.2.2` from `install_root/requirements.txt`. The package was unused: `shutdown_processes` in `launcher_system.py` uses Windows' native `taskkill /F /T` to terminate process trees. The corresponding row was also removed from the dependency table in README  4.
 
 ## [1.1.2] - 2026-04-25
 
