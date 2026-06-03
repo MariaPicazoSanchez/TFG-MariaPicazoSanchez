@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import ctypes
 import logging
+import os
 import shutil
 import subprocess
 import sys
@@ -51,6 +52,38 @@ def _find_app_icon(hint: Path | None) -> Path | None:
         except OSError:
             continue
     return None
+
+
+def _devirtualize_msix_path(p: Path, pfn: str) -> Path:
+    """
+    Traduce una ruta bajo %LOCALAPPDATA% (la vista *virtual* que ve el proceso
+    empaquetado) a su ruta *física* real dentro del contenedor MSIX.
+
+    Dentro de un paquete MSIX, las escrituras a %LOCALAPPDATA% se redirigen de
+    forma transparente a:
+        %LOCALAPPDATA%\\Packages\\<PFN>\\LocalCache\\Local
+    El proceso empaquetado sigue *viendo* la ruta original (p. ej.
+    C:\\Users\\x\\AppData\\Local\\MovilidadESII), pero el fichero acaba en el
+    contenedor. Un acceso directo (.lnk) que guarde la ruta virtual en su
+    IconLocation no funciona, porque Explorer corre FUERA del paquete y no ve
+    esa redirección: encuentra una ruta inexistente y pinta un icono en blanco.
+
+    Esta función devuelve la ruta del contenedor, que sí es legible desde fuera
+    y además es estable entre actualizaciones de la Store (a diferencia de la
+    ruta de instalación del paquete, que incluye versión + hash).
+    """
+    local = os.environ.get("LOCALAPPDATA")
+    if not local:
+        return p
+    local_root = Path(local)
+    # Si ya apunta dentro del contenedor, no la toques.
+    if pfn in p.parts and "Packages" in p.parts:
+        return p
+    try:
+        rel = p.relative_to(local_root)
+    except ValueError:
+        return p  # No está bajo %LOCALAPPDATA%: la redirección no aplica.
+    return local_root / "Packages" / pfn / "LocalCache" / "Local" / rel
 
 
 def _get_package_family_name() -> str | None:
@@ -103,9 +136,12 @@ def ensure_msix_desktop_shortcut(
 
     try:
         marker_dir.mkdir(parents=True, exist_ok=True)
-        # v2: garantiza que instalaciones previas con shortcut sin icono se
-        # regeneren al ejecutar la nueva versión.
-        marker = marker_dir / ".desktop_shortcut_msix_v2"
+        # v3: la IconLocation ahora apunta a la ruta física del contenedor MSIX
+        # (antes guardaba la ruta virtual de %LOCALAPPDATA%, que Explorer no ve y
+        # mostraba un icono en blanco). Subimos la versión para que las
+        # instalaciones existentes regeneren el acceso directo con el icono ya
+        # corregido.
+        marker = marker_dir / ".desktop_shortcut_msix_v3"
         if marker.exists():
             return
     except OSError as exc:
@@ -120,13 +156,31 @@ def ensure_msix_desktop_shortcut(
         # IconLocation: la ruta de instalación de un paquete MSIX cambia en
         # cada actualización (versión + hash en WindowsApps\...), lo que
         # rompería un IconLocation que apuntase dentro del propio paquete.
-        persistent_icon = marker_dir / ICON_FILENAME
+        # El .lnk lo lee Explorer (FUERA del paquete), así que IconLocation debe
+        # ser una ruta física real, no la vista virtual de %LOCALAPPDATA%. La
+        # redirección de MSIX no es uniforme (p. ej. el token de la API acaba en
+        # la ruta sin redirigir, pero los datos del launcher van al contenedor),
+        # así que no nos fiamos de ella: copiamos al contenedor y VERIFICAMOS.
+        # La carpeta del contenedor es además estable entre actualizaciones de la
+        # Store, a diferencia de la ruta de instalación (versión + hash).
+        persistent_virtual = marker_dir / ICON_FILENAME
+        persistent_real = _devirtualize_msix_path(persistent_virtual, pfn)
+        target_icon = resolved_icon  # último recurso: icono dentro del paquete
         try:
-            shutil.copyfile(resolved_icon, persistent_icon)
-            target_icon = persistent_icon
+            persistent_virtual.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copyfile(resolved_icon, persistent_virtual)
+            if persistent_real.exists():
+                # La escritura virtual se redirigió al contenedor (caso normal).
+                target_icon = persistent_real
+            else:
+                # El runtime no redirigió como esperábamos: copia directa a la
+                # ruta real del contenedor.
+                persistent_real.parent.mkdir(parents=True, exist_ok=True)
+                shutil.copyfile(resolved_icon, persistent_real)
+                if persistent_real.exists():
+                    target_icon = persistent_real
         except OSError as exc:
-            logger.debug("No se pudo copiar icono a %s: %s", persistent_icon, exc)
-            target_icon = resolved_icon
+            logger.debug("No se pudo persistir el icono del shortcut: %s", exc)
         # Las comillas dobles en PowerShell permiten rutas con caracteres
         # especiales; escapamos comillas dobles del path con backtick.
         safe_icon = str(target_icon).replace('"', '`"')

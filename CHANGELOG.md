@@ -7,18 +7,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.2.4] - 2026-06-03
+
+### Fixed
+- **MSIX desktop shortcut showed a blank (white-page) icon** while the Start-menu tile rendered correctly. `ensure_msix_desktop_shortcut` copied the `.ico` under `%LOCALAPPDATA%` and wrote that same path into the shortcut's `IconLocation`. Inside an MSIX package, writes to `%LOCALAPPDATA%` are redirected to the package container (`…\Packages\<PFN>\LocalCache\Local`), but the path string the process sees is the un-redirected one — and the redirection is not even uniform (the API token lands on the un-redirected path while the launcher's data goes to the container). Explorer runs outside the package, can't follow the redirection, finds no file and paints a blank icon. The icon is now persisted to the real container path (verified, with a direct-copy fallback) and that path — which is also stable across Store updates — is what gets written to the `.lnk`. The regeneration marker was bumped `_v2` → `_v3` so existing installs with the broken shortcut fix themselves on next launch.
+
 ## [1.2.3] - 2026-06-03
 
 ### Added
 - **User guide** (`docs/guia_usuario.html`): a full step-by-step manual with screenshots (`docs/figs/guia/`) covering installation (from the Microsoft Store and from the GitHub release `.exe`), data-source configuration, the map and its filters, the statistics view and exports, and the new-student forms for Erasmus OUT/IN and SICUE OUT. Linked from the landing page (`docs/index.html`).
 - **Community-health files**: `SECURITY.md`, expanded `CONTRIBUTING.md`, and GitHub issue templates (`bug_report.md`, `feature_request.md`).
 
-### Fixed
-- **MSIX desktop shortcut showed a blank icon** while the Start-menu tile rendered correctly. The Store package only shipped the base `Square44x44Logo.png`, but Windows resolves the small icon used by desktop shortcuts, the taskbar and the app list from the asset's MRT variants. The MSIX workflow now generates the full set from `MovilidadESII.ico` — `scale-100/125/150/200/400`, `targetsize-16/24/32/48/256` and the matching `targetsize-*_altform-unplated` variants (plus `Square150x150Logo` and `StoreLogo` scale variants) — so the application icon paints on every surface.
-- **Inno Setup installer showed a hard-coded "version 1.0"** in the wizard title and in "Add or remove programs". `AppVer` in `installer.iss` / `installer_sindata.iss` is now guarded with `#ifndef` and overridable via `ISCC /DAppVer=…`; the `build-installers.yml` workflow passes the actual release version (the tag with the leading `v` stripped), so the installer reflects the real version.
-
 ### Changed
+- **Full MSIX icon asset set** generated from `MovilidadESII.ico` in `build-msix.yml`: `Square44x44Logo` now ships `scale-100/125/150/200/400`, `targetsize-16/24/32/48/256` and the matching `targetsize-*_altform-unplated` variants (plus `Square150x150Logo` and `StoreLogo` scale variants), so the small application icon renders consistently on the taskbar and app list. Assets are produced with `System.Drawing.Bitmap(ico)` rather than `Icon.ToBitmap()`, which fails to decode the PNG-compressed 256×256 frame.
 - `README.md`, `docs/index.html` and `docs/styles.css` refreshed for the user guide and the new release.
+
+### Fixed
+- **Inno Setup installer showed a hard-coded "version 1.0"** in the wizard title and in "Add or remove programs". `AppVer` in `installer.iss` / `installer_sindata.iss` is now guarded with `#ifndef` and overridable via `ISCC /DAppVer=…`; the `build-installers.yml` workflow passes the actual release version (the tag with the leading `v` stripped), so the installer reflects the real version.
 
 ## [1.2.2] - 2026-05-14
 
@@ -184,7 +189,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Embedded Python 3.12 runtime bundled in installer for zero-dependency deployment.
 - SHA256 checksums published alongside each GitHub Release.
 
-[Unreleased]: https://github.com/MariaPicazoSanchez/TFG-MariaPicazoSanchez/compare/v1.2.3...HEAD
+[Unreleased]: https://github.com/MariaPicazoSanchez/TFG-MariaPicazoSanchez/compare/v1.2.4...HEAD
+[1.2.4]: https://github.com/MariaPicazoSanchez/TFG-MariaPicazoSanchez/compare/v1.2.3...v1.2.4
 [1.2.3]: https://github.com/MariaPicazoSanchez/TFG-MariaPicazoSanchez/compare/v1.2.2...v1.2.3
 [1.2.2]: https://github.com/MariaPicazoSanchez/TFG-MariaPicazoSanchez/compare/v1.2.1...v1.2.2
 [1.2.1]: https://github.com/MariaPicazoSanchez/TFG-MariaPicazoSanchez/compare/v1.2.0...v1.2.1
