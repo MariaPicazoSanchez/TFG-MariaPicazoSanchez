@@ -1,0 +1,1021 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Guía de Usuario · Movilidad ESII</title>
+  <link rel="icon" href="figs/MovilidadESII.ico" />
+  <style>
+    /* ── Variables (mismo sistema que styles.css) ── */
+    :root {
+      --color-primary:       #ea580c;
+      --color-primary-light: #f97316;
+      --color-primary-dark:  #c2410c;
+      --color-text:          #111827;
+      --color-text-muted:    #6b7280;
+      --color-text-light:    #9ca3af;
+      --color-bg:            #ffffff;
+      --color-bg-alt:        #f8fafc;
+      --color-border:        #e2e8f0;
+      --color-border-strong: #cbd5e1;
+      --font-sans: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
+      --font-mono: 'SFMono-Regular', Consolas, 'Cascadia Code', Menlo, monospace;
+      --radius-sm:  4px;
+      --radius-md:  8px;
+      --radius-lg:  12px;
+      --shadow-sm:  0 1px 3px rgba(0,0,0,.07);
+      --shadow-md:  0 4px 6px -1px rgba(0,0,0,.08);
+      --shadow-lg:  0 10px 20px -3px rgba(0,0,0,.1);
+      --transition: 150ms ease;
+    }
+
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html { scroll-behavior: smooth; font-size: 16px; }
+    body {
+      font-family: var(--font-sans);
+      line-height: 1.7;
+      color: var(--color-text);
+      background: var(--color-bg);
+      -webkit-font-smoothing: antialiased;
+    }
+    a { color: var(--color-primary); text-decoration: none; }
+    a:hover { text-decoration: underline; }
+
+    /* ── Nav ── */
+    .site-header {
+      position: sticky; top: 0; z-index: 100;
+      background: rgba(255,255,255,.92);
+      backdrop-filter: blur(8px);
+      border-bottom: 1px solid var(--color-border);
+    }
+    .nav-bar {
+      display: flex; align-items: center;
+      justify-content: space-between;
+      padding: 0.9rem 1.5rem;
+      max-width: 1000px; margin: 0 auto;
+    }
+    .nav-logo { font-weight: 700; font-size: 1rem; color: var(--color-text); }
+    .nav-back {
+      font-size: 0.875rem; font-weight: 600;
+      color: var(--color-text-muted);
+      display: flex; align-items: center; gap: 0.35rem;
+      transition: color var(--transition);
+    }
+    .nav-back:hover { color: var(--color-primary); text-decoration: none; }
+
+    /* ── Hero ── */
+    .hero {
+      background: linear-gradient(135deg, #fff7ed 0%, #fff 60%);
+      border-bottom: 1px solid var(--color-border);
+      padding: 3.5rem 1.5rem 3rem;
+      text-align: center;
+    }
+    .hero-tag {
+      display: inline-block;
+      font-size: 0.72rem; font-weight: 600;
+      letter-spacing: .08em; text-transform: uppercase;
+      color: var(--color-primary);
+      margin-bottom: 0.75rem;
+    }
+    .hero h1 {
+      font-size: clamp(1.75rem, 4vw, 2.5rem);
+      font-weight: 800;
+      letter-spacing: -.02em;
+      color: var(--color-text);
+      margin-bottom: 0.75rem;
+    }
+    .hero p {
+      max-width: 600px;
+      margin: 0 auto;
+      color: var(--color-text-muted);
+      font-size: 1.05rem;
+    }
+
+    /* ── TOC (índice lateral) ── */
+    .layout {
+      display: grid;
+      grid-template-columns: 220px 1fr;
+      gap: 2rem;
+      max-width: 1100px;
+      margin: 0 auto;
+      padding: 2.5rem 1.5rem;
+      align-items: start;
+    }
+    @media (max-width: 760px) {
+      .layout { grid-template-columns: 1fr; }
+      .toc { display: none; }
+    }
+    .toc {
+      position: sticky;
+      top: 80px;
+      max-height: calc(100vh - 100px);
+      overflow-y: auto;
+      scrollbar-width: none;
+      background: var(--color-bg-alt);
+      border: 1px solid var(--color-border);
+      border-radius: var(--radius-lg);
+      padding: 1.25rem 1rem;
+      font-size: 0.83rem;
+    }
+    .toc::-webkit-scrollbar { display: none; }
+    .toc-title {
+      font-weight: 700;
+      font-size: 0.72rem;
+      letter-spacing: .08em;
+      text-transform: uppercase;
+      color: var(--color-text-muted);
+      margin-bottom: 0.75rem;
+    }
+    .toc ol {
+      list-style: none;
+      padding: 0;
+      display: flex;
+      flex-direction: column;
+      gap: 0.1rem;
+    }
+    .toc li a {
+      display: block;
+      padding: 0.25rem 0.5rem;
+      border-radius: var(--radius-sm);
+      color: var(--color-text-muted);
+      transition: color var(--transition), background var(--transition);
+      line-height: 1.4;
+    }
+    .toc li a:hover { color: var(--color-primary); background: rgba(234,88,12,.06); text-decoration: none; }
+    .toc li.sub a { padding-left: 1.1rem; font-size: 0.8rem; }
+
+    /* ── Content ── */
+    .content { min-width: 0; }
+    .content section { margin-bottom: 3rem; }
+
+    h2.section-title {
+      font-size: 1.45rem;
+      font-weight: 700;
+      color: var(--color-text);
+      margin-bottom: 1rem;
+      padding-bottom: 0.5rem;
+      border-bottom: 2px solid var(--color-border);
+      scroll-margin-top: 90px;
+    }
+    h3.subsection-title {
+      font-size: 1.1rem;
+      font-weight: 700;
+      color: var(--color-text);
+      margin: 1.5rem 0 0.6rem;
+      scroll-margin-top: 90px;
+    }
+    h4.subsubsection-title {
+      font-size: 0.95rem;
+      font-weight: 700;
+      color: var(--color-text-muted);
+      margin: 1.25rem 0 0.4rem;
+      text-transform: uppercase;
+      letter-spacing: .04em;
+      font-size: 0.78rem;
+    }
+
+    p { margin-bottom: 0.85rem; color: var(--color-text); }
+
+    ul, ol {
+      padding-left: 1.4rem;
+      margin-bottom: 0.85rem;
+      display: flex;
+      flex-direction: column;
+      gap: 0.3rem;
+    }
+    li { color: var(--color-text); }
+
+    /* ── Quick-start ── */
+    .quickstart-steps {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+      gap: 1rem;
+      margin: 1.25rem 0;
+    }
+    .qs-step {
+      background: var(--color-bg-alt);
+      border: 1px solid var(--color-border);
+      border-radius: var(--radius-md);
+      padding: 1rem;
+    }
+    .qs-num {
+      font-size: 1.4rem;
+      font-weight: 800;
+      color: var(--color-primary);
+      margin-bottom: 0.35rem;
+    }
+    .qs-label {
+      font-weight: 700;
+      font-size: 0.9rem;
+      color: var(--color-text);
+      margin-bottom: 0.2rem;
+    }
+    .qs-desc { font-size: 0.82rem; color: var(--color-text-muted); }
+
+    /* ── Callout / Precaución ── */
+    .callout {
+      border-left: 3px solid var(--color-primary);
+      background: #fff7ed;
+      border-radius: 0 var(--radius-md) var(--radius-md) 0;
+      padding: 0.85rem 1.1rem;
+      margin: 1rem 0;
+      font-size: 0.9rem;
+    }
+    .callout strong { color: var(--color-primary-dark); }
+    .callout.warn {
+      border-left-color: #d97706;
+      background: #fffbeb;
+    }
+    .callout.warn strong { color: #92400e; }
+    .callout.info {
+      border-left-color: #3b82f6;
+      background: #eff6ff;
+    }
+    .callout.info strong { color: #1e40af; }
+
+    /* ── Figuras ── */
+    .guide-figure {
+      margin: 1.25rem 0;
+      text-align: center;
+    }
+    .guide-figure img {
+      max-width: 100%;
+      border-radius: var(--radius-md);
+      border: 1px solid var(--color-border);
+      box-shadow: var(--shadow-md);
+    }
+    .guide-figure img.img-sm  { max-width: 400px; }
+    .guide-figure img.img-md  { max-width: 600px; }
+    .guide-figure img.img-lg  { max-width: 100%; }
+    .guide-figure figcaption {
+      margin-top: 0.45rem;
+      font-size: 0.82rem;
+      color: var(--color-text-light);
+      font-style: italic;
+    }
+
+    /* ── Código inline / bloques ── */
+    code {
+      font-family: var(--font-mono);
+      font-size: 0.82em;
+      background: #f1f5f9;
+      border: 1px solid var(--color-border);
+      border-radius: var(--radius-sm);
+      padding: 0.1em 0.35em;
+    }
+    .code-block {
+      background: #1e293b;
+      color: #e2e8f0;
+      border-radius: var(--radius-md);
+      padding: 1rem 1.25rem;
+      font-family: var(--font-mono);
+      font-size: 0.85rem;
+      overflow-x: auto;
+      margin: 0.75rem 0;
+    }
+
+    /* ── Badge de modalidad ── */
+    .badge {
+      display: inline-block;
+      font-size: 0.72rem;
+      font-weight: 700;
+      padding: 0.15em 0.55em;
+      border-radius: 999px;
+      letter-spacing: .04em;
+      text-transform: uppercase;
+    }
+    .badge-blue   { background: #dbeafe; color: #1d4ed8; }
+    .badge-green  { background: #dcfce7; color: #15803d; }
+    .badge-orange { background: #ffedd5; color: #c2410c; }
+    .badge-adv    { background: #f1f5f9; color: var(--color-text-muted); }
+
+    /* ── Tabla de filtros / errores ── */
+    .error-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.875rem;
+      margin: 1rem 0;
+    }
+    .error-table th {
+      background: var(--color-bg-alt);
+      font-weight: 700;
+      text-align: left;
+      padding: 0.6rem 0.75rem;
+      border: 1px solid var(--color-border);
+      color: var(--color-text-muted);
+      font-size: 0.78rem;
+      letter-spacing: .04em;
+      text-transform: uppercase;
+    }
+    .error-table td {
+      padding: 0.6rem 0.75rem;
+      border: 1px solid var(--color-border);
+      vertical-align: top;
+    }
+    .error-table tr:nth-child(even) td { background: var(--color-bg-alt); }
+
+    /* ── Colores de marcadores ── */
+    .marker-legend {
+      display: flex;
+      flex-direction: column;
+      gap: 0.5rem;
+      margin: 0.75rem 0;
+    }
+    .marker-item {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      font-size: 0.9rem;
+    }
+    .marker-dot {
+      width: 18px; height: 18px;
+      border-radius: 50%;
+      flex-shrink: 0;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 0.65rem;
+    }
+    .marker-blue   { background: #3b82f6; }
+    .marker-green  { background: #22c55e; }
+    .marker-orange { background: #f97316; }
+
+    /* ── Footer ── */
+    .site-footer {
+      background: var(--color-bg-alt);
+      border-top: 1px solid var(--color-border);
+      padding: 2rem 1.5rem;
+      margin-top: 3rem;
+    }
+    .footer-inner {
+      max-width: 1000px; margin: 0 auto;
+      display: flex; justify-content: space-between; align-items: center;
+      flex-wrap: wrap; gap: 1rem;
+      font-size: 0.82rem;
+      color: var(--color-text-muted);
+    }
+    .footer-links { display: flex; gap: 1.25rem; }
+    .footer-link { color: var(--color-text-muted); }
+    .footer-link:hover { color: var(--color-primary); }
+
+    /* ── Botón volver arriba ── */
+    #back-to-top {
+      position: fixed; bottom: 1.75rem; right: 1.75rem;
+      width: 2.5rem; height: 2.5rem;
+      background: var(--color-primary); color: #fff;
+      border: none; border-radius: 50%;
+      font-size: 1rem; cursor: pointer;
+      display: flex; align-items: center; justify-content: center;
+      opacity: 0; pointer-events: none;
+      transition: opacity var(--transition), transform var(--transition);
+      box-shadow: var(--shadow-md);
+    }
+    #back-to-top.visible { opacity: 1; pointer-events: auto; }
+    #back-to-top:hover { transform: translateY(-2px); }
+  </style>
+</head>
+<body>
+
+  <header class="site-header">
+    <nav class="nav-bar">
+      <span class="nav-logo">Movilidad ESII</span>
+      <a href="index.html" class="nav-back">&#8592; Volver al inicio</a>
+    </nav>
+  </header>
+
+  <!-- Hero -->
+  <div class="hero">
+    <div class="hero-tag">Documentación · Anexo C</div>
+    <h1>Guía de Usuario</h1>
+    <p>
+      Manual completo de instalación, configuración y uso de la herramienta de gestión
+      de movilidad académica de la ESIIAB.
+    </p>
+  </div>
+
+  <div class="layout">
+
+    <!-- ── Índice lateral ── -->
+    <nav class="toc" aria-label="Índice de contenidos">
+      <div class="toc-title">Contenidos</div>
+      <ol>
+        <li><a href="#intro">1. Introducción</a></li>
+        <li class="sub"><a href="#inicio-rapido">Inicio rápido</a></li>
+        <li><a href="#requisitos">2. Requisitos previos</a></li>
+        <li><a href="#instalacion">3. Instalación</a></li>
+        <li class="sub"><a href="#msstore">Microsoft Store</a></li>
+        <li class="sub"><a href="#github-releases">GitHub Releases</a></li>
+        <li class="sub"><a href="#primer-arranque">Primer arranque</a></li>
+        <li class="sub"><a href="#configuracion-excel">Configurar Excel</a></li>
+        <li><a href="#interfaz">4. Interfaz y navegación</a></li>
+        <li class="sub"><a href="#barra-lateral">Barra lateral</a></li>
+        <li><a href="#mapa">5. Módulo de mapa</a></li>
+        <li class="sub"><a href="#filtros-mapa">Filtros</a></li>
+        <li class="sub"><a href="#marcadores">Marcadores y leyenda</a></li>
+        <li class="sub"><a href="#popups">Popups</a></li>
+        <li class="sub"><a href="#exportar-mapa">Exportar mapa</a></li>
+        <li><a href="#gestion">6. Gestión de estudiantes</a></li>
+        <li class="sub"><a href="#nuevo-estudiante">Nuevo estudiante</a></li>
+        <li class="sub"><a href="#editar">Editar</a></li>
+        <li class="sub"><a href="#eliminar">Eliminar</a></li>
+        <li><a href="#estadisticas">7. Estadísticas</a></li>
+        <li><a href="#errores">8. Problemas frecuentes</a></li>
+        <li><a href="#apendice-tecnico">9. Apéndice técnico</a></li>
+      </ol>
+    </nav>
+
+    <!-- ── Contenido principal ── -->
+    <main class="content">
+
+      <p style="color:var(--color-text-muted);font-size:.9rem;margin-bottom:2rem;">
+        Esta guía está orientada a usuarios responsables de la gestión académica sin conocimientos técnicos previos.
+        Los apartados marcados con <span class="badge badge-adv">Avanzado</span> están dirigidos al personal de soporte y no son necesarios para el uso cotidiano.
+      </p>
+
+      <!-- ── 1. Introducción ── -->
+      <section id="intro">
+        <h2 class="section-title">1. Introducción al manual</h2>
+        <p>
+          Este manual describe el uso de la herramienta de gestión de movilidad académica desarrollada para la
+          Escuela Superior de Ingeniería Informática de Albacete (ESIIAB), cubriendo el proceso completo desde
+          la instalación inicial hasta la explotación de los datos mediante visualización geográfica y exportación de informes.
+        </p>
+
+        <h3 class="subsection-title">Cómo leer este manual</h3>
+        <p>
+          El manual sigue el flujo natural de uso de la aplicación. Se recomienda leerlo en orden la primera vez;
+          los usuarios que ya tengan el sistema instalado pueden ir directamente al apartado de
+          <a href="#interfaz">Interfaz y navegación</a>.
+        </p>
+        <ol>
+          <li><strong>Requisitos previos</strong>: sistema operativo, permisos necesarios y archivos que conviene tener preparados antes de instalar.</li>
+          <li><strong>Instalación y configuración inicial</strong>: cómo obtener el software, ejecutar el instalador y configurar la fuente de datos Excel por primera vez.</li>
+          <li><strong>Interfaz y navegación</strong>: descripción de los elementos comunes de la pantalla y cómo moverse entre los módulos.</li>
+          <li><strong>Módulos principales:</strong>
+            <ul>
+              <li>Visualización geográfica: mapa interactivo, filtros y acceso a la información por universidad y alumno.</li>
+              <li>Gestión de estudiantes: creación, edición y eliminación de registros.</li>
+              <li>Estadísticas y exportación: gráficas resumen y descarga de datos a Excel.</li>
+            </ul>
+          </li>
+          <li><strong>Problemas frecuentes</strong>: soluciones a los errores más habituales.</li>
+          <li><strong>Apéndice técnico</strong> <span class="badge badge-adv">Avanzado</span>: estructura de archivos en disco y acceso a los registros de actividad.</li>
+        </ol>
+
+        <h3 class="subsection-title" id="inicio-rapido">Inicio rápido</h3>
+        <p>Si es la primera vez que usa la aplicación, estos cinco pasos son suficientes para empezar:</p>
+        <div class="quickstart-steps">
+          <div class="qs-step">
+            <div class="qs-num">1</div>
+            <div class="qs-label">Instalar</div>
+            <div class="qs-desc">Desde la Microsoft Store (busca «MovilidadESII») o descarga el instalador desde GitHub.</div>
+          </div>
+          <div class="qs-step">
+            <div class="qs-num">2</div>
+            <div class="qs-label">Lanzar</div>
+            <div class="qs-desc">Doble clic en el acceso directo del menú Inicio. El arranque tarda entre 5 y 15 segundos.</div>
+          </div>
+          <div class="qs-step">
+            <div class="qs-num">3</div>
+            <div class="qs-label">Configurar datos</div>
+            <div class="qs-desc">Ve a <strong>Ajustes → Configuración</strong> y vincula los tres archivos Excel institucionales.</div>
+          </div>
+          <div class="qs-step">
+            <div class="qs-num">4</div>
+            <div class="qs-label">Seleccionar curso</div>
+            <div class="qs-desc">Elige el curso académico en el menú desplegable de la barra lateral.</div>
+          </div>
+          <div class="qs-step">
+            <div class="qs-num">5</div>
+            <div class="qs-label">Explorar</div>
+            <div class="qs-desc">Consulta el mapa o accede a <strong>Estadísticas</strong> para exportar datos.</div>
+          </div>
+        </div>
+        <p>Si algo no funciona como se espera, consulta el apartado <a href="#errores">Problemas frecuentes</a>.</p>
+      </section>
+
+      <!-- ── 2. Requisitos ── -->
+      <section id="requisitos">
+        <h2 class="section-title">2. Requisitos previos</h2>
+        <p>Antes de instalar y usar la aplicación, comprueba que se cumplen los siguientes requisitos:</p>
+        <ul>
+          <li><strong>Sistema operativo</strong>: Windows 10 (versión 1903 o posterior) o Windows 11. La aplicación no es compatible con macOS ni Linux.</li>
+          <li><strong>Permisos</strong>: cuenta de usuario con permisos para instalar aplicaciones desde la Microsoft Store o para ejecutar archivos <code>.exe</code> descargados. No se requieren permisos de administrador del sistema.</li>
+          <li><strong>Dependencias externas</strong>: ninguna. La aplicación incorpora un entorno Python embebido (versión 3.12) y no requiere instalar Python, Node.js ni ninguna otra herramienta adicional.</li>
+          <li><strong>Conexión a Internet</strong>: necesaria únicamente durante el primer arranque para la geocodificación de coordenadas de las universidades. Los usos posteriores pueden realizarse sin conexión.</li>
+          <li><strong>Archivos Excel</strong>: antes del primer uso en producción, conviene tener preparados los tres archivos Excel institucionales (Erasmus OUT, Erasmus IN y SICUE OUT). Si aún no se dispone de ellos, puede usarse la versión de demostración.</li>
+        </ul>
+      </section>
+
+      <!-- ── 3. Instalación ── -->
+      <section id="instalacion">
+        <h2 class="section-title">3. Instalación y configuración inicial</h2>
+        <p>El software puede obtenerse desde dos canales oficiales:</p>
+        <ul>
+          <li><strong>Microsoft Store</strong> (recomendado): instalación directa, con actualizaciones automáticas y sin avisos de seguridad.</li>
+          <li><strong>GitHub Releases</strong>: descarga de instaladores desde la página de <em>Releases</em> del repositorio oficial.</li>
+        </ul>
+        <p>La aplicación se distribuye en dos variantes:</p>
+        <ul>
+          <li><strong>Versión con datos de demostración</strong>: incluye estudiantes ficticios para explorar todas las funcionalidades sin datos reales. Indicada para formación de nuevo personal.</li>
+          <li><strong>Versión limpia (producción)</strong>: sin datos precargados. Es la opción adecuada para el despliegue real.</li>
+        </ul>
+
+        <h3 class="subsection-title" id="msstore">Instalación desde la Microsoft Store (recomendado)</h3>
+        <ol>
+          <li>Abra la <strong>Microsoft Store</strong> desde el menú Inicio.</li>
+          <li>Busque <strong>«MovilidadESII»</strong> y seleccione la aplicación en los resultados.</li>
+          <li>Haga clic en <strong>Obtener</strong>. Windows descargará e instalará la aplicación sin necesidad de confirmar avisos de seguridad.</li>
+          <li>Una vez finalizada la instalación, la aplicación aparecerá en el menú Inicio.</li>
+        </ol>
+        <figure class="guide-figure">
+          <img src="figs/guia/msstore_instalacion.png" alt="Página de MovilidadESII en la Microsoft Store" class="img-lg" />
+          <figcaption>Página de MovilidadESII en la Microsoft Store.</figcaption>
+        </figure>
+
+        <h3 class="subsection-title" id="github-releases">Instalación desde GitHub Releases (opción alternativa)</h3>
+        <p>Esta opción es útil en entornos sin acceso a la Microsoft Store o para instalar una versión concreta con fines de prueba.</p>
+        <figure class="guide-figure">
+          <img src="figs/guia/github_releases.png" alt="Página de releases en GitHub" class="img-lg" />
+          <figcaption>Página de <em>releases</em> en GitHub con los instaladores disponibles.</figcaption>
+        </figure>
+        <ol>
+          <li>Descargue el instalador correspondiente desde la página de Releases.</li>
+          <li>Haga doble clic sobre el archivo <code>.exe</code> descargado.</li>
+          <li>Si Windows muestra un aviso de <em>SmartScreen</em>, descargue la aplicación directamente desde la <a href="https://apps.microsoft.com/detail/9PBHCL7R9QNV?hl=es-es&gl=ES&ocid=pdpshare" target="_blank" rel="noopener noreferrer">Microsoft Store</a>.</li>
+        </ol>
+        <figure class="guide-figure">
+          <img src="figs/guia/1_instalador.png" alt="Primer paso del asistente de instalación" class="img-sm" />
+          <figcaption>Primer paso del asistente de instalación.</figcaption>
+        </figure>
+        <p>Haga clic en <strong>Instalar</strong> para iniciar la descarga e instalación.</p>
+        <figure class="guide-figure">
+          <img src="figs/guia/progreso.png" alt="Progreso de instalación" class="img-sm" />
+          <figcaption>Progreso de copia de archivos durante la instalación.</figcaption>
+        </figure>
+        <figure class="guide-figure">
+          <img src="figs/guia/fin_instalacion.png" alt="Pantalla de finalización" class="img-sm" />
+          <figcaption>Pantalla de finalización del asistente de instalación.</figcaption>
+        </figure>
+        <p>El resultado final es idéntico al de la instalación desde la Store: se crea un acceso directo en el menú Inicio.</p>
+
+        <h3 class="subsection-title" id="primer-arranque">Primer lanzamiento y verificación</h3>
+        <p>Haga doble clic en el acceso directo del menú Inicio. Durante el arranque, la herramienta realizará automáticamente las siguientes acciones:</p>
+        <ol>
+          <li>Verificará que no haya otra instancia ya en ejecución. Si la aplicación ya está abierta, se traerá la ventana existente al primer plano.</li>
+          <li>Reservará dos puertos libres del sistema para la interfaz web y el microservicio de persistencia.</li>
+          <li>Lanzará el microservicio Flask en segundo plano.</li>
+          <li>Abrirá la ventana con la interfaz lista para usar.</li>
+        </ol>
+        <p>El arranque completo tarda habitualmente entre 5 y 15 segundos. Si tras 30 segundos la ventana no aparece, consulte <a href="#errores">Problemas frecuentes</a>.</p>
+        <figure class="guide-figure">
+          <img src="figs/guia/primera_pantalla.png" alt="Primera pantalla de la aplicación" class="img-lg" />
+          <figcaption>Primera pantalla de la aplicación tras el lanzamiento inicial.</figcaption>
+        </figure>
+
+        <h3 class="subsection-title" id="configuracion-excel">Configuración de la fuente de datos (Excel)</h3>
+        <p>
+          La herramienta almacena todos los datos de estudiantes en archivos Excel institucionales.
+          Antes de comenzar a trabajar en producción, es necesario indicarle a la aplicación dónde se encuentran dichos archivos.
+        </p>
+        <h4 class="subsubsection-title">Estructura requerida de los archivos Excel</h4>
+        <p>
+          La aplicación espera tres archivos Excel independientes, uno por cada programa de movilidad.
+          Cada archivo contiene una hoja por curso académico (por ejemplo, <code>2024-25</code>, <code>2023-24</code>, etc.).
+        </p>
+        <p>
+          Los <strong>campos mínimos obligatorios</strong> para que la aplicación pueda leer un registro son <strong>Nombre</strong> y <strong>Universidad</strong>, comunes a todos los programas.
+          En <strong>Erasmus IN</strong> también es obligatoria la columna <strong>Asignatura / Estancia de investigación</strong>.
+          Además, en Erasmus OUT y Erasmus IN es obligatoria una hoja llamada <code>Coordenadas</code> con las columnas <strong>Universidad</strong> y <strong>Coordenadas</strong>.
+        </p>
+        <p>Para una descripción visual completa de la estructura consulta la <a href="excel_structure.html">página de estructura Excel por modalidad</a>.</p>
+        <figure class="guide-figure">
+          <img src="figs/guia/fuente_datos.png" alt="Estructura de un archivo Excel fuente" class="img-sm" />
+          <figcaption>Ejemplo de estructura de un archivo Excel fuente con sus hojas por curso académico.</figcaption>
+        </figure>
+
+        <h4 class="subsubsection-title">Selección de la ruta de datos en la interfaz</h4>
+        <p>Una vez preparados los archivos Excel, siga estos pasos para vincularlos:</p>
+        <ol>
+          <li>Acceda a <strong>Fuente de Datos</strong> desde la barra lateral.</li>
+          <li>Para cada programa (Erasmus OUT, Erasmus IN, SICUE OUT), haga clic en <strong>Seleccionar archivo</strong> y navegue hasta el archivo Excel correspondiente.</li>
+          <li>La ruta queda guardada automáticamente y se restaurará en cada reinicio de la aplicación.</li>
+        </ol>
+        <figure class="guide-figure">
+          <img src="figs/guia/configuracion_rutas.png" alt="Panel de configuración de rutas" class="img-sm" />
+          <figcaption>Panel de configuración de rutas a los archivos Excel.</figcaption>
+        </figure>
+        <figure class="guide-figure">
+          <img src="figs/guia/seleccionar_ruta.png" alt="Diálogo de selección de archivo" class="img-lg" />
+          <figcaption>Diálogo de selección de archivo al vincular un Excel fuente.</figcaption>
+        </figure>
+      </section>
+
+      <!-- ── 4. Interfaz ── -->
+      <section id="interfaz">
+        <h2 class="section-title">4. Interfaz general y navegación</h2>
+        <p>
+          Al iniciar la aplicación, la pantalla principal muestra el módulo de visualización geográfica.
+          La interfaz se divide en dos áreas: la <strong>barra lateral de control</strong> a la izquierda y el <strong>mapa interactivo</strong> que ocupa el resto de la pantalla.
+        </p>
+        <figure class="guide-figure">
+          <img src="figs/guia/vision_general.png" alt="Vista general de la interfaz" class="img-lg" />
+          <figcaption>Vista general: barra lateral de control (izquierda) y mapa interactivo (derecha).</figcaption>
+        </figure>
+
+        <h3 class="subsection-title" id="barra-lateral">La barra lateral de control</h3>
+        <p>La barra lateral agrupa los controles principales y permanece visible en todas las vistas.</p>
+
+        <h4 class="subsubsection-title">Navegación: mapa / estadísticas / nuevo estudiante</h4>
+        <p>En la parte superior se encuentran los tres botones de navegación principal:</p>
+        <ul>
+          <li><strong>Mapa</strong>: accede al módulo de visualización geográfica (vista por defecto).</li>
+          <li><strong>Estadísticas</strong>: abre el panel de gráficas y exportación.</li>
+          <li><strong>Nuevo Estudiante</strong>: muestra el formulario de alta de un nuevo registro.</li>
+        </ul>
+
+        <h4 class="subsubsection-title">Selector de curso académico (filtro global)</h4>
+        <p>
+          El <strong>selector de curso académico</strong> es un menú desplegable que actúa como filtro global.
+          Al cambiar el curso, tanto el mapa como las estadísticas se actualizan automáticamente para mostrar únicamente los datos del período seleccionado.
+          La selección se guarda entre sesiones.
+        </p>
+
+        <h4 class="subsubsection-title">Botón «Fuentes de datos»</h4>
+        <p>
+          El botón <strong>Fuentes de datos</strong> abre en el explorador de archivos la carpeta que contiene los Excel configurados, facilitando su edición manual cuando sea necesario.
+          Tras editar y guardar el Excel, utilice el botón de <strong>recarga</strong> (icono de flecha circular en la cabecera del mapa) para que la aplicación cargue los datos actualizados.
+        </p>
+
+        <h4 class="subsubsection-title">Botón de ajustes</h4>
+        <p>
+          El botón de <strong>Ajustes</strong> abre un menú desplegable con opciones de configuración global, entre ellas la posibilidad de definir el comportamiento de la aplicación al pulsar el botón de cierre.
+        </p>
+        <figure class="guide-figure">
+          <img src="figs/guia/ajustes.png" alt="Menú de ajustes de la barra lateral" class="img-sm" />
+          <figcaption>Menú de ajustes de la barra lateral.</figcaption>
+        </figure>
+      </section>
+
+      <!-- ── 5. Mapa ── -->
+      <section id="mapa">
+        <h2 class="section-title">5. Módulo de visualización geográfica</h2>
+
+        <h3 class="subsection-title">Controles del mapa y navegación</h3>
+        <ul>
+          <li><strong>Zoom</strong>: rueda del ratón con <code>Ctrl</code> pulsado, o botones <code>+</code>/<code>-</code> de la esquina superior izquierda. Para restablecer el zoom por defecto, pulse <code>Ctrl+0</code>.</li>
+          <li><strong>Desplazamiento</strong>: clic y arrastre con el botón izquierdo del ratón.</li>
+          <li><strong>Recargar datos</strong>: el botón de recarga circular de la cabecera fuerza una nueva lectura de los archivos Excel. Úselo tras modificar manualmente algún archivo fuente.</li>
+        </ul>
+        <p>El nivel de zoom y la posición del mapa se guardan automáticamente al cerrar la aplicación.</p>
+        <figure class="guide-figure">
+          <img src="figs/guia/mapa.png" alt="Vista del mapa interactivo" class="img-lg" />
+          <figcaption>Vista del mapa interactivo con los marcadores de destinos de movilidad.</figcaption>
+        </figure>
+
+        <h3 class="subsection-title" id="filtros-mapa">Sistema de filtros del mapa</h3>
+        <h4 class="subsubsection-title">Filtros por modalidad</h4>
+        <p>Tres botones de alternancia permiten activar o desactivar de forma independiente cada programa:</p>
+        <ul>
+          <li><span class="badge badge-blue">Erasmus OUT</span>: estudiantes de la ESIIAB en universidades europeas.</li>
+          <li><span class="badge badge-green">Erasmus IN</span>: estudiantes europeos acogidos en la ESIIAB.</li>
+          <li><span class="badge badge-orange">SICUE OUT</span>: estudiantes de la ESIIAB en universidades españolas.</li>
+        </ul>
+        <p>Existe también un filtro específico para <strong>Erasmus OUT sin LA firmado</strong>, que resalta los estudiantes que aún no tienen el <em>Learning Agreement</em> completado.</p>
+        <figure class="guide-figure">
+          <img src="figs/guia/filtros_mapa.png" alt="Controles de filtrado por modalidad" class="img-sm" />
+          <figcaption>Controles de filtrado por modalidad en la barra lateral.</figcaption>
+        </figure>
+
+        <h4 class="subsubsection-title">Interacción entre filtros</h4>
+        <p>
+          El selector de curso y los filtros de modalidad actúan conjuntamente: el mapa muestra únicamente los estudiantes que cumplen <em>simultáneamente</em> el curso seleccionado y las modalidades activas.
+        </p>
+        <p>
+          El campo de <strong>búsqueda textual</strong> es compatible con todos los demás filtros: permite buscar por nombre, apellidos, correo, universidad, país o ciudad.
+        </p>
+
+        <h4 class="subsubsection-title">Limpiar filtros</h4>
+        <p>
+          Para restablecer todos los filtros a su estado por defecto (todos los programas activos, sin búsqueda textual), haga clic en <strong>Limpiar filtros</strong> en la barra lateral.
+          El selector de curso académico no se modifica con esta acción.
+        </p>
+
+        <h3 class="subsection-title" id="marcadores">Leyenda y marcadores</h3>
+        <p>Significado de los colores de los marcadores en el mapa:</p>
+        <div class="marker-legend">
+          <div class="marker-item">
+            <div class="marker-dot marker-blue" title="Azul"></div>
+            <span><strong>Erasmus OUT</strong>: marcador azul con icono de puerta y flecha hacia afuera.</span>
+          </div>
+          <div class="marker-item">
+            <div class="marker-dot marker-green" title="Verde"></div>
+            <span><strong>Erasmus IN</strong>: marcador verde con icono de puerta y flecha hacia adentro.</span>
+          </div>
+          <div class="marker-item">
+            <div class="marker-dot marker-orange" title="Naranja"></div>
+            <span><strong>SICUE OUT</strong>: marcador naranja con icono de puerta y flecha hacia afuera.</span>
+          </div>
+        </div>
+        <p>Cuando en una misma universidad coinciden estudiantes de distintas modalidades, el marcador muestra el color de la modalidad mayoritaria y el número total de estudiantes.</p>
+        <figure class="guide-figure">
+          <img src="figs/guia/marcadores.png" alt="Los tres tipos de marcadores del mapa: Erasmus OUT (azul), Erasmus IN (verde) y SICUE OUT (naranja)" class="img-sm" />
+          <figcaption>Los tres tipos de marcadores: Erasmus OUT (azul, flecha hacia afuera), Erasmus IN (verde, flecha hacia adentro) y SICUE OUT (naranja, flecha hacia afuera).</figcaption>
+        </figure>
+        <p>La cabecera de la interfaz muestra un <strong>contador de alumnos</strong> que indica cuántos registros están representados en el mapa en función de los filtros activos. Se actualiza en tiempo real.</p>
+
+        <h3 class="subsection-title" id="popups">Interacción con los <em>popups</em> de universidad</h3>
+        <p>Al hacer clic sobre un marcador, se abre un <em>popup</em> con información detallada de la universidad y los estudiantes asociados.</p>
+
+        <h4 class="subsubsection-title">Listado de alumnos agrupados</h4>
+        <p>La parte superior muestra el nombre de la universidad, la ciudad y el país. A continuación aparece el listado de estudiantes con su nombre, programa y curso académico.</p>
+        <figure class="guide-figure">
+          <img src="figs/guia/popup.png" alt="Popup de universidad con listado de alumnos" class="img-sm" />
+          <figcaption><em>Popup</em> de universidad con el listado de alumnos agrupados.</figcaption>
+        </figure>
+
+        <h4 class="subsubsection-title">Datos del responsable académico</h4>
+        <p>Si la universidad tiene asociado un coordinador, sus datos de contacto (nombre y correo) aparecen en una sección destacada del <em>popup</em>.</p>
+
+        <h4 class="subsubsection-title">Desplegable de información detallada del alumno</h4>
+        <p>Cada entrada del listado incluye un desplegable con todos los campos del registro según la modalidad:</p>
+        <ul>
+          <li><span class="badge badge-blue">Erasmus OUT</span>: <em>Learning Agreement</em> (con enlace), <em>Transcript of Records</em>, acta de equivalencias, curso, duración y plan de estudios de la universidad de destino.</li>
+          <li><span class="badge badge-green">Erasmus IN</span>: <em>Learning Agreement</em>, estado de la firma, asignaturas asociadas, indicador de investigación.</li>
+          <li><span class="badge badge-orange">SICUE OUT</span>: <em>Learning Agreement</em>, estado de las firmas, plan de estudios (con enlace), coordinador de destino.</li>
+        </ul>
+        <figure class="guide-figure">
+          <img src="figs/guia/info_popup.png" alt="Desplegable de información detallada de un alumno" class="img-sm" />
+          <figcaption>Desplegable de información detallada de un alumno dentro del <em>popup</em>.</figcaption>
+        </figure>
+
+        <h4 class="subsubsection-title">Acceso al plan de estudios (Erasmus OUT)</h4>
+        <p>Los registros de Erasmus OUT incluyen un botón de acceso al <strong>plan de estudios</strong> de la universidad de destino:</p>
+        <ul>
+          <li><strong>Con enlace disponible</strong>: el botón está activo y abre el plan de estudios en el navegador.</li>
+          <li><strong>Sin enlace</strong>: el botón aparece deshabilitado, pero puede introducirse el enlace activando el modo de edición <em>inline</em>.</li>
+        </ul>
+        <figure class="guide-figure">
+          <img src="figs/guia/plan_estudios.png" alt="Botón de plan de estudios activo" class="img-sm" />
+          <figcaption>Botón de plan de estudios activo en el desplegable de un alumno Erasmus OUT.</figcaption>
+        </figure>
+        <figure class="guide-figure">
+          <img src="figs/guia/plan_estudios_deshabilitado.png" alt="Botón de plan de estudios deshabilitado" class="img-sm" />
+          <figcaption>Botón de plan de estudios deshabilitado cuando no hay enlace registrado.</figcaption>
+        </figure>
+        <figure class="guide-figure">
+          <img src="figs/guia/plan_estudios_editable.png" alt="Campo de plan de estudios en modo edición" class="img-sm" />
+          <figcaption>Campo de plan de estudios en modo edición <em>inline</em>.</figcaption>
+        </figure>
+
+        <h4 class="subsubsection-title">Edición de datos de un alumno (<em>inline</em>)</h4>
+        <p>Dentro del <em>popup</em> es posible editar los datos de un alumno sin abandonar la vista del mapa:</p>
+        <ol>
+          <li>Expanda el desplegable del alumno que desea modificar.</li>
+          <li>Haga clic en el botón <strong>Editar</strong> (icono de lápiz).</li>
+          <li>Los campos se convertirán en formularios editables.</li>
+          <li>Realice los cambios y haga clic en <strong>Guardar</strong>. Los datos se escribirán en el archivo Excel.</li>
+          <li>Para cancelar sin guardar, haga clic en <strong>Cancelar</strong>.</li>
+        </ol>
+        <figure class="guide-figure">
+          <img src="figs/guia/editable.png" alt="Formulario de edición inline de un alumno" class="img-sm" />
+          <figcaption>Formulario de edición <em>inline</em> de un alumno dentro del <em>popup</em>.</figcaption>
+        </figure>
+        <figure class="guide-figure">
+          <img src="figs/guia/guardado_ok_popup.png" alt="Confirmación de guardado correcto" class="img-sm" />
+          <figcaption>Confirmación de guardado correcto tras editar los datos de un alumno.</figcaption>
+        </figure>
+
+        <h3 class="subsection-title" id="exportar-mapa">Exportación del mapa</h3>
+        <p>Haga clic en <strong>Exportar mapa</strong> en la barra lateral para generar una imagen estática con las localizaciones activas. Los formatos disponibles son:</p>
+        <ul>
+          <li><strong>PNG</strong>: imagen rasterizada, adecuada para documentos Word, correos o presentaciones.</li>
+          <li><strong>SVG</strong>: imagen vectorial, indicada para impresión o edición posterior.</li>
+        </ul>
+        <p>La imagen incluye la leyenda y refleja únicamente los filtros activos en el momento de la exportación. El archivo se descarga en la carpeta de descargas predeterminada.</p>
+      </section>
+
+      <!-- ── 6. Gestión de estudiantes ── -->
+      <section id="gestion">
+        <h2 class="section-title">6. Módulo de gestión de estudiantes</h2>
+
+        <h3 class="subsection-title" id="nuevo-estudiante">Creación de un nuevo estudiante</h3>
+        <p>Haga clic en <strong>Nuevo Estudiante</strong> en la barra lateral. Se abrirá un formulario de alta adaptado al tipo de movilidad seleccionado.</p>
+        <figure class="guide-figure">
+          <img src="figs/guia/general_new_student.png" alt="Formulario de alta de nuevo estudiante" class="img-lg" />
+          <figcaption>Formulario de alta de nuevo estudiante con el selector de tipo de movilidad.</figcaption>
+        </figure>
+
+        <h4 class="subsubsection-title">Tipos de movilidad soportados</h4>
+        <ul>
+          <li><span class="badge badge-blue">Erasmus OUT</span>: estudiante de la ESIIAB que sale a una universidad europea. Requiere país, ciudad y universidad de destino, con sugerencias autocompletadas a partir del catálogo de universidades socias.</li>
+          <li><span class="badge badge-green">Erasmus IN</span>: estudiante europeo que llega a la ESIIAB. Incluye campos para las asignaturas matriculadas con sugerencias del catálogo de la escuela.</li>
+          <li><span class="badge badge-orange">SICUE OUT</span>: estudiante de la ESIIAB que sale a una universidad española. La ciudad de destino se selecciona de una lista predefinida.</li>
+          <li><span class="badge badge-green">Erasmus IN Investigación</span>: variante del Erasmus IN para estancias de investigación, con campos específicos para el grupo y proyecto de investigación acogedor.</li>
+        </ul>
+
+        <h4 class="subsubsection-title">Campos obligatorios y validación</h4>
+        <p>Los campos marcados con asterisco (<strong>*</strong>) son obligatorios. Los campos mínimos comunes a todos los tipos son nombre y apellidos del estudiante y universidad de destino u origen.</p>
+        <ul>
+          <li>Para los programas Erasmus (IN y OUT) también se requiere el <strong>país</strong>.</li>
+          <li>Para SICUE OUT, la <strong>ciudad</strong> de destino y al menos <strong>una asignatura</strong>.</li>
+        </ul>
+        <figure class="guide-figure">
+          <img src="figs/guia/Nestudiante_erasmusout.png" alt="Formulario para un estudiante Erasmus OUT" class="img-lg" />
+          <figcaption>Formulario de alta para un estudiante Erasmus OUT.</figcaption>
+        </figure>
+        <figure class="guide-figure">
+          <img src="figs/guia/Nestudiante_erasmusin.png" alt="Formulario para un estudiante Erasmus IN" class="img-lg" />
+          <figcaption>Formulario de alta para un estudiante Erasmus IN.</figcaption>
+        </figure>
+        <figure class="guide-figure">
+          <img src="figs/guia/Nestudiante_sicueout.png" alt="Formulario para un estudiante SICUE OUT" class="img-lg" />
+          <figcaption>Formulario de alta para un estudiante SICUE OUT.</figcaption>
+        </figure>
+
+        <h4 class="subsubsection-title">Mensajes de error comunes al guardar</h4>
+        <table class="error-table">
+          <thead>
+            <tr><th>Mensaje de error</th><th>Causa</th></tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><em>«El nombre del estudiante es obligatorio»</em></td>
+              <td>El campo de nombre o apellidos está vacío.</td>
+            </tr>
+            <tr>
+              <td><em>«Debe seleccionar una universidad de destino»</em></td>
+              <td>No se ha elegido ninguna universidad del listado de sugerencias.</td>
+            </tr>
+            <tr>
+              <td><em>«Debe añadir al menos una asignatura»</em></td>
+              <td>Aplica a SICUE OUT; el listado de asignaturas está vacío.</td>
+            </tr>
+          </tbody>
+        </table>
+
+        <h3 class="subsection-title" id="editar">Edición de estudiantes existentes</h3>
+        <p>Los datos de un estudiante registrado pueden modificarse de dos formas:</p>
+        <ol>
+          <li><strong>Desde el <em>popup</em> del mapa (recomendado)</strong>: localice al estudiante en el mapa, abra su <em>popup</em> y use el flujo de edición <em>inline</em>. Es el método más cómodo para modificaciones puntuales.</li>
+          <li><strong>Editando directamente el Excel fuente</strong>: abra el archivo Excel (botón <em>Fuentes de datos</em>), localice la fila del estudiante en la hoja del curso correcto, modifique los valores y guarde el archivo. A continuación, use el botón de recarga para refrescar los datos.</li>
+        </ol>
+        <figure class="guide-figure">
+          <img src="figs/guia/popup_mapa.png" alt="Popup del mapa con desplegable de un alumno listo para editar" class="img-sm" />
+          <figcaption><em>Popup</em> del mapa con el desplegable de un alumno listo para editar.</figcaption>
+        </figure>
+
+        <h3 class="subsection-title" id="eliminar">Eliminación de estudiantes</h3>
+        <p>La eliminación de registros no está disponible directamente desde la interfaz para evitar borrados accidentales. Para eliminar un estudiante:</p>
+        <ol>
+          <li>Haga clic en <strong>Fuentes de datos</strong> para abrir la carpeta de datos.</li>
+          <li>Abra el archivo Excel del programa correspondiente.</li>
+          <li>Navegue a la hoja del curso correcto, localice la fila del estudiante y elimínela.</li>
+          <li>Guarde el archivo Excel y use el botón de <strong>recarga</strong> en la aplicación para reflejar los cambios.</li>
+        </ol>
+        <div class="callout warn">
+          <strong>Precaución:</strong> la eliminación de una fila en el Excel es permanente e irreversible desde la aplicación. Se recomienda conservar una copia de seguridad del archivo antes de realizar borrados.
+        </div>
+      </section>
+
+      <!-- ── 7. Estadísticas ── -->
+      <section id="estadisticas">
+        <h2 class="section-title">7. Módulo de estadísticas y exportación de datos</h2>
+
+        <h3 class="subsection-title">Acceso a la vista de estadísticas</h3>
+        <p>Haga clic en <strong>Estadísticas</strong> en la barra lateral. La vista mostrará las métricas correspondientes al curso académico seleccionado en el filtro global.</p>
+        <figure class="guide-figure">
+          <img src="figs/guia/general_stats.png" alt="Vista general del panel de estadísticas" class="img-lg" />
+          <figcaption>Vista general del panel de estadísticas con gráficas de distribución geográfica.</figcaption>
+        </figure>
+
+        <h3 class="subsection-title">Filtros del panel de estadísticas</h3>
+        <p>El panel dispone de controles propios, independientes de los filtros del mapa:</p>
+        <ul>
+          <li><strong>Selector de curso académico</strong>: hereda el valor del filtro global, pero puede modificarse de forma independiente sin afectar al mapa.</li>
+          <li><strong>Selector de modalidad</strong>: permite ver las métricas de un único programa o de todos a la vez.</li>
+        </ul>
+        <p>Las selecciones se mantienen entre sesiones.</p>
+
+        <h3 class="subsection-title">Gráficas y tablas resumen</h3>
+        <p>El panel muestra las siguientes métricas, cada una con un gráfico de barras y una tabla con valores absolutos y porcentajes:</p>
+        <ul>
+          <li><strong>Estudiantes por país</strong> (Erasmus OUT y IN): distribución geográfica de destinos u orígenes.</li>
+          <li><strong>Universidades con más estudiantes</strong> (Erasmus OUT y IN): ranking de centros socios.</li>
+          <li><strong>Estudiantes por ciudad</strong> (Erasmus OUT y SICUE OUT): distribución de destinos por ciudad.</li>
+          <li><strong>Asignaturas más frecuentes</strong> (Erasmus IN): asignaturas de la ESIIAB con mayor demanda entre estudiantes entrantes.</li>
+        </ul>
+
+        <h3 class="subsection-title">Exportación de datos a Excel</h3>
+        <p>
+          El botón <strong>Exportar a Excel</strong> genera un archivo <code>.xlsx</code> con los datos visibles según los filtros activos.
+          El archivo contiene una <strong>hoja independiente por cada métrica</strong>.
+          Si alguna métrica presenta advertencias de calidad de datos, se añade automáticamente una hoja adicional denominada <code>Advertencias</code>.
+        </p>
+        <figure class="guide-figure">
+          <img src="figs/guia/export_stats.png" alt="Panel de exportación de estadísticas" class="img-sm" />
+          <figcaption>Panel de exportación de estadísticas.</figcaption>
+        </figure>
+      </section>
+
+      <!-- ── 8. Errores ── -->
+      <section id="errores">
+        <h2 class="section-title">8. Problemas frecuentes</h2>
+
+        <h3 class="subsection-title">El mapa no carga o aparece en gris</h3>
+        <ol>
+          <li><strong>Datos no configurados</strong>: verifique que las rutas a los Excel están configuradas (ver <a href="#configuracion-excel">Configurar Excel</a>).</li>
+          <li><strong>Curso sin registros</strong>: compruebe que el curso seleccionado tiene datos en los archivos Excel. Pruebe a cambiar el selector a otro curso.</li>
+          <li><strong>Todos los filtros desactivados</strong>: asegúrese de que al menos un botón de modalidad está activo.</li>
+          <li><strong>Problema de arranque</strong>: cierre la aplicación, espere 10 segundos y vuelva a abrirla. Si persiste, consulte <code>launcher.log</code> (ver <a href="#apendice-tecnico">Apéndice técnico</a>).</li>
+        </ol>
+
+        <h3 class="subsection-title">Error al guardar: «Falta campo obligatorio»</h3>
+        <ul>
+          <li>Asegúrese de que los campos de <strong>nombre y apellidos</strong> no están vacíos.</li>
+          <li>Para Erasmus (IN y OUT), confirme que se ha seleccionado un <strong>país</strong> del desplegable, no introducido como texto libre.</li>
+          <li>Para SICUE OUT, compruebe que se ha añadido al menos <strong>una asignatura</strong>.</li>
+          <li>Para todos los tipos, verifique que se ha seleccionado una <strong>universidad</strong> de las sugerencias del autocompletado.</li>
+        </ul>
+        <p>Si el error persiste, consulte <code>api.log</code> para obtener el detalle técnico (ver <a href="#apendice-tecnico">Apéndice técnico</a>).</p>
+
+        <h3 class="subsection-title">El mapa carga pero no muestra marcadores</h3>
+        <ul>
+          <li><strong>Filtros demasiado restrictivos</strong>: compruebe que la combinación de curso y modalidades activas corresponde a datos existentes.</li>
+          <li><strong>Búsqueda textual activa</strong>: borre el campo de búsqueda y compruebe si reaparecen los marcadores.</li>
+          <li><strong>Fallo en la geocodificación</strong>: si no había conexión a Internet en el primer arranque, las coordenadas no se pudieron obtener. En ese caso, los estudiantes sí serán visibles en el panel de estadísticas. Para resolverlo, conéctese a Internet y reinicie la aplicación.</li>
+        </ul>
+      </section>
+
+      <!-- ── 9. Apéndice técnico ── -->
+      <section id="apendice-tecnico">
+        <h2 class="section-title">9. Apéndice técnico <span class="badge badge-adv">Avanzado</span></h2>
+        <p><em>Este apartado está dirigido al personal de soporte técnico. El usuario habitual no necesita consultarlo salvo ante incidencias que requieran diagnóstico avanzado.</em></p>
+
+        <h3 class="subsection-title">Contacto con el servicio técnico</h3>
+        <p>
+          Si los pasos descritos en <a href="#errores">Problemas frecuentes</a> no resuelven el problema, puede abrir una incidencia directamente en el canal oficial de soporte técnico a través de GitHub Discussions:
+        </p>
+        <div class="callout info">
+          <strong>Canal de soporte:</strong>
+          <a href="https://github.com/MariaPicazoSanchez/TFG-MariaPicazoSanchez/discussions" target="_blank" rel="noopener noreferrer">
+            github.com/MariaPicazoSanchez/TFG-MariaPicazoSanchez/discussions
+          </a>
+        </div>
+        <p>Para que la incidencia pueda atenderse con la mayor rapidez posible, incluya en su mensaje:</p>
+        <ul>
+          <li>Una descripción del problema: qué acción estaba realizando y qué ocurrió.</li>
+          <li>El sistema operativo y la versión de Windows (Windows 10 o Windows 11).</li>
+          <li>El canal de instalación utilizado (Microsoft Store o instalador desde GitHub).</li>
+          <li>El contenido de los archivos <code>launcher.log</code> y <code>api.log</code> del período en que se produjo el problema.</li>
+        </ul>
+        <div class="callout">
+          <strong>Nota:</strong> los archivos de registro no contienen datos personales de los estudiantes; únicamente registran eventos técnicos internos de la aplicación. Pueden adjuntarse sin problema al hilo de la incidencia.
+        </div>
+
+        <h3 class="subsection-title">Acceso e interpretación de los archivos de registro</h3>
+        <h4 class="subsubsection-title">Ubicación</h4>
+        <p>Los archivos de registro se encuentran en:</p>
+        <div class="code-block">%LocalAppData%\MovilidadESII\logs\</div>
+        <p>Para acceder rápidamente, pulse <code>Win+R</code>, escriba la ruta anterior y pulse <code>Enter</code>.</p>
+
+        <h4 class="subsubsection-title">Interpretación de <code>launcher.log</code> y <code>api.log</code></h4>
+        <ul>
+          <li><strong><code>launcher.log</code></strong>: registra el ciclo de vida del proceso principal (arranque, asignación de puertos, señales de cierre). Es el primer archivo a consultar si la aplicación no arranca o se cierra inesperadamente.</li>
+          <li><strong><code>api.log</code></strong>: registra todas las operaciones de lectura y escritura del microservicio de persistencia. Contiene el detalle de los errores de validación, los fallos de escritura en Excel y los intentos de acceso no autorizados.</li>
+        </ul>
+        <p>
+          Para reportar una incidencia, adjunte el contenido de ambos archivos del período en que se produjo el problema.
+        </p>
+      </section>
+
+    </main>
+  </div>
+
+  <footer class="site-footer">
+    <div class="footer-inner">
+      <div>
+        <strong>Movilidad ESII</strong> &middot;
+        Trabajo de Fin de Grado · María Picazo Sánchez · ESIIAB, UCLM · Curso 2025-2026
+      </div>
+      <div class="footer-links">
+        <a href="index.html" class="footer-link">Inicio</a>
+        <a href="excel_structure.html" class="footer-link">Estructura Excel</a>
+        <a href="https://github.com/mariapicazosanchez/TFG-MariaPicazoSanchez" target="_blank" rel="noopener noreferrer" class="footer-link">GitHub</a>
+        <a href="privacy.html" class="footer-link">Privacidad</a>
+      </div>
+    </div>
+  </footer>
+
+  <button id="back-to-top" aria-label="Volver al inicio" title="Volver al inicio">&#8593;</button>
+
+  <script>
+    var btn = document.getElementById('back-to-top');
+    window.addEventListener('scroll', function () {
+      btn.classList.toggle('visible', window.scrollY > 400);
+    }, { passive: true });
+    btn.addEventListener('click', function () {
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    });
+  </script>
+
+</body>
+</html>

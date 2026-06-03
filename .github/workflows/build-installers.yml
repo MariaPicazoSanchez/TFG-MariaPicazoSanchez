@@ -82,12 +82,14 @@ jobs:
       - name: Create installer (con datos)
         shell: pwsh
         run: |
-          & "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" installer.iss
+          $appVer = "${{ inputs.version }}" -replace '^v', ''
+          & "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" /DAppVer=$appVer installer.iss
 
       - name: Create installer (sin datos)
         shell: pwsh
         run: |
-          & "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" installer_sindata.iss
+          $appVer = "${{ inputs.version }}" -replace '^v', ''
+          & "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" /DAppVer=$appVer installer_sindata.iss
 
       - name: Clean build folders
         shell: pwsh

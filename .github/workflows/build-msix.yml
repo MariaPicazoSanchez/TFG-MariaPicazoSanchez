@@ -133,34 +133,72 @@ jobs:
           & "$pyDir\python.exe" -m pip list
 
       # =========================
-      # GENERAR ASSETS PNG DESDE ICO
+      # GENERAR VARIANTES DE ICONO MSIX DESDE EL ICO
+      # Windows resuelve el icono pequeño de los accesos directos del escritorio,
+      # la barra de tareas y la lista de apps a partir de Square44x44Logo Y SUS
+      # variantes (targetsize-* y altform-unplated), no del PNG base 44x44 a secas.
+      # Sin esas variantes el acceso directo del escritorio sale EN BLANCO aunque
+      # el mosaico 150x150 del menú Inicio sí se vea. Las generamos todas desde el
+      # .ico (el manifiesto no necesita listarlas: se resuelven por convención MRT).
       # =========================
 
-      # - name: Generate MSIX PNG assets from ICO
-      #   shell: pwsh
-      #   run: |
-      #     Add-Type -AssemblyName System.Drawing
+      - name: Generate MSIX icon asset variants from ICO
+        shell: pwsh
+        run: |
+          Add-Type -AssemblyName System.Drawing
 
-      #     $icoPath   = "install_root\MovilidadESII.ico"
-      #     $assetsDir = "msix_assets"
-      #     New-Item -ItemType Directory -Path $assetsDir -Force | Out-Null
+          $icoPath   = "install_root\MovilidadESII.ico"
+          $assetsDir = "install_root\assets_png"
+          New-Item -ItemType Directory -Path $assetsDir -Force | Out-Null
 
-      #     $icon      = New-Object System.Drawing.Icon($icoPath)
-      #     $srcBitmap = $icon.ToBitmap()
+          # Bitmap fuente de máxima resolución (frame 256x256 del .ico).
+          # Cargamos con Bitmap(path) y NO con Icon.ToBitmap(): este último tiene
+          # un bug de GDI+ que falla al decodificar el frame 256 comprimido en PNG.
+          $srcBitmap = New-Object System.Drawing.Bitmap($icoPath)
 
-      #     @{
-      #       "Square44x44Logo.png"   = [System.Drawing.Size]::new(44,  44)
-      #       "Square150x150Logo.png" = [System.Drawing.Size]::new(150, 150)
-      #       "StoreLogo.png"         = [System.Drawing.Size]::new(50,  50)
-      #     }.GetEnumerator() | ForEach-Object {
-      #       $dst = New-Object System.Drawing.Bitmap($srcBitmap, $_.Value)
-      #       $dst.Save("$assetsDir\$($_.Key)", [System.Drawing.Imaging.ImageFormat]::Png)
-      #       $dst.Dispose()
-      #       Write-Host "Generado: $assetsDir\$($_.Key)"
-      #     }
+          function Save-Png([int]$size, [string]$name) {
+            $bmp = New-Object System.Drawing.Bitmap($size, $size)
+            $g   = [System.Drawing.Graphics]::FromImage($bmp)
+            $g.InterpolationMode = [System.Drawing.Drawing2D.InterpolationMode]::HighQualityBicubic
+            $g.SmoothingMode     = [System.Drawing.Drawing2D.SmoothingMode]::HighQuality
+            $g.PixelOffsetMode   = [System.Drawing.Drawing2D.PixelOffsetMode]::HighQuality
+            $g.Clear([System.Drawing.Color]::Transparent)
+            $g.DrawImage($srcBitmap, 0, 0, $size, $size)
+            $bmp.Save((Join-Path $assetsDir $name), [System.Drawing.Imaging.ImageFormat]::Png)
+            $g.Dispose(); $bmp.Dispose()
+            Write-Host "  $name (${size}x${size})"
+          }
 
-      #     $srcBitmap.Dispose()
-      #     $icon.Dispose()
+          # --- Square44x44Logo: base + scale + targetsize (+ altform-unplated) ---
+          # Las targetsize/unplated son las que arreglan el acceso directo en blanco.
+          Save-Png 44  "Square44x44Logo.png"
+          Save-Png 44  "Square44x44Logo.scale-100.png"
+          Save-Png 55  "Square44x44Logo.scale-125.png"
+          Save-Png 66  "Square44x44Logo.scale-150.png"
+          Save-Png 88  "Square44x44Logo.scale-200.png"
+          Save-Png 176 "Square44x44Logo.scale-400.png"
+          foreach ($s in 16, 24, 32, 48, 256) {
+            Save-Png $s "Square44x44Logo.targetsize-$s.png"
+            Save-Png $s "Square44x44Logo.targetsize-${s}_altform-unplated.png"
+          }
+
+          # --- Square150x150Logo: base + scale (mosaico del menú Inicio) ---
+          Save-Png 150 "Square150x150Logo.png"
+          Save-Png 150 "Square150x150Logo.scale-100.png"
+          Save-Png 188 "Square150x150Logo.scale-125.png"
+          Save-Png 225 "Square150x150Logo.scale-150.png"
+          Save-Png 300 "Square150x150Logo.scale-200.png"
+          Save-Png 600 "Square150x150Logo.scale-400.png"
+
+          # --- StoreLogo: base + scale ---
+          Save-Png 50  "StoreLogo.png"
+          Save-Png 50  "StoreLogo.scale-100.png"
+          Save-Png 63  "StoreLogo.scale-125.png"
+          Save-Png 75  "StoreLogo.scale-150.png"
+          Save-Png 100 "StoreLogo.scale-200.png"
+
+          $srcBitmap.Dispose()
+          Write-Host "Variantes de icono generadas en $assetsDir"
 
       # =========================
       # CONSTRUIR LAYOUT DEL MSIX

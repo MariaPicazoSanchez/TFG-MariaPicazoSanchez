@@ -1,5 +1,10 @@
 #define AppName "MovilidadESII"
-#define AppVer  "1.0"
+; AppVer se puede sobreescribir desde la línea de comandos con
+; ISCC /DAppVer=1.2.3 (lo hace el workflow con la versión del release).
+; Si no se define, cae a este valor para compilaciones locales.
+#ifndef AppVer
+  #define AppVer "1.0"
+#endif
 #define AppExe  "MovilidadESII.exe"
 #define PyEmbedZip "python-3.12.6-embed-amd64.zip"
 
