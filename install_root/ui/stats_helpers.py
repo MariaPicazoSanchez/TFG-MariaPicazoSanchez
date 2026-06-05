@@ -45,12 +45,24 @@ def _find_city_column(df: pd.DataFrame) -> str | None:
     if df.empty:
         return None
     candidates = ["ciudad", "ciudad_sicue", "ciudad destino", "city", "localidad", "poblacion"]
-    norm_to_real = {_normalize_col_name(c): c for c in df.columns}
-    for cand in candidates:
-        nc = _normalize_col_name(cand)
-        if nc in norm_to_real:
-            return norm_to_real[nc]
-    return None
+    cand_norm = {_normalize_col_name(c) for c in candidates}
+
+    candidate_cols = [
+        col for col in df.columns
+        if _normalize_col_name(col) in cand_norm
+    ]
+    if not candidate_cols:
+        return None
+
+    def _non_empty_count(col_name: str) -> int:
+        s = df[col_name].fillna("").astype(str).str.strip().str.lower()
+        s = s[~s.isin(["", "nan", "none"])]
+        return int(s.shape[0])
+
+    # Si hay varias columnas compatibles (por tablas laterales/duplicadas),
+    # usar la que tenga más valores reales de ciudad.
+    best_col = max(candidate_cols, key=_non_empty_count)
+    return best_col
 
 
 def load_students_for_course(config: dict, course: str) -> pd.DataFrame:

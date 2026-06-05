@@ -79,7 +79,6 @@ def _append_erasmus_in_with_subjects(
                 extend_tables_ref_to_row,
                 find_catalog_in_ws,
                 find_materias_header_in_ws,
-                gather_other_course_subjects,
                 insert_materias_rows,
                 pick_template_sheet,
             )
@@ -115,18 +114,6 @@ def _append_erasmus_in_with_subjects(
                                         "_from_student": True,
                                     }
                                     for f in rows_to_add if f["Asignatura"]
-                                ]
-                                # Sugerencias cruzadas: asignaturas de otros cursos
-                                # con matr=0, cupo=0. La deduplicación interna de
-                                # append_to_catalog evita repetir las del estudiante.
-                                entries += [
-                                    {
-                                        "asignatura":  s["asignatura"],
-                                        "cuat":        s["cuat"],
-                                        "matriculados": 0,
-                                        "cupo":        0,
-                                    }
-                                    for s in gather_other_course_subjects(wb_tpl, target_sheet)
                                 ]
                                 append_to_catalog(new_ws, cat_info, entries)
                                 last_catalog = cat_info["data_end"]
@@ -253,7 +240,6 @@ def _append_erasmus_in_with_subjects(
             from ._erasmus_in_catalog import (
                 append_to_catalog,
                 find_catalog_in_ws,
-                gather_other_course_subjects,
             )
             cat_info = find_catalog_in_ws(ws)
             if cat_info:
@@ -269,15 +255,6 @@ def _append_erasmus_in_with_subjects(
                         "_from_student": True,
                     }
                     for fila in rows_to_add if fila["Asignatura"]
-                ]
-                entries += [
-                    {
-                        "asignatura":   s["asignatura"],
-                        "cuat":         s["cuat"],
-                        "matriculados": 0,
-                        "cupo":         0,
-                    }
-                    for s in gather_other_course_subjects(wb, target_sheet)
                 ]
                 append_to_catalog(ws, cat_info, entries)
         except Exception as e:

@@ -131,17 +131,28 @@ def _scan_table_bounds(ws, header_row: int, aliases_map, required, extra_min_mat
     """Devuelve (data_start, data_end) para una cabecera encontrada en header_row."""
     max_r   = ws.max_row
     max_c   = ws.max_column
+    cols_map = _match_header_row(ws, header_row, aliases_map, required, extra_min_matches, extras_pool) or {}
+    table_cols = [c for c in cols_map.values() if isinstance(c, int) and c > 0]
+    if table_cols:
+        col_min, col_max = min(table_cols), max(table_cols)
+    else:
+        col_min, col_max = 1, max_c
     data_start = header_row + 1
     data_end   = header_row
     rr = data_start
     while rr <= max_r:
-        if _row_is_empty_ws(ws, rr, max_c):
+        row_has_data_in_table = any(
+            (ws.cell(row=rr, column=c).value is not None)
+            and (not (isinstance(ws.cell(row=rr, column=c).value, str) and ws.cell(row=rr, column=c).value.strip() == ""))
+            for c in range(col_min, col_max + 1)
+        )
+        if not row_has_data_in_table:
             break
         if _match_header_row(ws, rr, aliases_map, required, extra_min_matches, extras_pool):
             break
         non_empty = [
             ws.cell(row=rr, column=c).value
-            for c in range(1, max_c + 1)
+            for c in range(col_min, col_max + 1)
             if ws.cell(row=rr, column=c).value not in (None, "")
         ]
         if len(non_empty) == 1:

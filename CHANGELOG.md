@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.2.5] - 2026-06-05
+
+### Fixed
+- **Erasmus IN table bounds are now detected from the real subject columns** instead of scanning the whole worksheet row. This avoids stopping too early or too late when there are side tables or sparse cells around the main catalogue and student rows.
+- **Statistics view now resolves the city column more robustly** when several similarly named columns exist. It picks the candidate with the most real values, so auxiliary columns no longer win over the main data column.
+
+### Removed
+- **Erasmus IN no longer auto-seeds cross-course subject suggestions** into the catalog with `matriculados=0` and `cupo=0`. The catalog insertion now stays limited to the subjects coming from the current student payload.
+
 ## [1.2.4] - 2026-06-03
 
 ### Fixed
@@ -189,7 +198,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Embedded Python 3.12 runtime bundled in installer for zero-dependency deployment.
 - SHA256 checksums published alongside each GitHub Release.
 
-[Unreleased]: https://github.com/MariaPicazoSanchez/TFG-MariaPicazoSanchez/compare/v1.2.4...HEAD
+[Unreleased]: https://github.com/MariaPicazoSanchez/TFG-MariaPicazoSanchez/compare/v1.2.5...HEAD
+[1.2.5]: https://github.com/MariaPicazoSanchez/TFG-MariaPicazoSanchez/compare/v1.2.4...v1.2.5
 [1.2.4]: https://github.com/MariaPicazoSanchez/TFG-MariaPicazoSanchez/compare/v1.2.3...v1.2.4
 [1.2.3]: https://github.com/MariaPicazoSanchez/TFG-MariaPicazoSanchez/compare/v1.2.2...v1.2.3
 [1.2.2]: https://github.com/MariaPicazoSanchez/TFG-MariaPicazoSanchez/compare/v1.2.1...v1.2.2
