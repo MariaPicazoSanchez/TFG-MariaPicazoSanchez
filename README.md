@@ -405,32 +405,58 @@ python -m streamlit run web_app/my_app.py
 
 ## 6. Testing
 
-The test suite covers the core domain logic and data processing utilities. Tests run without launching the Streamlit or Flask processes — all UI dependencies are mocked automatically.
+The test suite covers domain logic, data processing utilities, persistence helpers, and the Flask API. Tests run without launching the Streamlit or Flask processes — all UI dependencies are mocked automatically by `tests/conftest.py`.
 
-With the venv active:
+> **Important:** always run tests with the project venv, not the system Python. The venv contains all required dependencies (Flask, openpyxl, pandas, geopy…). Running with a different Python interpreter will cause import errors and incorrect coverage numbers.
+
+```powershell
+# Windows — activate venv first, then run tests
+.venv\Scripts\activate
+pytest
+```
 
 ```bash
-# Activate venv if not already active
-# Windows (cmd.exe or PowerShell)
-.venv\Scripts\activate
-
-# Windows (Git Bash)
-source .venv/Scripts/activate
-
-# macOS / Linux
-source .venv/bin/activate
-
-# Run tests
-pytest -v
+# Windows (Git Bash) / macOS / Linux
+source .venv/Scripts/activate   # Windows Git Bash
+# source .venv/bin/activate     # macOS / Linux
+pytest
 ```
+
+Or run directly with the venv interpreter without activating:
+
+```powershell
+# Windows (no activation needed)
+.venv\Scripts\python.exe -m pytest
+```
+
+Running `pytest` invokes the full suite with coverage reporting enabled (configured in `pytest.ini`). The output ends with a per-module coverage table and a `TOTAL` line.
 
 | Test file | Module under test | Tests |
 |:---|:---|:---:|
+| `tests/test_api.py` | `api/api.py` — Flask endpoints, token auth, materia parsing | 40 |
+| `tests/test_app_config.py` | `utils/app_config.py` — config loading and mtime | 21 |
 | `tests/test_converters.py` | `domain/_converters.py` — type converters and normalizers | 44 |
-| `tests/test_validators.py` | `domain/_validator_rules.py` — individual validator factories | 49 |
+| `tests/test_domain_validators.py` | `domain/validators.py` — validator composition | 54 |
+| `tests/test_excel_cells.py` | `persistence/_excel_cells.py` — cell helpers | 48 |
+| `tests/test_excel_tables.py` | `persistence/_excel_tables.py` — table helpers | 44 |
+| `tests/test_excel_update_helpers.py` | `persistence/excel_update.py` — update helpers | 12 |
+| `tests/test_file_opener.py` | `utils/file_opener.py` — file opening utilities | 11 |
+| `tests/test_loaders_common.py` | `persistence/loaders/_common.py` — coord parsing, clustering, normalization | 69 |
+| `tests/test_map_export.py` | `export/map_export.py` — student counting, export helpers | 22 |
+| `tests/test_map_filters.py` | `domain/map_filters.py` — map filter logic | 28 |
 | `tests/test_map_processing.py` | `utils/map_processing.py` — zoom bounds, LA filtering | 35 |
+| `tests/test_path_helpers.py` | `utils/path_helpers.py` — Windows path repair | 10 |
+| `tests/test_sheets_helpers.py` | `persistence/sheets_helpers.py` — sheet utilities | 26 |
+| `tests/test_stats_export.py` | `export/stats_export.py` — statistics export | 35 |
+| `tests/test_stats_filters.py` | `domain/stats_filters.py` — statistics filtering | 25 |
+| `tests/test_token_manager.py` | `security/token_manager.py` — API token generation | 5 |
+| `tests/test_validators.py` | `domain/_validator_rules.py` — individual validator factories | 49 |
 
-Tests also run automatically on every push and pull request to `main` via the **Tests** GitHub Actions workflow.
+**Coverage notes:**
+- `ui/` modules remain at 0% — Streamlit components require a running browser session and cannot be exercised with pytest.
+- Persistence modules that read/write real Excel files (`data_insert.py`, `excel_update.py`, loaders) have low coverage because they require valid `.xlsx` fixtures; only their pure helper functions are tested.
+
+Tests also run automatically on every push and pull request to `main` via the **Tests** GitHub Actions workflow (coverage report attached as a build artifact).
 
 ---
 
