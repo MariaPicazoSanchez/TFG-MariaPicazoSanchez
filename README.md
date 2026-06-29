@@ -246,20 +246,62 @@ Path resolution is handled by `utils/app_config.py`.
 
 **Prerequisites:** Python 3.12, pip.
 
+> ⚠️ This project requires **Python 3.12 exactly**. If you have Python 3.14+ installed, NumPy will fail to import. See [Installing Python 3.12](#installing-python-312) if needed.
+
+### Clone and navigate
+
 ```bash
 git clone https://github.com/MariaPicazoSanchez/TFG-MariaPicazoSanchez
 cd TFG-MariaPicazoSanchez
+```
 
+### Create virtual environment with Python 3.12
+
+```bash
+# Windows (cmd.exe or PowerShell)
 python -m venv .venv
 .venv\Scripts\activate
 
-pip install -r install_root/requirements.txt
+# Windows (Git Bash)
+python -m venv .venv
+source .venv/Scripts/activate
+
+# macOS / Linux
+python3.12 -m venv .venv
+source .venv/bin/activate
 ```
 
-For development (includes pytest):
+Verify the Python version:
 
 ```bash
-pip install -r requirements-dev.txt
+python --version
+# Output should be: Python 3.12.x
+```
+
+### Install dependencies
+
+```bash
+pip install -r install_root/requirements.txt
+pip install -r requirements-dev.txt  # for development
+```
+
+### Installing Python 3.12
+
+If Python 3.12 is not installed or not available in `PATH`:
+
+**Windows:**
+1. Download from [python.org/downloads](https://www.python.org/downloads/release/python-3122/) (or your preferred 3.12.x version)
+2. **During installation:** Check ☑ **Add Python 3.12 to PATH**
+3. Verify: `python --version`
+
+**macOS:**
+```bash
+brew install python@3.12
+```
+
+**Linux (Ubuntu/Debian):**
+```bash
+sudo apt update && sudo apt install python3.12 python3.12-venv
 ```
 
 ### Key dependencies
@@ -288,7 +330,11 @@ pip install -r requirements-dev.txt
 ### Offline wheelhouse
 
 ```bash
+# Windows (cmd.exe / PowerShell)
 py -3.12 -m pip download -r install_root/requirements.txt -d wheelhouse --only-binary=:all:
+
+# Windows (Git Bash) or other shells
+python -m pip download -r install_root/requirements.txt -d wheelhouse --only-binary=:all:
 ```
 
 > The `wheelhouse/` directory is excluded from version control via `.gitignore` and can be deleted after generating the installer.
@@ -299,8 +345,23 @@ py -3.12 -m pip download -r install_root/requirements.txt -d wheelhouse --only-b
 
 ### Development mode
 
+Activate the venv first (if not already active):
+
 ```bash
-py launcher_system.py --dev
+# Windows (cmd.exe or PowerShell)
+.venv\Scripts\activate
+
+# Windows (Git Bash)
+source .venv/Scripts/activate
+
+# macOS / Linux
+source .venv/bin/activate
+```
+
+Then launch:
+
+```bash
+python launcher_system.py --dev
 ```
 
 Uses the Python interpreter that is already active (no embedded runtime lookup), skips the single-instance lock and installation checks. Ports are assigned dynamically. Closing the browser tab shuts down both processes cleanly via the WebSocket signal.
@@ -308,8 +369,8 @@ Uses the Python interpreter that is already active (no embedded runtime lookup),
 ### Production / installer mode
 
 ```bash
-py launcher_system.py          # production
-py launcher_system.py --demo   # demo (uses sample data bundled by the installer)
+python launcher_system.py          # production
+python launcher_system.py --demo   # demo (uses sample data bundled by the installer)
 ```
 
 Resolves the embedded or system Python, acquires a single-instance lock, verifies dependencies, and starts the app. Used by the desktop installer shortcut.
@@ -321,7 +382,14 @@ Useful for debugging a single component in isolation:
 ```bash
 # Terminal 1 — Flask API
 cd install_root
+
+# Windows (cmd.exe / PowerShell)
 set APP_CONFIG_PATH=..\.config.json
+
+# Windows (Git Bash)
+export APP_CONFIG_PATH=../config.json
+
+# All platforms
 python api/api.py
 # → http://127.0.0.1:5000
 
@@ -339,9 +407,20 @@ python -m streamlit run web_app/my_app.py
 
 The test suite covers the core domain logic and data processing utilities. Tests run without launching the Streamlit or Flask processes — all UI dependencies are mocked automatically.
 
-With the venv active (see [4. Development Setup](#4-development-setup)):
+With the venv active:
 
 ```bash
+# Activate venv if not already active
+# Windows (cmd.exe or PowerShell)
+.venv\Scripts\activate
+
+# Windows (Git Bash)
+source .venv/Scripts/activate
+
+# macOS / Linux
+source .venv/bin/activate
+
+# Run tests
 pytest -v
 ```
 

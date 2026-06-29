@@ -1,15 +1,12 @@
 # Dependencias de desarrollo (no se incluyen en el instalador)
 # Instalar con: pip install -r requirements-dev.txt
 
-# Core de la app que usan los tests
-pandas==2.2.3
-openpyxl==3.1.5
-xlrd==2.0.2
-streamlit==1.47.1
-geopy==2.4.1
+# Core de la app (mismo conjunto que install_root/requirements.txt)
+-r install_root/requirements.txt
 
 # Testing
-pytest>=9.0
+pytest>=9.0,<10.0
+pytest-cov>=5.0,<7.0
 
 # Linting
-ruff>=0.4
+ruff>=0.4,<1.0
